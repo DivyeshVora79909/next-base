@@ -1,0 +1,478 @@
+{
+  "format": "next-base-c1-storage-batches-1",
+  "checkpoint": "C1.2",
+  "status": "accepted",
+  "parentCommit": "d984f022bba8e45e0686003dbb46ac7c5bec7112",
+  "inputs": [
+    {
+      "path": "src/storage.rs",
+      "sha256": "6771fa8c6c9b4925da19292eb5d5764a07b1c8cd0ed20064fbb83580cd005011",
+      "testedSha256": "9979257f538991510db0c29529ad2993db31107f76e1e620bc936e188d852bda"
+    },
+    {
+      "path": "src/storage/foundationdb.rs",
+      "sha256": "bc5636f9757d1ebc3484ec9cc72297be4c10a46497f0df7299be003e1b8d331a"
+    },
+    {
+      "path": "src/storage/conformance.rs",
+      "sha256": "48d2659561c8ef921df26d633f7a1bd9b8f2e3f2a37b74be30c5cebb07aa16bd"
+    }
+  ],
+  "contract": {
+    "api": "ReadView::batch_get and Table::batch_get",
+    "positions": "input order, repeated keys, misses and empty input retained",
+    "limits": "explicit max_keys, max_bytes and nonzero concurrency; bytes account repeated input key bytes and returned values, not strict heap/wire traffic",
+    "transaction": "same read/write view; protected reads, pending writes and table/range clears",
+    "diagnostics": "one facade get event with role batch; native binding get calls recorded separately",
+    "retry": "none"
+  },
+  "checks": {
+    "defaultBatchTests": {
+      "passed": 3,
+      "failed": 0,
+      "logSha256": "37d73c2b7eb473f6c37fc6c5e5e88b213cdffea855971a49dc2131d471dc8868"
+    },
+    "defaultStorageTests": {
+      "passed": 6,
+      "failed": 0,
+      "logSha256": "8e564cf0e91e98261cdc50686a1f3e6187f5d1c54a585bc12e8cd617e1830712"
+    },
+    "foundationdbBuild": {
+      "locked": true,
+      "logSha256": "e488bd2ebf33745a3790193c1a987a3963f10d8731159b73baf6f227f0c75f93"
+    },
+    "foundationdbClippy": {
+      "library": true,
+      "warningsDenied": true,
+      "logSha256": "2da7041c840ac5ec00efd444450009b0943a59171607e83c28ce2549f6b8909f"
+    },
+    "foundationdbConformance": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "result": {
+        "backend": "foundationdb",
+        "concurrency": "controlled optimistic interleavings; no automatic retry",
+        "conformance": {
+          "cases": [
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": true,
+              "expected_outcome": "committed",
+              "name": "atomic-publication-old-new-snapshots",
+              "predicate": "one snapshot across every table"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-1",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-2",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-3",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-4",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-5",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "abort-after-table-family-6",
+              "predicate": "all staged tables share commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "committed",
+              "name": "paged-staged-range-insert-replace-delete",
+              "predicate": "half-open ordered range with over 64 results and over 64 tombstones"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "aborted",
+              "name": "batch-write-overlay-and-range-clear",
+              "predicate": "ordered batches merge base values, puts, tombstones and recreated table clears"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "batch-existing-key-conflict",
+              "predicate": "batch-only protected present/absent point reads under concurrent commits"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "batch-absent-key-conflict",
+              "predicate": "batch-only protected present/absent point reads under concurrent commits"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "limited-page-protects-far-later-range-edit",
+              "predicate": "complete requested range remains protected after first lazy page"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "table-delete-protects-far-later-edit",
+              "predicate": "entire table prefix read conflict before range clear"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "both_committed",
+              "name": "disjoint-points-both-commit",
+              "predicate": "disjoint exact keys; fixed keys occupy different SurrealKV guard buckets"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "absent-key-uniqueness",
+              "predicate": "tracked exact absence"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "empty-range-insertion-phantom",
+              "predicate": "tracked empty half-open range"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "range-deletion-phantom",
+              "predicate": "tracked populated half-open range"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "root-invariant",
+              "predicate": "tracked business-root value, including unchanged staged guard"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "no-op-root-guard",
+              "predicate": "tracked business-root value, including unchanged staged guard"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "facade-put-protects-prior-value",
+              "predicate": "put tracks old value; native blind-write semantics are not assumed"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "reverse-discovery-reference-insertion",
+              "predicate": "tracked reverse-reference range before parent deletion"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "reference-target-deletion",
+              "predicate": "tracked exact target before reference creation"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_conflict",
+              "name": "write-authority-revocation",
+              "predicate": "tracked authority point through commit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "snapshot_allowed",
+              "name": "snapshot-authorized-read-after-revocation",
+              "predicate": "read snapshot retains its authority facts"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_limit",
+              "name": "encoded-key-limit-aborts-staged-receipt",
+              "predicate": "physical namespace/table/key bytes count toward key limit"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_limit",
+              "name": "value-limit-aborts-staged-receipt",
+              "predicate": "complete encoded value bytes"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_limit",
+              "name": "transaction-byte-limit-aborts-all-staged-writes",
+              "predicate": "coalesced writes plus native conflict ranges"
+            },
+            {
+              "complete_tables_checked": [
+                "conformance_data",
+                "conformance_index",
+                "conformance_receipts",
+                "conformance_roots",
+                "conformance_references",
+                "conformance_authority"
+              ],
+              "expected_attempt_receipt": false,
+              "expected_outcome": "transaction_limit",
+              "name": "native-conflict-range-byte-limit",
+              "predicate": "read values excluded; protected keys/ranges included by native estimate"
+            }
+          ],
+          "final_image_sha256": "a3e26979bdaf4d97c42ccbbaa3d1c1006cb266987c45914e92768e8098fbf056",
+          "final_rows": 133,
+          "optimistic_schedules": true,
+          "scope": "byte-boundary schedules; engine/application integration is checked separately",
+          "status": "passed",
+          "tables": [
+            "conformance_data",
+            "conformance_index",
+            "conformance_receipts",
+            "conformance_roots",
+            "conformance_references",
+            "conformance_authority"
+          ]
+        },
+        "namespace": "rebase-g7-conformance-222ed1a6-065e-41f5-8cbb-778245afdbf4",
+        "reopen": {
+          "image_sha256": "a3e26979bdaf4d97c42ccbbaa3d1c1006cb266987c45914e92768e8098fbf056",
+          "status": "passed"
+        },
+        "status": "passed"
+      }
+    },
+    "liveResultSha256": "a44d0971ee981649ada5e80ff253cbe780fa18eb6091d705b62bdcf839b7f5f0",
+    "nativeBinarySha256": "7cdcfdb7d88e81f6ea2e337f98216678aba9f24b7d7f9cda565f34f2447e53ae",
+    "review": "Separate read-only review checked positions, checked budgets, bounded concurrent gets, overlays, guarded absence, instrumentation and error handling.",
+    "postBuildFormatting": "Only rustfmt wrapping of the batch diagnostic test assertion changed after tests/build; tested and final source hashes are recorded where different."
+  },
+  "scope": "FoundationDB 7.3.77 one local process. No multi-host, latency or throughput acceptance. SurrealKV inherits fallback; no fresh SurrealKV campaign.",
+  "next": "C1.3 trusted generic rank traversal, then stop; C1.4 client-facing authorization/hydration/cursors remains pending."
+}

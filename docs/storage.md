@@ -51,6 +51,32 @@ Invoicing checking reconstructs pricing, tax reassessments, linked credits,
 payment/refund capacity and complete-time balance/claim histories from public
 sources before comparing private outputs and maintained trees.
 
+## Same-view batched point reads
+
+Trusted Rust callers can compose `Table::batch_get` with `BatchGetOptions`:
+`max_keys`, `max_bytes`, and nonzero `concurrency` are explicit per-call budgets.
+The returned vector follows input positions, including duplicates and missing
+values. An empty input returns an empty vector. Exceeding a budget returns
+`storage_limit` without a partial vector. Key bytes and returned value bytes count
+at every position; these are accounted logical bytes, not process heap or wire
+traffic. Key-count bounds also limit per-position allocation overhead.
+
+The table retains its original transaction/snapshot, including pending writes
+and clears for writable views. redb and standalone SurrealKV use the ordinary
+sequential fallback. FoundationDB issues bounded chunks of independent native
+get futures before awaiting completion, with protected reads in that same
+transaction. Native SDK buffers for one concurrent chunk can exceed the accepted
+byte budget before validation. A batch is not necessarily one network round trip.
+Diagnostic views record one facade `get` call with role `batch`, delegate batching
+and retain actual FoundationDB binding-call events. Facade counts describe API
+calls; binding counts describe native requests. No automatic retries or new public
+RPC are introduced by this primitive.
+
+The common conformance oracle covers ordered results, duplicate/missing positions,
+write overlays, table clears and protected present/absent read races. A live C1.2
+campaign used one FoundationDB 7.3.77 process on one host; it does not establish
+distributed throughput or latency. See [C1.2 evidence](checkpoints/c1-storage-batches.json).
+
 ## Receipt retention without unsafe retries
 
 Before constructing a mutation, call `session.describe {}` and retain its
@@ -118,7 +144,7 @@ operator function and has no network RPC counterpart.
 
 The last verified deployment bundle, 0.6.0, uses store format
 `rebase-store-4` and native codec `native-slice-kv-4`. Current source uses store
-format `rebase-store-10`, native codec `native-slice-kv-8`, effect codec
+format `rebase-store-10`, native codec `native-slice-kv-9`, effect codec
 `rebase-effects-4` and API 4; its store header, model identity and configured
 model limits must match. One store holds one selected
 compiled model.

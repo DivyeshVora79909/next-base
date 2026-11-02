@@ -1,5 +1,17 @@
 # Current checkpoint
 
+## C1.2 — Bounded same-view storage batches
+
+ReadView/Table batch_get preserves positions, duplicates, missing keys and native
+transaction visibility. Explicit max_keys/max_bytes/nonzero concurrency bound each
+call; FoundationDB issues protected native gets in concurrent chunks, while local
+adapters retain the ordinary fallback. Byte budgets describe accounted input/output,
+not strict heap or wire bounds. Diagnostic facade get events use role batch; native
+binding requests retain their own counts. See docs/storage.md and
+docs/checkpoints/c1-storage-batches.json for tests and the single-host FDB campaign.
+No public member API is added. Next is C1.3 trusted rank traversal, then STOP for
+the user's next flag. C1.4 public authorization/cursor integration remains pending.
+
 ## C1.1 — Checked structural size and count-only indexes
 
 The user authorized three implementation commits in this run, then an explicit

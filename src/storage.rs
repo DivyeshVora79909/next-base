@@ -117,9 +117,54 @@ pub struct TableSpec {
     pub value: ValueKind,
 }
 pub type Row = (Vec<u8>, Vec<u8>);
+/// Per-call work and allocation budget. Bytes include every input key and every
+/// returned value, including repeated positions. Backends may transiently receive
+/// one concurrent chunk before rejecting oversized results; no partial result escapes.
+#[derive(Clone, Copy, Debug)]
+pub struct BatchGetOptions {
+    pub max_keys: usize,
+    pub max_bytes: usize,
+    pub concurrency: std::num::NonZeroUsize,
+}
+impl BatchGetOptions {
+    pub(crate) fn validate(self, keys: &[&[u8]]) -> Result<usize> {
+        if keys.len() > self.max_keys {
+            return Err(StorageError::new(
+                "storage_limit",
+                "batch key budget exceeded",
+            ));
+        }
+        keys.iter()
+            .try_fold(0usize, |bytes, key| self.add_bytes(bytes, key.len()))
+    }
+    pub(crate) fn add_bytes(self, bytes: usize, extra: usize) -> Result<usize> {
+        bytes
+            .checked_add(extra)
+            .filter(|total| *total <= self.max_bytes)
+            .ok_or_else(|| StorageError::new("storage_limit", "batch byte budget exceeded"))
+    }
+}
+
 pub trait ReadView: Send {
     fn table_exists(&self, table: &TableSpec) -> Result<bool>;
     fn get(&self, table: &TableSpec, key: &[u8]) -> Result<Option<Vec<u8>>>;
+    /// Ordered same-view point reads: duplicates and misses retain their positions.
+    /// Errors return no partial batch. Write views preserve protected reads and overlays.
+    fn batch_get(
+        &self,
+        table: &TableSpec,
+        keys: &[&[u8]],
+        options: BatchGetOptions,
+    ) -> Result<Vec<Option<Vec<u8>>>> {
+        let mut bytes = options.validate(keys)?;
+        let mut values = Vec::with_capacity(keys.len());
+        for key in keys {
+            let value = self.get(table, key)?;
+            bytes = options.add_bytes(bytes, value.as_ref().map_or(0, Vec::len))?;
+            values.push(value);
+        }
+        Ok(values)
+    }
     fn scan(
         &self,
         table: &TableSpec,
@@ -435,6 +480,17 @@ impl<K, V: Value> ReadableTable<K, V> for Table<K, V> {
     }
 }
 impl<K, V: Value> Table<K, V> {
+    pub fn batch_get(
+        &self,
+        keys: &[&[u8]],
+        options: BatchGetOptions,
+    ) -> Result<Vec<Option<AccessGuard<V>>>> {
+        self.view
+            .read(|view| view.batch_get(&self.spec, keys, options))?
+            .into_iter()
+            .map(|value| value.map(AccessGuard::decode).transpose())
+            .collect()
+    }
     pub fn len(&self) -> Result<u64> {
         self.view.read(|view| view.len(&self.spec))
     }
@@ -651,6 +707,32 @@ macro_rules! diagnostic_read {
             fn get(&self, t: &TableSpec, k: &[u8]) -> Result<Option<Vec<u8>>> {
                 diagnostic_get(self.inner.as_ref(), &self.trace, t, k)
             }
+            fn batch_get(
+                &self,
+                t: &TableSpec,
+                keys: &[&[u8]],
+                options: BatchGetOptions,
+            ) -> Result<Vec<Option<Vec<u8>>>> {
+                // A facade read call may return several positions. Retain the
+                // established trace vocabulary/counters; role distinguishes it
+                // from a single point get without serializing the backend call.
+                let scope = self.trace.scope("facade", "get", "batch", None);
+                let result = self.inner.batch_get(t, keys, options);
+                match &result {
+                    Ok(values) => scope.finish(
+                        "success",
+                        values.iter().filter(|v| v.is_some()).count() as u64,
+                        keys.iter()
+                            .zip(values)
+                            .filter(|(_, v)| v.is_some())
+                            .map(|(k, _)| k.len() as u64)
+                            .sum(),
+                        values.iter().flatten().map(|v| v.len() as u64).sum(),
+                    ),
+                    Err(e) => scope.finish(crate::diagnostics::error_outcome(e), 0, 0, 0),
+                }
+                result
+            }
             fn scan(
                 &self,
                 t: &TableSpec,
@@ -815,6 +897,230 @@ mod diagnostic_tests {
         );
         assert!(read.open_table(DATA).unwrap().get(b"b").unwrap().is_none());
         drop(read);
+        drop(db);
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+    use std::{
+        num::NonZeroUsize,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+    fn options(keys: usize, bytes: usize) -> BatchGetOptions {
+        BatchGetOptions {
+            max_keys: keys,
+            max_bytes: bytes,
+            concurrency: NonZeroUsize::new(2).unwrap(),
+        }
+    }
+    struct Probe {
+        calls: AtomicUsize,
+        fail: bool,
+    }
+    impl ReadView for Probe {
+        fn table_exists(&self, _: &TableSpec) -> Result<bool> {
+            Ok(true)
+        }
+        fn get(&self, _: &TableSpec, key: &[u8]) -> Result<Option<Vec<u8>>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail && key == b"error" {
+                return Err(failure("injected"));
+            }
+            Ok((key != b"missing").then(|| key.to_vec()))
+        }
+        fn scan(
+            &self,
+            _: &TableSpec,
+            _: Bound<Vec<u8>>,
+            _: Bound<Vec<u8>>,
+            _: usize,
+        ) -> Result<Vec<Row>> {
+            unreachable!()
+        }
+        fn list_tables(&self) -> Result<Vec<String>> {
+            Ok(vec![])
+        }
+    }
+    #[test]
+    fn fallback_preserves_positions_and_rejects_work_before_gets() {
+        let probe = Probe {
+            calls: AtomicUsize::new(0),
+            fail: false,
+        };
+        let table = TableSpec {
+            name: "test".into(),
+            value: ValueKind::Bytes,
+        };
+        let keys: &[&[u8]] = &[b"b", b"missing", b"a", b"b"];
+        assert!(probe.batch_get(&table, keys, options(3, 100)).is_err());
+        assert!(probe.batch_get(&table, keys, options(4, 9)).is_err());
+        assert_eq!(probe.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            probe.batch_get(&table, keys, options(4, 13)).unwrap(),
+            vec![
+                Some(b"b".to_vec()),
+                None,
+                Some(b"a".to_vec()),
+                Some(b"b".to_vec())
+            ]
+        );
+        assert!(probe.batch_get(&table, keys, options(4, 12)).is_err());
+        assert!(
+            probe
+                .batch_get(&table, &[], options(0, 0))
+                .unwrap()
+                .is_empty()
+        );
+        let probe = Probe {
+            calls: AtomicUsize::new(0),
+            fail: true,
+        };
+        assert!(
+            probe
+                .batch_get(&table, &[b"a", b"error", b"b"], options(3, 100))
+                .is_err()
+        );
+        assert_eq!(probe.calls.load(Ordering::SeqCst), 2);
+    }
+    struct BatchOnly;
+    impl ReadView for BatchOnly {
+        fn table_exists(&self, _: &TableSpec) -> Result<bool> {
+            Ok(true)
+        }
+        fn get(&self, _: &TableSpec, _: &[u8]) -> Result<Option<Vec<u8>>> {
+            panic!("diagnostic wrapper serialized a batch")
+        }
+        fn batch_get(
+            &self,
+            _: &TableSpec,
+            keys: &[&[u8]],
+            options: BatchGetOptions,
+        ) -> Result<Vec<Option<Vec<u8>>>> {
+            options.validate(keys)?;
+            Ok(keys.iter().map(|_| None).collect())
+        }
+        fn scan(
+            &self,
+            _: &TableSpec,
+            _: Bound<Vec<u8>>,
+            _: Bound<Vec<u8>>,
+            _: usize,
+        ) -> Result<Vec<Row>> {
+            unreachable!()
+        }
+        fn list_tables(&self) -> Result<Vec<String>> {
+            Ok(vec![])
+        }
+    }
+    impl WriteView for BatchOnly {
+        fn create_table(&mut self, _: &TableSpec) -> Result<()> {
+            unreachable!()
+        }
+        fn delete_table(&mut self, _: &TableSpec) -> Result<bool> {
+            unreachable!()
+        }
+        fn put(&mut self, _: &TableSpec, _: &[u8], _: &[u8]) -> Result<Option<Vec<u8>>> {
+            unreachable!()
+        }
+        fn remove(&mut self, _: &TableSpec, _: &[u8]) -> Result<Option<Vec<u8>>> {
+            unreachable!()
+        }
+        fn commit(self: Box<Self>) -> Result<()> {
+            unreachable!()
+        }
+    }
+    #[test]
+    fn diagnostic_views_delegate_batch_override() {
+        let trace =
+            crate::diagnostics::Recorder::new("batch", "attempt", "redb", "native-tree", "control");
+        let table = TableSpec {
+            name: "batch".into(),
+            value: ValueKind::Bytes,
+        };
+        let read = DiagnosticRead {
+            inner: Box::new(BatchOnly),
+            trace: trace.clone(),
+        };
+        let write = DiagnosticWrite {
+            inner: Box::new(BatchOnly),
+            trace: trace.clone(),
+        };
+        assert_eq!(
+            read.batch_get(&table, &[b"x", b"x"], options(2, 2))
+                .unwrap(),
+            vec![None, None]
+        );
+        assert_eq!(
+            write.batch_get(&table, &[b"x"], options(1, 1)).unwrap(),
+            vec![None]
+        );
+        let report = trace.snapshot("success", 0, None);
+        assert_eq!(report.counters.facade_get, 2);
+        assert!(
+            report
+                .events
+                .iter()
+                .all(|e| e.operation == "get" && e.role == "batch")
+        );
+    }
+    #[test]
+    fn redb_batch_uses_snapshot_and_pending_write_view() {
+        const DATA: TableDefinition<&[u8], &[u8]> = TableDefinition::new("batch");
+        const NUMBERS: TableDefinition<&[u8], u16> = TableDefinition::new("numbers");
+        let path = std::env::temp_dir().join(format!("batch-{}.redb", uuid::Uuid::new_v4()));
+        let db = Database::create(&path).unwrap();
+        let write = db.begin_write().unwrap();
+        write
+            .open_table(DATA)
+            .unwrap()
+            .insert(b"a", b"old".as_slice())
+            .unwrap();
+        write.open_table(NUMBERS).unwrap().insert(b"n", 7).unwrap();
+        write.commit().unwrap();
+        let old = db.begin_read().unwrap();
+        let write = db.begin_write().unwrap();
+        let mut table = write.open_table(DATA).unwrap();
+        table.remove(b"a").unwrap();
+        table.insert(b"b", b"new".as_slice()).unwrap();
+        let keys: &[&[u8]] = &[b"b", b"a", b"b", b"missing"];
+        let actual = table.batch_get(keys, options(4, 100)).unwrap();
+        assert_eq!(
+            actual
+                .iter()
+                .map(|v| v.as_ref().map(|v| v.value()))
+                .collect::<Vec<_>>(),
+            vec![Some(b"new".as_slice()), None, Some(b"new".as_slice()), None]
+        );
+        drop(actual);
+        drop(table);
+        write.commit().unwrap();
+        let table = old.open_table(DATA).unwrap();
+        let actual = table
+            .batch_get(&[b"a", b"b", b"a"], options(3, 100))
+            .unwrap();
+        assert_eq!(
+            actual
+                .iter()
+                .map(|v| v.as_ref().map(|v| v.value()))
+                .collect::<Vec<_>>(),
+            vec![Some(b"old".as_slice()), None, Some(b"old".as_slice())]
+        );
+        assert_eq!(
+            old.open_table(NUMBERS)
+                .unwrap()
+                .batch_get(&[b"n", b"x"], options(2, 10))
+                .unwrap()[0]
+                .as_ref()
+                .unwrap()
+                .value(),
+            7
+        );
+        drop(actual);
+        drop(table);
+        drop(old);
         drop(db);
         std::fs::remove_file(path).unwrap();
     }

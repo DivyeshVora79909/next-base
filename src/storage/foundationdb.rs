@@ -6,7 +6,8 @@
 //! cannot safely be replayed here.
 
 use super::{
-    Backend, Limits, ReadView, Result, Row, StorageError, TableSpec, ValueKind, WriteView,
+    Backend, BatchGetOptions, Limits, ReadView, Result, Row, StorageError, TableSpec, ValueKind,
+    WriteView,
 };
 use crate::diagnostics::{Recorder, Scope, error_outcome};
 use foundationdb::{
@@ -281,6 +282,69 @@ fn fetch(
     finish_read(scope, &result, key.len());
     result
 }
+// All native gets in a chunk are issued before any is awaited. Futures share
+// this transaction/read version and use protected (non-snapshot) reads. The byte
+// budget bounds accepted logical input/output, not network traffic or transient
+// native responses: one finite concurrent chunk can exceed it before validation.
+fn batch_fetch(
+    trx: &Transaction,
+    prefix: &[u8],
+    table: &TableSpec,
+    keys: &[&[u8]],
+    options: BatchGetOptions,
+    diagnostic: (Option<&Recorder>, Option<u64>),
+    overlay: impl Fn(&[u8]) -> Option<Option<Vec<u8>>>,
+) -> Result<Vec<Option<Vec<u8>>>> {
+    let mut bytes = options.validate(keys)?;
+    let (trace, control) = diagnostic;
+    let mut values = Vec::with_capacity(keys.len());
+    for chunk in keys.chunks(options.concurrency.get()) {
+        // Key encoding is checked before issuing this chunk's requests.
+        let full = chunk
+            .iter()
+            .map(|key| data_key(prefix, &table.name, key))
+            .collect::<Result<Vec<_>>>()?;
+        let pending = full
+            .iter()
+            .map(|key| {
+                if let Some(value) = overlay(key) {
+                    (Some(value), None)
+                } else {
+                    let scope = trace.map(|trace| trace.scope("binding", "get", "data", None));
+                    if let Some(scope) = &scope {
+                        scope.control(control);
+                    }
+                    (None, Some((trx.get(key, false), scope)))
+                }
+            })
+            .collect::<Vec<_>>();
+        // Drain issued requests even on failure, retaining accurate binding counts.
+        let results = block_on(futures::future::join_all(
+            pending
+                .into_iter()
+                .zip(&full)
+                .map(|((value, request), key)| async move {
+                    if let Some((future, scope)) = request {
+                        let result = future
+                            .await
+                            .map(|v| v.map(|b| b.as_ref().to_vec()))
+                            .map_err(|e| fdb_error(e, "storage"));
+                        finish_read(scope, &result, key.len());
+                        result
+                    } else {
+                        Ok(value.expect("overlay position"))
+                    }
+                }),
+        ));
+        for result in results {
+            let value = result?;
+            bytes = options.add_bytes(bytes, value.as_ref().map_or(0, Vec::len))?;
+            values.push(value);
+        }
+    }
+    Ok(values)
+}
+
 fn catalog_exists(
     trx: &Transaction,
     prefix: &[u8],
@@ -473,6 +537,31 @@ impl ReadView for FdbRead {
             self.trace.as_ref(),
             "data",
             control,
+        )
+    }
+    fn batch_get(
+        &self,
+        table: &TableSpec,
+        keys: &[&[u8]],
+        options: BatchGetOptions,
+    ) -> Result<Vec<Option<Vec<u8>>>> {
+        options.validate(keys)?;
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (exists, control) =
+            catalog_exists(&self.trx, &self.prefix, table, self.trace.as_ref(), true)?;
+        if !exists {
+            return Err(fail("storage", format!("missing table {}", table.name)));
+        }
+        batch_fetch(
+            &self.trx,
+            &self.prefix,
+            table,
+            keys,
+            options,
+            (self.trace.as_ref(), control),
+            |_| None,
         )
     }
     fn scan(
@@ -689,6 +778,30 @@ impl ReadView for FdbWrite {
             self.trace.as_ref(),
             "data",
             control,
+        )
+    }
+    fn batch_get(
+        &self,
+        table: &TableSpec,
+        keys: &[&[u8]],
+        options: BatchGetOptions,
+    ) -> Result<Vec<Option<Vec<u8>>>> {
+        options.validate(keys)?;
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (exists, control) = self.exists_control(table)?;
+        if !exists {
+            return Err(fail("storage", format!("missing table {}", table.name)));
+        }
+        batch_fetch(
+            &self.trx,
+            &self.prefix,
+            table,
+            keys,
+            options,
+            (self.trace.as_ref(), control),
+            |key| self.read_overlay(key),
         )
     }
     fn scan(

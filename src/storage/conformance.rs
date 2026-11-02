@@ -70,10 +70,81 @@ fn image(read: &ReadTransaction) -> Result<Image> {
     Ok(image)
 }
 fn verify(db: &Database, expected: &Image, case: &str) -> Result<()> {
-    let observed = image(&db.begin_read()?)?;
+    let read = db.begin_read()?;
+    let observed = image(&read)?;
+    // Independent image oracle exercises ordered known-ID hydration on each
+    // backend, including repeated positions and a provably absent key.
+    for definition in TABLES {
+        let rows = &expected[definition.name()];
+        let mut absent = b"batch/absent".to_vec();
+        while rows.contains_key(&absent) {
+            absent.push(0);
+        }
+        let mut keys = rows.keys().rev().map(Vec::as_slice).collect::<Vec<_>>();
+        keys.push(&absent);
+        if let Some(first) = rows.keys().next() {
+            keys.push(first);
+        }
+        let bytes = keys
+            .iter()
+            .map(|key| key.len() + rows.get(*key).map_or(0, Vec::len))
+            .sum();
+        let options = super::BatchGetOptions {
+            max_keys: keys.len(),
+            max_bytes: bytes,
+            concurrency: std::num::NonZeroUsize::new(3).expect("nonzero"),
+        };
+        let actual = read
+            .open_table(definition)?
+            .batch_get(&keys, options)?
+            .into_iter()
+            .map(|value| value.map(|v| v.value().to_vec()))
+            .collect::<Vec<_>>();
+        let wanted = keys
+            .iter()
+            .map(|key| rows.get(*key).cloned())
+            .collect::<Vec<_>>();
+        check(
+            actual == wanted,
+            format!("batch positions differ after {case}"),
+        )?;
+    }
     check(
         &observed == expected,
         format!("complete table image differs after {case}"),
+    )
+}
+fn verify_write_batch(
+    write: &WriteTransaction,
+    table: Definition,
+    keys: &[&[u8]],
+    expected: &Image,
+) -> Result<()> {
+    let rows = &expected[table.name()];
+    let bytes = keys
+        .iter()
+        .map(|key| key.len() + rows.get(*key).map_or(0, Vec::len))
+        .sum();
+    let actual = write
+        .open_table(table)?
+        .batch_get(
+            keys,
+            super::BatchGetOptions {
+                max_keys: keys.len(),
+                max_bytes: bytes,
+                concurrency: std::num::NonZeroUsize::new(2).expect("nonzero"),
+            },
+        )?
+        .into_iter()
+        .map(|v| v.map(|v| v.value().to_vec()))
+        .collect::<Vec<_>>();
+    check(
+        actual
+            == keys
+                .iter()
+                .map(|key| rows.get(*key).cloned())
+                .collect::<Vec<_>>(),
+        "write batch differs from source oracle",
     )
 }
 fn record(cases: &mut Vec<Value>, name: &str, predicate: &str, outcome: &str, receipt: bool) {
@@ -412,6 +483,18 @@ pub fn run(db: &Database, optimistic: bool) -> Result<Value> {
                 .map(|key| crate::native_codec::hex(key))
         ),
     )?;
+    verify_write_batch(
+        &write,
+        DATA,
+        &[
+            b"page/000",
+            b"page/075",
+            b"page/000a",
+            b"record",
+            b"page/075",
+        ],
+        &expected,
+    )?;
     write.commit()?;
     verify(db, &expected, "range overlay commit")?;
     record(
@@ -422,7 +505,71 @@ pub fn run(db: &Database, optimistic: bool) -> Result<Value> {
         false,
     );
 
+    // A range clear must hide committed base rows while preserving later inserts.
+    // Abort this attempt so the shared oracle remains unchanged.
+    let cleared = db.begin_write()?;
+    check(cleared.delete_table(DATA)?, "batch clear setup")?;
+    cleared.open_table(DATA)?;
+    put(&cleared, DATA, b"batch/recreated", b"overlay")?;
+    let mut cleared_image = expected.clone();
+    cleared_image.insert(DATA.name().into(), BTreeMap::new());
+    expected_put(&mut cleared_image, DATA, b"batch/recreated", b"overlay");
+    verify_write_batch(
+        &cleared,
+        DATA,
+        &[
+            b"record",
+            b"batch/recreated",
+            b"missing",
+            b"batch/recreated",
+        ],
+        &cleared_image,
+    )?;
+    drop(cleared);
+    verify(db, &expected, "aborted batch range clear")?;
+    record(
+        &mut cases,
+        "batch-write-overlay-and-range-clear",
+        "ordered batches merge base values, puts, tombstones and recreated table clears",
+        "aborted",
+        false,
+    );
+
     if optimistic {
+        for (name, raced_key) in [
+            ("batch-existing-key-conflict", b"record".as_slice()),
+            (
+                "batch-absent-key-conflict",
+                b"batch/protected-absent".as_slice(),
+            ),
+        ] {
+            let stale = db.begin_write()?;
+            // No individual get or put guards the raced keys in this attempt.
+            verify_write_batch(
+                &stale,
+                DATA,
+                &[b"record", b"batch/protected-absent", b"record"],
+                &expected,
+            )?;
+            commit_winner(
+                db,
+                &mut expected,
+                DATA,
+                raced_key,
+                Some(b"batch-winner"),
+                &format!("{name}-winner"),
+            )?;
+            stage_stale(&stale, &format!("{name}-loser"))?;
+            conflict(stale, name)?;
+            verify(db, &expected, name)?;
+            record(
+                &mut cases,
+                name,
+                "batch-only protected present/absent point reads under concurrent commits",
+                "transaction_conflict",
+                false,
+            );
+        }
         let stale = db.begin_write()?;
         {
             let table = stale.open_table(DATA)?;
@@ -766,7 +913,8 @@ pub fn run(db: &Database, optimistic: bool) -> Result<Value> {
 /// Fingerprint for reopening controls. Uses the same complete six-table image
 /// serialization as `run`, with no database-specific physical bytes.
 pub fn fingerprint(db: &Database) -> Result<String> {
-    let observed = image(&db.begin_read()?)?;
+    let read = db.begin_read()?;
+    let observed = image(&read)?;
     let bytes = serde_json::to_vec(
         &observed
             .iter()
