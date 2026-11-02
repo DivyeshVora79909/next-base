@@ -1,0 +1,117 @@
+{
+  "format": "next-base-index-mathematics-review-1",
+  "status": "M0 accepted: planning and bounded mathematical witnesses only; no runtime feature acceptance",
+  "sourceCommit": "9800d3f5f4b2ecd501dd9164271c5ff9e86f5fa7",
+  "implementationBaseline": {
+    "unchangedImportedInputs": 181,
+    "provenance": "PROVENANCE.json",
+    "productionSourceDependenciesModelsAndExistingTestsUnchanged": true
+  },
+  "reviewedDocuments": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "ac04b033b69458fa3bdb97af5c2739f5c1ff8cb617e291463ca99567320f20f1"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "e788dd513a79adea9c12e87079316325ebe12d4468e72341a33e248e319709c9"
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "be5ae1f414ee7c4fce6a95572bf449feb517579ff65d103913e0856a349d593d"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "sha256": "6d6f05c13942a2fdaf09c18965d2b4f7f6ed511f58feb6f59da40a7f48df5eb2"
+    },
+    {
+      "path": "docs/server-execution.md",
+      "sha256": "a895f7917cdb6347ae127e076367b554e0deba9ced8cb734bff5cd9aa6d172b0"
+    },
+    {
+      "path": "docs/index-mathematics.md",
+      "sha256": "4367105fefdeeb2928120a80e6bcaf9a397b0c21a6181e831b829258086b75aa"
+    },
+    {
+      "path": "docs/rate-admission.md",
+      "sha256": "449aa0d051a6fc7fe1b61773854011a4d42e39709b6bf6672b9f1854e47d5bd7"
+    }
+  ],
+  "sourceReviewed": [
+    {
+      "path": "src/index.rs",
+      "sha256": "506dcb7c1f8d3c0a939ed04744e9be416c06e73e28717d6b7837db6fd770a693"
+    },
+    {
+      "path": "src/tree.rs",
+      "sha256": "fbd413f710e5c4c5e4c0a4cbd751de05711f63bc0041ecad9abce1b90517de9c"
+    },
+    {
+      "path": "src/algebra.rs",
+      "sha256": "1bd126f1f86f7ce5450fa46cbb1a382fd848a85807d433d9c1f095128720f730"
+    },
+    {
+      "path": "src/routes.rs",
+      "sha256": "ad9a4c59f4b951a5af472596c9a956df6086793e67973dc4b0f7e191d744b8a6"
+    },
+    {
+      "path": "src/dependency.rs",
+      "sha256": "e80c497cd43aef1a31d494503fb708987bf27ebe6875773206cb0b3311e2ced4"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "4c09fcf38f7873d3ad284e1f9792b54878ab15ccadaff8d358c028d073a1045b"
+    },
+    {
+      "path": "src/effects/worker.rs",
+      "sha256": "f3f80ef7691a0f85edf04205c95e438f0542d0ee13bb735133dc64cb88dc96ec"
+    }
+  ],
+  "checks": {
+    "relativeDocumentationLinks": 46,
+    "rust": {
+      "command": "cargo test --test mathematical_contracts --locked --offline",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "testSource": "tests/mathematical_contracts.rs",
+      "testSourceSha256": "986fdc2eb90871893e2b471f16eb07791c4ccbb348f989fb87df030b52d1b817",
+      "logSha256": "52a73c2b3f4c7b4151ac2aed66fb1250f35e41c0ae50885636abecedce5572ac",
+      "scope": "Financial summary regrouping against independent source oracle; weighted projection; order/ties; checked arithmetic; point/endpoint fixed-window equivalence. No production limiter or worker concurrency established."
+    },
+    "formatting": "Pinned Rust 1.95 cargo-fmt fmt --all -- --check passed",
+    "whitespace": "git diff --check passed",
+    "independentReview": "Mathematics/index, rate admission, and extension/coverage reviews. Policy transition, stale witness wording and current-checkpoint wording corrected.",
+    "baselineCampaignsRerun": false,
+    "liveProviderTestsRun": false,
+    "distributedBackendTestsRun": false
+  },
+  "selectedTargets": [
+    "structural size independent of business summary and count-only indexes",
+    "explicit tenant/created and tenant/reader/created resource opt-in",
+    "arbitrary declared total orders and multiple stable participation slots",
+    "one EmailSend contract with independent Resend and Brevo bindings"
+  ],
+  "explicitGaps": [
+    "time-specific public Query and reverse subscription cuts need C3 generalization",
+    "current interval stabbing has no established universal output-sensitive complexity bound",
+    "global index root/transaction namespaces and created metadata are planned",
+    "generic rate admission, policy transitions and dispatch/clock integration remain unimplemented"
+  ],
+  "handoff": {
+    "readyFor": "C1 bounded reader and structural-count implementation under roadmap acceptance",
+    "nextAgentReads": [
+      "AGENTS.md",
+      "CONTEXT.md",
+      "docs/roadmap.md",
+      "docs/index-mathematics.md"
+    ],
+    "semanticQuestionsBlockingC1": [],
+    "laterContracts": [
+      "E1 exact secret ingress, credential authority and key custody",
+      "C3 one-store global timeline domain; federation requires separate design",
+      "R0 provider quota accounting, physical timing assumptions and policy-transition rules"
+    ],
+    "stop": "One checkpoint only. User will authorize an implementation agent; this planning agent stops and later reviews pulled changes."
+  }
+}

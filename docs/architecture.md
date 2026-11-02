@@ -58,6 +58,9 @@ must be declared and transactionally guarded. Reader choice requires an explicit
 [`tree.rs`](../src/tree.rs) maintains individually stored AVL nodes, parent/child and prev/next
 links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 [`indexes/standard.rs`](../src/indexes/standard.rs) define the typed family contracts.
+The [mathematical contract](index-mathematics.md) separates arbitrary key order,
+structural count, business summaries and quantified validators. Universal structural
+count/count-only indexing is selected for C1; current counts are family-specific.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
@@ -65,12 +68,13 @@ The count-pruned, batched BFS reader is verified scratch research, not integrate
 C1 must preserve same-transaction visibility, authorization, ordering and continuation semantics.
 [Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
 
-No proposed chronological analytics indexes are implemented. Add zero or more only for measured
-queries: owner-time and tenant-time have different access paths. Created time is immutable
-ingestion chronology; effective time is mutable business chronology. Each ordering needs stable
-identity ties. Each added membership increases index maintenance; unchanged payload edits need
-not touch an index whose key, leaf and dependencies are unchanged. Prefer tenant/owner roots
-where their query scope fits; tenant prefixes inside one global root do not avoid hot ancestors.
+The planned shared indexes are tenant/created and tenant/reader/created, explicitly
+opted into per resource, with stable resource/ID/slot ties. They are not yet implemented.
+Each resource may also declare multiple domain indexes with time or non-time keys,
+business summaries and optional invariants. Created and effective time differ.
+Each added membership increases maintenance; unchanged projections need not be rewritten.
+Root partitioning and global ordering must be explicit; a tenant prefix alone does not
+avoid hot ancestors. Raw count/rank does not prove authorized filtered count/rank.
 Avoid a universal hot counter. Optional live invalidations would publish through a durable outbox
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
@@ -78,3 +82,6 @@ Existing write contention also needs measurement: settlement reads the store-wid
 key and writes it when counts/reservations change; public edits update reader/contract epochs.
 These can couple independent AVL trees. C3 must distinguish these guards from tree-root work
 and preserve required business constraints while evaluating finer operational coordination.
+Generic ordered reads already exist, but public root ranges and reverse subscriber
+routes still use TimeRange/TimeBound. Generic non-time range reactivity is a C3
+contract/implementation gap, not automatically supplied by Key: Ord.

@@ -9,7 +9,7 @@ Read with [external effects](external-effects.md), [architecture](architecture.m
 | Capability | Current native implementation | Planned boundary |
 | --- | --- | --- |
 | HTTP/runtime | Axum, Tokio, bounded blocking RPC, owned shutdown | Retain admission and recovery guarantees |
-| Provider action | One optional compiled action per model; loopback fake only | Explicit typed versioned operation bindings |
+| Provider action | One optional compiled action per model; loopback fake only | One typed logical email operation with independent Resend and Brevo adapters |
 | Credentials | Principal `credential_epoch`; fixed fake account; signed inbox file secret | Typed encrypted provider credential records |
 | Execution | Transactional intent, receipts, leases, facts, application | Reuse for composed durable jobs |
 | Scheduling | One-shot `execute_at` / `not_after` | Optional recurring occurrence materializer |
@@ -89,13 +89,13 @@ Platform credentials may be hidden root records resolved by a fixed trusted bind
 BYOC accepts an explicit typed credential reference under current owner/delegate
 use authorization. An ID is not authority; neither pattern relaxes cross-tenant FK checks.
 
-Operations such as `send_email_v1` and `send_email_v2` have explicit strict schemas,
-handler identities and behavior versions. Developers opt into v2 deliberately.
-Version the operation contract, not every provider documentation edit. Compatible
-normalization fixes may retain identity; changed schemas, meaning or retry safety need a new version.
-Persist operation version, canonical request/hash, account and credential binding.
-Old v1 jobs require the old handler/schema or become visibly blocked; no implicit
-compatibility mapping or reinterpretation under v2. Retain required decoders too.
+Use one `EmailSend` operation contract with a strict typed request and explicit
+Resend or Brevo adapter binding. Each accepted job pins its operation semantics,
+canonical request/hash, provider, account, credential binding and required payload
+decoder. Retries, failover, restore and credential rotation cannot redirect an
+accepted job to another provider or reinterpret its request. Semantic or format
+changes that affect stored jobs require an explicit identity change and retained
+decoder; no public v1/v2 operation pair or general compatibility framework is required.
 Credential rotation may select a new secret for the same logical account under an
 explicit policy, but cannot switch account or mutate an ambiguously sent request.
 Current revocation and credential-use authority still govern dispatch of old jobs.
@@ -191,9 +191,11 @@ E0 does not claim these feature-specific schemas or library choices are finalize
   cannot leak secrets; fixed platform/BYOC bindings enforce current use permission.
   Cover secret-safe saved plans, revocation, encryption/AAD/key rotation, constrained
   grants and restore custody; unauthorized calls must load zero secrets and send zero requests.
-- E2 — Versioned jobs: fake v1 and v2 coexist with pinned old jobs; missing v1 blocks.
-  Prove current revocation, unknown start ACK confirmation, unknown provider outcomes,
-  CURRENT-submit-only retry, lease fences and blocked-application recovery.
+- E2 — Durable jobs: prove both Resend and Brevo bindings use the same worker protocol
+  with independent fake adapters; jobs remain pinned to their accepted provider and
+  account through retry/recovery. Prove current revocation, unknown start ACK
+  confirmation, unknown provider outcomes, CURRENT-submit-only retry, lease fences
+  and blocked-application recovery. This is fake protocol evidence, not live delivery.
 - E3 — Objects: fake adapter covers begin/finalize/delete partial failure, checksum
   rejection, stale cleanup, late upload grants and replacement protection. Include
   multipart recovery and paginated 1001-version/delete-marker cleanup.

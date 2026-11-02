@@ -1,12 +1,40 @@
 # Current checkpoint
 
+## M0 — Index mathematics and rate contracts, planning plus bounded witnesses
+
+The user's latest steering keeps this pass in planning mode and stops after one
+checkpoint. Another agent will implement after the user gives it the execution
+flag; do not continue runtime checkpoints in this conversation automatically.
+Read docs/index-mathematics.md, docs/rate-admission.md and docs/roadmap.md.
+Seven focused Rust witnesses exercise actual financial algebra and independent
+window/source oracles. Their bounded scope is not production quota acceptance.
+Results and reviewed identities are in docs/checkpoints/m0-index-contract.json.
+No production source, API, schema, dependency or codec changed.
+
+Selected targets: structural count independent of business summaries; count-only
+indexes; explicitly opted-in tenant/created and tenant/reader/created definitions;
+multiple arbitrary total orders and declared memberships. Current generic Key: Ord
+does not generalize time-specific Query/routing subscriptions. C3 must address it.
+Associativity permits regrouping; commutativity permits reordering. Linear totals
+allow arbitrary declared exact coefficients, but validation is not a solver.
+Online rate admission needs one point; fixed-window all-history maxima can instead
+use two derived endpoints and complete-group prefix maximum. Both need protected
+dispatch integration. Tree events alone do not wake clock-dependent queries.
+
+For C1 the selected transaction domain is one store/prepared model, with explicit
+budgets and independent source-derived tests. No unresolved product choice blocks
+that slice. Cross-store global timelines require a separate contract, not an
+assumption that identical tenant IDs give cross-store atomic indexes.
+
 ## E0 — Server execution contracts, planning only
 
-The user's latest steering keeps this pass in planning mode. Read
-docs/server-execution.md for the current/absent capability matrix, ordinary Rust
-composition, secret-safe credential records, grants, versioned jobs, object
-lifecycle and optional recurrence. E1–E5 have acceptance witnesses and dependencies
-in docs/roadmap.md. No server capability, API, schema, dependency or codec changed.
+Read docs/server-execution.md for current/absent capabilities, ordinary Rust
+composition, secret-safe credential records, grants, durable jobs, object lifecycle
+and optional recurrence. E1–E5 have acceptance witnesses in docs/roadmap.md.
+Prove one EmailSend contract with independent Resend and Brevo adapters; mandatory
+public v1/v2 APIs are not selected. Accepted jobs retain their provider/account,
+canonical request, semantic identity and required decoder through recovery.
+Historical E0 evidence remains bound to the original E0 source.
 
 Preserve the existing intent/start-marker/fence/fact/application machinery.
 Async functions are not durable jobs; client-callable entries are explicitly
@@ -48,11 +76,11 @@ Optional adapter campaigns were not rerun; no new scale/deployment claim.
 ## Next: C1 — Bounded count-pruned batch reader
 
 Research has checked prototypes; production readers are synchronous and public
-UUID paging is separate. Add bounded batch fetch, family count capabilities and
-authorized root/rank traversal under one transaction. Preserve query meaning,
+UUID paging is separate. Add bounded batch fetch, checked structural counts and
+count-only indexing, and authorized root/rank traversal under one transaction. Preserve query meaning,
 ordering, continuation, work/byte limits and original receipt semantics.
 
-No owner-time or tenant-created indexes exist. Created and effective differ;
+No shared tenant/reader/created or tenant/created indexes exist. Created and effective differ;
 generic created-at metadata is not yet a query primitive. Measure Population-key,
 reader/contract-epoch and AVL-root contention before adding analytics indexes.
 Typed references exist; generic 1:1 uniqueness and declarative adaptive
@@ -63,6 +91,7 @@ durable log, partitioned replay, scope revalidation and backpressure. TiKV,
 frontend and live providers remain optional. User-reported three-node cloud
 results were not independently measured here.
 
-Continue authorized checkpoints after their acceptance obligations pass. Keep
+When the next implementation agent is authorized, continue checkpoints after
+their acceptance obligations pass. Keep
 semantic/format identity changes explicit and avoid duplicate schemas/DSLs,
 unused frameworks, universal hot counters or mandatory solver dependencies.

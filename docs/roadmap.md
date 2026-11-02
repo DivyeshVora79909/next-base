@@ -5,7 +5,10 @@ Historical accepted N/S0 evidence stays unchanged; it does not choose a differen
 Plan and bootstrap work proceeds now. Checkpoints can continue automatically when their stated
 obligations pass; unresolved semantic choices or failed evidence must be reported explicitly.
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
-The current server-extension checkpoint is planning-only. The
+The current M0 mathematical/index contract checkpoint is planning-only with bounded
+algebra witnesses. Stop after this one checkpoint at the user's budget boundary.
+The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
+separate mathematical representability from implemented capability. The
 [E0–E5 service plan](server-execution.md) adds contracts and acceptance witnesses;
 it does not declare credentials, object storage or recurrence implemented.
 
@@ -25,10 +28,11 @@ A copied historical result is provenance, not a test of changed code.
 
 Introduce only the adapter batch-get capability justified by the reader; cap concurrency,
 bytes and work. Use one native transaction/read version for root, nodes and hydrated records.
-Counts must be validated against the selected family and occurrence semantics. Implement
-count-pruned frontier traversal with explicit continuation and budget exhaustion behavior.
-Preserve existing UUID-page query meaning; register a root/rank path only for index families
-with the required count capability. A batch operation may fall back to sequential local gets;
+Add checked structural subtree/root size independent of the business summary, including a
+count-only index. Independently reconstruct counts after CRUD/rotations; distinguish occurrences
+from distinct records. Update persisted identities explicitly, without implicit old-store defaults.
+Implement count-pruned traversal with continuation and budget exhaustion behavior. Preserve
+existing UUID-page meaning and optional family query capabilities. Local batch-get may be sequential;
 the distributed adapter must actually issue independent requests before awaiting completion.
 Define raw membership rank versus visible result rank. Permission to read a root summary
 does not grant access to every member or private output; preserve per-record disclosure checks.
@@ -54,19 +58,35 @@ reference targets, incomparable readers and full rollback on invariant failure.
 Reuse [`src/mutation.rs`](../src/mutation.rs), [`src/dependency.rs`](../src/dependency.rs),
 [`src/publication_tests.rs`](../src/publication_tests.rs) and authority tests as starting witnesses.
 
-## C3 — Optional authorized chronological query indexes
+## C3 — Explicit global and domain indexes
 
 First measure current Population-key, reader/contract-epoch and AVL-root contention separately.
 Existing independent-tree writes are not automatically independent transactions. Refine only
 operational coordination that can be split without weakening exact business invariants.
 Preserve query-change detection and authority fences when evaluating epoch alternatives.
-Declare query shape and scope before choosing an index. Owner/effective-time, owner/created-time
-and tenant/created-time are distinct needs; zero added indexes is a valid decision.
-Specify stable ties, root partitioning, reader filtering and exact range/continuation semantics.
+Implement the selected shared tenant/created and tenant/reader/created definitions with explicit
+per-resource opt-in, stable ties, root scope and created metadata. Multiple domain indexes may
+order by effective time, created time, distance or another declared total order with independent
+summaries/validators. Define principal-root namespaces and transaction-domain boundaries.
+Generalize non-time range query/dependency cuts deliberately: current subscriber routes are
+time-specific. Preserve final-graph causality, exact boundaries, old/new route repair and field
+identity across indexes. Test numeric/string/composite bounds without timestamp coercion.
+Use one ordered root where sufficient; bounded k-way merge is for multiple sorted reader/resource
+streams. Specify snapshot, disclosure, cursor and filter semantics before promising global rank.
 Acceptance: independent scan oracle matches results under rekeys, deletion and authorization
 changes; payload-only updates avoid unchanged index writes where semantics permit.
 Measure bytes, changed memberships, hot ancestors and conflicts for tenant/owner root alternatives.
 Do not add a shared global count/root solely for convenience or claim filtered counts from raw rank.
+Shared analytics roots are selected intentionally; measure their unavoidable write coordination.
+
+## R0 — Declarative rate admission, after its scoped contract is selected
+
+Use [rate admission](rate-admission.md) to choose point-count online admission or fixed-window
+endpoint/prefix-max validation. Neither is inferred from the presence of interval stabbing.
+Reuse the existing root write guard where it supplies coordination. Accept only after racing
+workers, unknown start ACK, quota accounting, clock-only expiry, ties and delayed/backdated
+cases pass independent checks. Integrate admission with the existing dispatch-start transaction;
+do not perform a check and provider call as two unprotected steps. This feature is not in M0.
 
 ## C4 — Adaptive valid population from the same catalog
 
@@ -92,14 +112,14 @@ follow-ons, not mandatory dependencies of completing this base.
 ## E-series — Composable server services
 
 The [server plan](server-execution.md) preserves existing execution/fact/application
-machinery while adding strict typed capabilities. E0 is the current contract pass;
+machinery while adding strict typed capabilities. E0 records the service contract pass;
 C1 stays the next core implementation checkpoint when implementation resumes.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |
 | E0 | Current/absent capabilities, modes and recovery obligations | C0 and existing effect evidence; planning only |
 | E1 | Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
-| E2 | Explicit operation versions and durable inline/queued jobs | E1 contracts; reuse the present worker state machine |
+| E2 | One EmailSend contract with independent Resend/Brevo adapters and durable jobs | E1 contracts; reuse the present worker state machine |
 | E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2; one selected object adapter |
 | E4 | Optional recurrence producing ordinary one-shot jobs | E2 and protected occurrence uniqueness; no workflow engine |
 | E5 | Independent fake full-pipeline, failure and recovery verification | Each selected E feature; C4 catalog tooling where used |

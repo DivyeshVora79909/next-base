@@ -16,9 +16,12 @@ do not load every historical paper or duplicate these instructions into memories
   No second query/workflow DSL, hidden registry or duplicate schema authority.
 - Preserve capabilities, not old names or backwards compatibility. Map an obligation
   to a retained implementation/test before deleting its machinery.
-- Server services compose ordinary functions and typed versioned operations. Read
+- Server services compose ordinary functions and typed provider adapters. Read
   [server execution](docs/server-execution.md) for credentials, grants, durable jobs,
   objects and scheduling; these extensions are planned, not implemented capability.
+- [Index mathematics](docs/index-mathematics.md) defines ordered monoids, explicit
+  memberships, planned global indexes and structural count. Read
+  [rate admission](docs/rate-admission.md) before treating a window as a limiter.
 
 ## Working loop
 
