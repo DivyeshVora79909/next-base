@@ -5,8 +5,11 @@ Historical accepted N/S0 evidence stays unchanged; it does not choose a differen
 Plan and bootstrap work proceeds now. Checkpoints can continue automatically when their stated
 obligations pass; unresolved semantic choices or failed evidence must be reported explicitly.
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
-The current M0 mathematical/index contract checkpoint is planning-only with bounded
-algebra witnesses. Stop after this one checkpoint at the user's budget boundary.
+M0 recorded planning and bounded algebra witnesses. The user has now authorized
+three implementation commits, then a stop for a new flag. C1 is split into C1.1
+structural size/count-only indexes, C1.2 same-view storage batches, C1.3 trusted
+rank-window traversal, and C1.4 authorized member paging/cursors. Stop after C1.3;
+do not call the whole C1 gate complete before its public integration is accepted.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
 separate mathematical representability from implemented capability. The
 [E0–E5 service plan](server-execution.md) adds contracts and acceptance witnesses;
@@ -51,6 +54,10 @@ Keep implemented reject behavior distinct from any newly supported deletion poli
 Cover 1:n child references, 1:1 target uniqueness and n:m typed junction/pair uniqueness.
 Reuse existing cardinality roots where sufficient; otherwise reserve uniqueness keys.
 Protect incoming-reference existence/absence inside the transaction.
+Declare cross-record order predicates and their direct parent-field dependencies:
+e.g. created/effective lower and upper bounds with explicit strictness and units.
+Validate both child edits and parent edits, retargeting and joint final-graph repair;
+a local schema check or a child-only predicate is insufficient.
 Acceptance: concurrent competing links cannot both win; concurrent delete/reference creation
 cannot leave dangling edges; retarget, delete/recreate and joint final-state repairs work.
 Verify command permutations with the same final graph, cross-tenant/type rejection, hidden

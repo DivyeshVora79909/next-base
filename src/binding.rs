@@ -26,7 +26,7 @@ pub trait NativeInput:
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Limits {
     /// None means no configured population ceiling; work and storage limits still apply.
     pub public_records: Option<u64>,
@@ -34,17 +34,6 @@ pub struct Limits {
     pub reservations: Option<u64>,
     pub per_contract: BTreeMap<u16, u64>,
 }
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            public_records: None,
-            outputs: None,
-            reservations: None,
-            per_contract: BTreeMap::new(),
-        }
-    }
-}
-
 pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
     type Index: crate::index::NativeIndex;
     type Input: NativeInput;

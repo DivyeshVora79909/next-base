@@ -36,9 +36,9 @@ prefix needs explicit range construction, not a naive string prefix/offset.
 **Selected target:** structural subtree size is mandatory and independent of the
 optional business summary: `size(empty)=0`, `size(node)=1+size(left)+size(right)`.
 Rotations and the independent checker maintain it. Root counts must agree with
-their nodes. Current counts are family-specific; universal structural size and a
-count-only family are C1 work, not present generic capabilities. This requires
-explicit persisted-format/identity changes; no silent old-store conversion.
+their nodes. C1.1 implements structural size and supplies a String-keyed
+`CountOnly` family with unit business summary. The native codec is now
+`native-slice-kv-9`; stores with the old identity must be recreated explicitly.
 Keep a separate business count only if it has different meaning or is needed by
 the algebra; avoid two conflicting authorities for the same cardinality.
 
@@ -166,6 +166,17 @@ appropriate domain rules, structures and execution/uniqueness guards.
 
 ## Range cover, dependencies and costs
 
+Cross-record order predicates, such as
+`parent.created_at <= child.effective_at <= parent.effective_at`, are ordinary
+final-state comparisons. Each model chooses strict/inclusive bounds, units and
+which fields it compares. No monoid or interval index is needed for this direct
+predicate. Register every parent field read as a direct dependency so changing
+the parent revalidates its dependents as well as changing/retargeting the child.
+Joint parent/child repairs must use the same staged final graph; invalid final
+state rejects the entire transaction. Local JSON Schema alone cannot enforce a
+referenced-record comparison. Bespoke reactive bindings can express such rules;
+a general catalog relation-predicate hook and creation metadata remain C2/C3 work.
+
 A contiguous range is covered by maximal fully contained subtrees plus boundary
 nodes. "Maximal" refers to coverage, not taking a numeric maximum. Combine their
 summaries in key order. With fixed-size summaries and AVL height h=O(log n), one
@@ -208,8 +219,8 @@ an independent source oracle, signed weighted projection, noncommutativity/ties,
 overflow rejection and the point/endpoint sliding-window equivalence. Rate witnesses
 prove mathematics, not production admission, concurrency or provider delivery.
 
-Remaining implementation includes universal structural size/count-only indexes,
-batch traversal, global index/root/metadata contracts, protected relationship and
+Remaining implementation includes batch traversal, global index/root/metadata
+contracts, protected relationship and
 admission checks, typed credentials/two-provider execution, object lifecycle,
 adaptive population and selected live/deployment acceptance. Retention, backup/key
 custody, receipt recovery, revocation, pagination budgets, telemetry and format

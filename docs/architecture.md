@@ -60,7 +60,8 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 [`indexes/standard.rs`](../src/indexes/standard.rs) define the typed family contracts.
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
-count/count-only indexing is selected for C1; current counts are family-specific.
+count/count-only indexing is implemented in C1.1; business counts retain their
+own declared meaning. Codec v9 requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.

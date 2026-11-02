@@ -106,6 +106,7 @@ fn check(store: &Bytes, owner: Address, expected: &Leaves) {
             assert_eq!(n.height, 1 + lh.max(rh));
             left.push((n.key, n.leaf));
             left.extend(right);
+            assert_eq!(n.size, left.len() as u64);
             assert_eq!(n.summary, scanned(self.kind, &left));
             assert_eq!(n.span.first, left.first().unwrap().0.value);
             assert_eq!(n.span.last, left.last().unwrap().0.value);
@@ -122,6 +123,7 @@ fn check(store: &Bytes, owner: Address, expected: &Leaves) {
     let (height, leaves) = walk.visit(header.head, None, None, None);
     assert_eq!(walk.seen.len(), expected.len());
     assert_eq!(header.height, height);
+    assert_eq!(header.size, expected.len() as u64);
     assert_eq!(header.summary, scanned(header.kind, &leaves));
     assert_eq!(
         header.span,
@@ -680,6 +682,7 @@ fn range_rejects_overflow_and_corrupt_traversed_links() -> Result<()> {
         first: Some(addr(1, 1)),
         last: Some(addr(65, 1)),
         height: 1,
+        size: 65,
         span: Some(Span {
             first: TimeKey(0),
             last: TimeKey(100),
@@ -710,6 +713,7 @@ fn range_rejects_overflow_and_corrupt_traversed_links() -> Result<()> {
             prev: None,
             next: None,
             height: 1,
+            size: 1,
             span: Span {
                 first: TimeKey(0),
                 last: TimeKey(100),
@@ -734,5 +738,86 @@ fn range_rejects_overflow_and_corrupt_traversed_links() -> Result<()> {
     assert_eq!(error.code, "corrupt_state");
     assert_eq!(error.detail, "range path depth");
     assert_eq!(ws.work.node_visits, 64);
+    Ok(())
+}
+
+#[test]
+fn structural_sizes_follow_tied_multislot_permutations_and_rekeys() -> Result<()> {
+    let owner = addr(1000, 2);
+    let ids = [addr(1, 1), addr(1, 2), addr(2, 1), addr(2, 2), addr(3, 1)];
+    for permutation in [[0, 1, 2, 3, 4], [4, 3, 2, 1, 0], [2, 0, 4, 1, 3]] {
+        let mut store = initial(owner, FINANCIAL);
+        let mut expected = Leaves::new();
+        check(&store, owner, &expected);
+        for position in permutation {
+            let value = (7, Leaf::Financial(position as i128));
+            apply(&mut store, owner, ids[position], Some(value));
+            expected.insert(ids[position], value);
+            check(&store, owner, &expected);
+        }
+        // A contribution edit retains cardinality; a rekey removes/reinserts
+        // exactly one occurrence even when UUIDs and business keys are tied.
+        let mut ws = Workspace::new(|key: &[u8]| Ok(store.get(key).cloned()), 100_000);
+        tree::revalue(&mut ws, owner, ids[0], Leaf::Financial(99))?;
+        let batch = ws.finish()?;
+        drop(ws);
+        for (key, value) in batch {
+            store.insert(key, value.unwrap());
+        }
+        expected.get_mut(&ids[0]).unwrap().1 = Leaf::Financial(99);
+        check(&store, owner, &expected);
+        apply(&mut store, owner, ids[1], None);
+        expected.remove(&ids[1]);
+        check(&store, owner, &expected);
+        apply(&mut store, owner, ids[1], Some((-7, Leaf::Financial(-9))));
+        expected.insert(ids[1], (-7, Leaf::Financial(-9)));
+        check(&store, owner, &expected);
+        for position in permutation {
+            apply(&mut store, owner, ids[position], None);
+            expected.remove(&ids[position]);
+            check(&store, owner, &expected);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn structural_size_is_required_on_disk_and_checked_for_overflow() -> Result<()> {
+    let owner = addr(1000, 2);
+    let mut store = initial(owner, FINANCIAL);
+    for number in 1..=3 {
+        apply(
+            &mut store,
+            owner,
+            addr(number, 1),
+            Some((number as i64, Leaf::Financial(0))),
+        );
+    }
+    for (bytes, value) in &store {
+        let key = Key::decode(bytes)?;
+        let mut wire: serde_json::Value = serde_json::from_slice(value).unwrap();
+        assert!(
+            wire["data"]
+                .as_object_mut()
+                .unwrap()
+                .remove("size")
+                .is_some()
+        );
+        assert_eq!(
+            native_codec::decode(&key, &serde_json::to_vec(&wire).unwrap())
+                .unwrap_err()
+                .code,
+            "corrupt_state"
+        );
+    }
+    let mut ws = Workspace::new(|key: &[u8]| Ok(store.get(key).cloned()), 100_000);
+    let head = tree::root(&mut ws, owner)?.head.unwrap();
+    let left = tree::node(&mut ws, owner, head)?.left.unwrap();
+    let mut damaged = tree::node(&mut ws, owner, left)?;
+    damaged.size = u64::MAX;
+    ws.put(Key::Node(left), Some(Stored::Node(damaged)))?;
+    let error = tree::revalue(&mut ws, owner, head, Leaf::Financial(1)).unwrap_err();
+    assert_eq!(error.code, "corrupt_state");
+    assert_eq!(error.detail, "structural size overflow");
     Ok(())
 }

@@ -330,6 +330,10 @@ impl<I: NativeIndex> Walk<'_, I> {
                 && node.height == 1 + left_height.max(right_height),
             "AVL height/balance",
         )?;
+        require(
+            u64::try_from(order.len()).is_ok_and(|size| node.size == size),
+            "exact subtree size",
+        )?;
         let leaves: Vec<_> = order
             .iter()
             .map(|id| {
@@ -736,6 +740,10 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                     && root.first == order.first().copied()
                     && root.last == order.last().copied(),
                 "root links/height",
+            )?;
+            require(
+                u64::try_from(order.len()).is_ok_and(|size| root.size == size),
+                "exact root size",
             )?;
             let mut previous = None;
             for (i, id) in order.iter().enumerate() {
@@ -1612,6 +1620,7 @@ mod tests {
                     prev: i.checked_sub(1).map(|p| ids[p]),
                     next: ids.get(i + 1).copied(),
                     height: 1,
+                    size: 1,
                     summary: Aggregate::Financial(Summary::leaf(at, Some(1))),
                 },
             );
@@ -1942,7 +1951,14 @@ mod tests {
             let key = Key::decode(key.value()).unwrap();
             let stored = native_codec::decode(&key, bytes.value()).unwrap();
             match stored {
+                Stored::Root(mut r) => {
+                    r.size = r.size.checked_add(1).unwrap();
+                    changes.push((key.clone(), Some(Stored::Root(r))));
+                }
                 Stored::Node(mut n) => {
+                    let mut wrong_size = n.clone();
+                    wrong_size.size += 1;
+                    changes.push((key.clone(), Some(Stored::Node(wrong_size))));
                     n.height += 1;
                     changes.push((key.clone(), Some(Stored::Node(n.clone()))));
                     n.parent = Some(Address::new(Uuid::nil(), 1));

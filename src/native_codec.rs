@@ -10,7 +10,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-8";
+pub const CODEC: &str = "native-slice-kv-9";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -351,6 +351,7 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                 && B::Index::validate_summary(r.kind, &r.summary).is_ok()
                 && r.height < 64
                 && r.head.is_none() == (r.height == 0)
+                && r.head.is_none() == (r.size == 0)
                 && r.head.is_none() == r.first.is_none()
                 && r.head.is_none() == r.last.is_none()
                 && r.head.is_none() == r.span.is_none()
@@ -375,6 +376,7 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                 && B::Index::validate_key(n.kind, &n.key.value).is_ok()
                 && B::Index::validate_leaf(n.kind, &n.leaf).is_ok()
                 && B::Index::validate_summary(n.kind, &n.summary).is_ok()
+                && n.size > 0
                 && n.height > 0
                 && n.height < 64
                 && n.span.first <= n.key.value

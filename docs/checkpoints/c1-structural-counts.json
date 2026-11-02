@@ -1,0 +1,87 @@
+{
+  "format": "next-base-c1-structural-counts-1",
+  "checkpoint": "C1.1",
+  "status": "accepted",
+  "parentCommit": "cd45f6e492f7a5cc605cbec5b6e50b241a1f4f0f",
+  "scope": "Mandatory checked structural sizes independent of summary; supplied String-keyed count-only native family; independent integrity reconstruction.",
+  "codec": {
+    "previous": "native-slice-kv-8",
+    "current": "native-slice-kv-9",
+    "migration": "None; explicitly recreate old stores. Strict missing-size decoding fails."
+  },
+  "implementation": [
+    {
+      "path": "src/binding.rs",
+      "sha256": "eb0ee26415d6ea9caa4a6d68088dfb59fd03f851b2f3b952d4377933d2ad9118"
+    },
+    {
+      "path": "src/tree.rs",
+      "sha256": "9559bf0a3be5edb140ef6dc95d346aa31079a87c40f3593644dbc8cb39ead377"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "db2ea9c96fe21b6880436e906fe18e3e65cf824514d298f78982deec34344311"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "b55c71525989a1a1664d8dc27bc94e941edac70f2252368a1543d2c25c84082b"
+    },
+    {
+      "path": "src/index_tests.rs",
+      "sha256": "fc1dd02df4633fe59f8bb39a04adc16875383254a476e98b486daf6cb55b8a8a"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "3428c0d8c53f99b4b8cfee6e659fb7bf80eea5cdb1803c944e82eef32b732ab0"
+    },
+    {
+      "path": "src/indexes/mod.rs",
+      "sha256": "0e73be6c3407f121ed97b0473371b3297fb739a26df3194c65d67ec33adbc171"
+    },
+    {
+      "path": "src/indexes/count_only.rs",
+      "sha256": "fa055f1352a8611bdaf836e3d8ff8537f51235c4f347a59d6fe168b5e544aaec"
+    },
+    {
+      "path": "tests/native_tree.rs",
+      "sha256": "755a1febfef9e75e78f6d217a816e25d7798e6742a3162e14ff3c8c51c66ab19"
+    },
+    {
+      "path": "tests/native_host.rs",
+      "sha256": "6d1c431b7ecf016b7add447dd81b234c72c8a3b6bd0b9f6be8a935fbe785f886"
+    }
+  ],
+  "verification": {
+    "isolatedCheckout": true,
+    "pendingBatchAndRankReaderExcluded": true,
+    "rust": {
+      "passed": 222,
+      "failed": 0,
+      "ignored": 0,
+      "testTargets": 23,
+      "logSha256": "7ca03f39a851cadd00a47b1a626884c2fa155ad84b30a041ec45e154702d2bd2",
+      "scope": "All non-doctest default-backend library, integration and binary test targets. Initial doctest launcher lacked rustdoc; pinned-toolchain doctests run separately."
+    },
+    "docTests": {
+      "passed": 0,
+      "failed": 0,
+      "logSha256": "a18d87f00aad229c5b55f5f017e680d4d63e930584a76082c94ba8c18ebc7022"
+    },
+    "clippy": {
+      "allTargets": true,
+      "warningsDenied": true,
+      "logSha256": "447f7bf41e4ead5cdbaf40423069823b95378e09ba4554b9b8cf9e6cbf9cc269",
+      "note": "Replaced an existing manual Limits Default with equivalent derive to satisfy pinned Clippy."
+    },
+    "formatting": "pinned Rust 1.95 rustfmt/cargo-fmt; git diff --check",
+    "historicalFixturesAndEvidenceUnchanged": true,
+    "optionalBackendsRerun": false
+  },
+  "obligations": [
+    "source-derived node/root sizes after rotations, rekeys, ties and multislot CRUD",
+    "tampered cached sizes rejected by independent checker",
+    "size overflow and missing persisted sizes reject",
+    "native host lifecycle expectations derive current model identity without rewriting historical fixture"
+  ],
+  "next": "C1.2 storage batches; C1.3 privileged rank windows; then stop. C1.4 authorized public integration remains required."
+}

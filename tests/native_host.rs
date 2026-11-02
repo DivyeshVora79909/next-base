@@ -123,7 +123,16 @@ fn frozen_sessions_run_against_real_process_and_authoritative_catalogs() {
             process.write(&bytes);
             let reply = process.read();
             if let Some(expected) = exchange.get("response") {
-                assert_eq!(&reply, expected, "{}", session["name"]);
+                // Preserve the historical protocol transcript, but derive the
+                // current model identity after explicit storage-format changes.
+                let mut expected = expected.clone();
+                if exchange["request"]["method"] == "host.configure"
+                    && expected["result"]["status"] == "configured"
+                {
+                    assert_eq!(exchange["request"]["params"]["model"], "calculation");
+                    expected["result"]["model"] = json!(model.identity());
+                }
+                assert_eq!(reply, expected, "{}", session["name"]);
             } else {
                 let expected = match exchange["request"]["params"]["scope"].as_str().unwrap() {
                     "public" => model.public_catalog(),

@@ -401,6 +401,7 @@ fn word_scan(store: &Bytes, owner: Address, source: &Sources) -> Result<()> {
             keys.extend(right);
             assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
             assert_eq!(node.height, lh.max(rh) + 1);
+            assert_eq!(node.size, keys.len() as u64);
             assert!(lh.abs_diff(rh) <= 1);
             assert_eq!(
                 node.span,
@@ -425,6 +426,7 @@ fn word_scan(store: &Bytes, owner: Address, source: &Sources) -> Result<()> {
     let (height, keys) = scan.visit(header.head, None);
     assert_eq!(scan.seen.len(), source.len());
     assert_eq!(header.height, height);
+    assert_eq!(header.size, source.len() as u64);
     assert_eq!(
         header.span,
         keys.first().zip(keys.last()).map(|(first, last)| Span {

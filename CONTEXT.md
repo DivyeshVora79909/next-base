@@ -1,10 +1,30 @@
 # Current checkpoint
 
+## C1.1 — Checked structural size and count-only indexes
+
+The user authorized three implementation commits in this run, then an explicit
+stop for a new flag. C1.1 adds mandatory Root/Node size and a supplied String-keyed
+CountOnly family with unit business summary. Independent inventory/topology checks
+reconstruct sizes; CRUD, rotations, ties, multislot membership and overflow are tested.
+Native codec is now native-slice-kv-9. Recreate old stores explicitly; missing-size
+values are rejected. Historical fixture/evidence bytes remain unchanged. The host
+protocol test derives only its expected model identity from the current catalog.
+
+Next are C1.2 same-view storage batches and C1.3 trusted rank-window traversal.
+Then STOP. C1.4 must integrate authorized member paging, hydration, scope/root
+revision-bound cursors and declared read permissions before C1 is complete.
+No new public member enumeration or non-time subscription API is accepted here.
+Parent/child order predicates are C2 direct-dependency rules; parent edits must
+revalidate children against the staged final graph. See docs/index-mathematics.md.
+
+Verification and inputs: docs/checkpoints/c1-structural-counts.json. The application
+stays on main; pending storage/reader work is delegated in disjoint files and is
+excluded from the isolated C1.1 verification and commit.
+
 ## M0 — Index mathematics and rate contracts, planning plus bounded witnesses
 
-The user's latest steering keeps this pass in planning mode and stops after one
-checkpoint. Another agent will implement after the user gives it the execution
-flag; do not continue runtime checkpoints in this conversation automatically.
+This historical pass stopped after one planning checkpoint. The user subsequently
+authorized the three C1 implementation slices above; that is the current boundary.
 Read docs/index-mathematics.md, docs/rate-admission.md and docs/roadmap.md.
 Seven focused Rust witnesses exercise actual financial algebra and independent
 window/source oracles. Their bounded scope is not production quota acceptance.
@@ -45,10 +65,10 @@ Native transactional KV awaits are distinct from unrelated provider I/O.
 The legacy design had signing grants and queued/inline tasks, but removed cron;
 the current native demo has one-shot scheduling, not object storage or provider
 credential records. These are planned extensions, not features inferred from names.
-C1 remains the next core implementation checkpoint when implementation resumes.
+C1 is the active core implementation gate, split into the slices above.
 For each slice: meaning -> established concept -> invariant/counterexample -> small
-prototype -> composition -> independent verification -> checkpoint. Do not start
-production service implementation as part of this documentation-only contract pass.
+prototype -> composition -> independent verification -> checkpoint. Production
+server-service implementation is outside these three C1 commits.
 
 ## C0 — Clean application and research repositories, verified
 
@@ -73,11 +93,11 @@ tests with no skips, formatting and locked offline Cargo metadata. The final des
 inputs and scope are in docs/checkpoints/c0-bootstrap.json.
 Optional adapter campaigns were not rerun; no new scale/deployment claim.
 
-## Next: C1 — Bounded count-pruned batch reader
+## Open gate: C1 — Bounded count-pruned batch reader
 
 Research has checked prototypes; production readers are synchronous and public
-UUID paging is separate. Add bounded batch fetch, checked structural counts and
-count-only indexing, and authorized root/rank traversal under one transaction. Preserve query meaning,
+UUID paging is separate. Structural counts and count-only indexing are C1.1;
+add bounded batch fetch and authorized root/rank traversal under one transaction. Preserve query meaning,
 ordering, continuation, work/byte limits and original receipt semantics.
 
 No shared tenant/reader/created or tenant/created indexes exist. Created and effective differ;

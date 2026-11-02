@@ -41,6 +41,7 @@ pub struct Root<I: NativeIndex> {
     pub first: Option<Address>,
     pub last: Option<Address>,
     pub height: u16,
+    pub size: u64,
     pub span: Option<Span<I::Key>>,
     pub summary: I::Summary,
     #[serde(with = "uuid_text")]
@@ -55,6 +56,7 @@ impl<I: NativeIndex> Root<I> {
             first: None,
             last: None,
             height: 0,
+            size: 0,
             span: None,
             summary: I::empty(kind)?,
             revision,
@@ -75,6 +77,7 @@ pub struct Node<I: NativeIndex> {
     pub prev: Option<Address>,
     pub next: Option<Address>,
     pub height: u16,
+    pub size: u64,
     pub span: Span<I::Key>,
     pub summary: I::Summary,
 }
@@ -118,6 +121,7 @@ fn edit<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 
 struct Child<I: NativeIndex> {
     height: u16,
+    size: u64,
     summary: I::Summary,
     span: Option<Span<I::Key>>,
 }
@@ -132,6 +136,7 @@ fn child_info<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     match child {
         None => Ok(Child {
             height: 0,
+            size: 0,
             summary: B::Index::empty(kind)?,
             span: None,
         }),
@@ -142,6 +147,7 @@ fn child_info<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             }
             Ok(Child {
                 height: n.height,
+                size: n.size,
                 summary: n.summary,
                 span: Some(n.span),
             })
@@ -169,6 +175,11 @@ fn refresh<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         .max(right.height)
         .checked_add(1)
         .ok_or_else(|| broken("height overflow"))?;
+    let size = left
+        .size
+        .checked_add(right.size)
+        .and_then(|size| size.checked_add(1))
+        .ok_or_else(|| broken("structural size overflow"))?;
     let span = Span {
         first: left
             .span
@@ -179,6 +190,7 @@ fn refresh<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     };
     edit(ws, owner, id, |n| {
         n.height = height;
+        n.size = size;
         n.summary = summary;
         n.span = span;
     })?;
@@ -309,6 +321,7 @@ fn balance<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             return Err(broken("root has parent"));
         }
         header.height = n.height;
+        header.size = n.size;
         header.summary = n.summary;
         header.span = Some(n.span);
     } else {
@@ -316,6 +329,7 @@ fn balance<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             return Err(broken("nonempty endpoints for empty root"));
         }
         header.height = 0;
+        header.size = 0;
         header.summary = B::Index::empty(header.kind)?;
         header.span = None;
     }
@@ -382,6 +396,7 @@ pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             prev: previous,
             next,
             height: 1,
+            size: 1,
             span: Span {
                 first: key.value.clone(),
                 last: key.value.clone(),

@@ -1428,6 +1428,7 @@ mod diagnostic_tests {
         root.first = Some(first);
         root.last = Some(last);
         root.height = 1;
+        root.size = 1;
         root.span = Some(Span {
             first: TimeKey::new(0),
             last: TimeKey::new(10),
@@ -1447,6 +1448,7 @@ mod diagnostic_tests {
             prev: Some(address(5, 1)),
             next: Some(address(6, 1)),
             height: 1,
+            size: 1,
             span: Span {
                 first: TimeKey::new(5),
                 last: TimeKey::new(5),
