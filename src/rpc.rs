@@ -7,6 +7,7 @@ use crate::{
     native_codec::uuid_text,
     native_slice::{Error, Result},
     query::{ExistsRequest, PageRequest, RootRequest},
+    root_page::{RootPagePolicy, RootPageRequest},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -115,6 +116,11 @@ fn dispatch<B: Binding>(store: &Store<B>, method: &str, params: Value) -> Result
             let p: RootRequest = bind(params)?;
             store.root_read(&p)
         }
+        "roots.page" => {
+            let p: RootPageRequest = bind(params)?;
+            serde_json::to_value(store.root_page(&p, &RootPagePolicy::default())?)
+                .map_err(|e| Error::new("internal", e.to_string()))
+        }
         _ => Err(Error::new("method_not_found", "unknown public method")),
     }
 }
@@ -159,7 +165,7 @@ pub(crate) fn failure(id: Value, kind: &str) -> Value {
         "invalid_cursor" => (-32000, "Invalid cursor for this query or store"),
         "query_changed" => (-32000, "Query changed; restart pagination"),
         "unsupported_query" => (-32000, "Query path or operation is not declared"),
-        "work_limit" | "state_limit" | "receipt_limit" | "request_limit" => {
+        "work_limit" | "state_limit" | "receipt_limit" | "request_limit" | "storage_limit" => {
             (-32000, "A declared local limit was reached")
         }
         "overflow" | "revision_exhausted" => (-32000, "An exact numeric limit was reached"),

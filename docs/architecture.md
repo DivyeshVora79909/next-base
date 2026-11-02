@@ -69,9 +69,11 @@ own declared meaning. Codec v9 requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
-The count-pruned batched reader is implemented as a trusted native rank-window
-primitive in C1.3. Public authorized member paging remains C1.4; preserve snapshot,
-disclosure, ordering and continuation semantics. See [rank reads](rank-reads.md).
+The count-pruned batched reader supplies trusted rank windows (C1.3) and authorized
+occurrence pages (C1.4). Node hydration and cursor epoch guards use same-snapshot
+batches; declared member permission still requires per-record disclosure checks.
+Root and scope revisions fence continuation without exposing hidden member IDs.
+See [rank reads](rank-reads.md) for operational limits and the ordinary Node call.
 [Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
 
 Planned authorized indexes use resource/tenant/reader-or-owner/declared-order,

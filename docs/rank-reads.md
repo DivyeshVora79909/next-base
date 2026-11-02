@@ -62,30 +62,57 @@ remain trusted maintained metadata. Run the independent source-inventory checker
 for complete integrity; a selective read cannot prove every pruned subtree valid.
 All discovery uses the supplied table's snapshot, including writable overlays.
 
-## Next: C1.4 authorized integration
+## Authorized member pages — C1.4
 
-First accept the owner-inclusive reader-policy correction in roadmap C2.R; current
-immediate-owner/fallback folding is not the user's newly specified first-minimal
-selection. This is a semantic gate, not a reason to weaken member disclosure checks.
+Ordinary Rust callers use `Store::root_page(request, &RootPagePolicy)`. HTTP/stdio
+JSON-RPC exposes `roots.page` with the service's default policy. The existing Node
+client already supplies `call`; no new command parser or method wrapper is needed:
 
-C1.4 must compose this primitive with the existing authority resolver and public
-projection. Root summary permission alone must not permit member enumeration.
-Add explicit declared member-read capability, reauthorize the owner and filter every
-hydrated record, including private outputs. Hydration uses the same transaction.
-Do not pass caller-chosen unbounded budgets through the network: apply trusted
-configured ceilings and separate candidate/output/byte budgets.
+```js
+const catalog = await client.call('model.describe');
+const request = {
+  model: catalog.model, owner: accountId, slot: 2,
+  limit: 16, candidate_budget: 64, cursor: null,
+};
+const page = await client.call('roots.page', request);
+// page.occurrences: [{ rank: '0', slot: 1, record: { id, contract, ... } }]
+// Resume only when page.cursor is non-null; budgets may change between pages.
+```
 
-Bind continuation to store/model/actor/tenant/query/root and to both root revision
-and current authority/reader-contract projection epochs. Reader or payload changes
-can invalidate a page without changing an index membership. Candidate rank is not
-visible rank; bounded filtering can return fewer results and must preserve progress.
-A signed cursor has integrity, not confidentiality. Do not place hidden member IDs,
-keys or other undisclosed facts in a plaintext signed payload. Either explicitly
-authorize topology/count disclosure for raw-rank cursors or select a confidential
-continuation representation with its own key/recovery contract.
+Here `owner` is the model record owning the root, not a client-supplied authority
+principal. Read permission for that resource and explicit root declarations
+`members` plus `summary` are required. The declaration permits raw occurrence
+counts/ranks/gaps; it does not grant disclosure of hidden IDs, private outputs or
+member bodies. Every hydrated source passes the normal current-authority public
+projection. The supplied Calculation Account history opts in; other roots require
+an explicit model declaration. Member enumeration is an engine structural capability,
+not a business-summary operation added to each family.
 
-Acceptance must cover inaccessible/private records, ties and duplicate memberships,
-empty/partial pages, budget exhaustion, payload-only/reader-only edits, revocation,
-rekeys, cross-store/query cursor substitution and concurrent source mutations.
-Preserve existing UUID-page semantics. No public `members` operation is implemented
-by C1.3. See [roadmap](roadmap.md) and [C1.3 evidence](checkpoints/c1-rank-reader.json).
+Results contain ordered `occurrences`, `visited`, `total`, `exhausted`, `cursor`
+and `revision`. Rank/total use exact decimal strings on the wire. A record can
+appear once per membership slot; these are not distinct-record or visible-row ranks.
+Filtered pages may contain no visible rows but still make progress. Output/candidate
+limits are independently bounded. Exhaustion returns no cursor. Discovery, authority,
+epoch fencing and hydration use the same native snapshot.
+
+Continuations bind store/model/actor/tenant/root and both root state and current
+reader-contract projection/authority epochs. Reader-only or payload-only changes
+can invalidate them while root summaries and root revision stay unchanged. The
+signed payload carries raw next rank and query identities, not hidden member IDs,
+keys or pending frontiers. HMAC supplies integrity, not confidentiality. Per-page
+output/candidate budgets can change on resume under the trusted ceilings. A
+`query_changed` response requires restarting the read; no mutation plan is refreshed.
+
+Default RPC ceilings are 32 outputs, 128 candidates, 4,096 accounted application
+gets and 4 MiB of accounted bytes. Trusted Rust embedding can pass another explicit
+`RootPagePolicy`; request JSON cannot override it. Node, hydration, output and setup
+budgets are cumulative, with conservative output reservation/encoding charges.
+These are not strict peak-RSS or wire-byte bounds. Epoch guards use bounded native
+batch reads too; their digest framing remains identical to existing UUID cursors.
+Existing `records.page` query meaning is preserved.
+
+Tests cover normal validated populations of 50/100/1,000 sources, ordered ties,
+private gaps, permissions, progressing partial pages, budget adaptation, same-snapshot
+epochs, member payload/reader changes with unchanged root revision, revocation and
+cursor substitution. Local default-backend correctness is not a distributed latency
+or throughput benchmark. See [C1.4 evidence](checkpoints/c1-authorized-pages.json).

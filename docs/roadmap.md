@@ -8,8 +8,8 @@ Do not add unused traits, dependencies or a second DSL merely to illustrate futu
 M0 recorded planning and bounded algebra witnesses. C1 is split into C1.1
 structural size/count-only indexes, C1.2 same-view storage batches, C1.3 trusted
 rank-window traversal, and C1.4 authorized member paging/cursors. C2.R corrects
-reader policy before C1.4. Do not call the whole C1 gate complete before its public
-integration is accepted. Follow the current user's authorization; conversation
+reader policy before C1.4. C1.1–C1.4 have bounded default-backend acceptance;
+distributed performance/deployment gates remain separate. Follow the current user's authorization; conversation
 usage budgets are not standing commit-count instructions for future agents.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
 separate mathematical representability from implemented capability. The

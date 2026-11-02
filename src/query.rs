@@ -72,14 +72,18 @@ pub(crate) fn publish_epochs<B: Binding>(
     Ok(())
 }
 
-fn scope_revision(
+pub(crate) fn scope_revision(
     read: &ReadTransaction,
     scope: &crate::access::Scope,
     codes: &[u16],
     secured: bool,
+    batch: crate::storage::BatchGetOptions,
 ) -> Result<String> {
     if scope.accessible.len().saturating_mul(codes.len()) > crate::access::MAX_READER_STREAMS {
         return Err(Error::new("work_limit", "reader partition setup limit"));
+    }
+    if batch.max_keys == 0 {
+        return Err(Error::new("invalid_input", "epoch batch width"));
     }
     let mut digest = Sha256::new();
     digest.update(b"rebase-query-scope-1\0");
@@ -88,11 +92,20 @@ fn scope_revision(
         digest.update(crate::security::authority_revision(&authority)?.to_be_bytes());
     }
     let epochs = read.open_table(EPOCHS)?;
-    for &reader in &scope.accessible {
-        for &contract in codes {
-            let key = epoch_key(reader, contract);
-            digest.update(&key);
-            let value = epochs.get(&key)?;
+    let keys: Vec<_> = scope
+        .accessible
+        .iter()
+        .flat_map(|&reader| {
+            codes
+                .iter()
+                .map(move |&contract| epoch_key(reader, contract))
+        })
+        .collect();
+    for chunk in keys.chunks(batch.max_keys) {
+        let borrowed: Vec<_> = chunk.iter().map(Vec::as_slice).collect();
+        let values = epochs.batch_get(&borrowed, batch)?;
+        for (key, value) in chunk.iter().zip(values) {
+            digest.update(key);
             match value {
                 Some(value) => {
                     let token = Uuid::from_slice(value.value())
@@ -290,7 +303,17 @@ impl<B: Binding> Store<B> {
             })
             .map(|c| c.code)
             .collect();
-        let revision = scope_revision(&read, &scope, &codes, self.secured)?;
+        let revision = scope_revision(
+            &read,
+            &scope,
+            &codes,
+            self.secured,
+            crate::storage::BatchGetOptions {
+                max_keys: 64,
+                max_bytes: 64 * 34,
+                concurrency: std::num::NonZeroUsize::new(8).expect("nonzero"),
+            },
+        )?;
         let after = if let Some(token) = &request.cursor {
             let cursor = parse_cursor(token, &header)?;
             if cursor.api != API_VERSION
@@ -525,3 +548,72 @@ impl<B: Binding> Store<B> {
 }
 
 pub type Page = PageValue<crate::binding::Calculation>;
+
+#[cfg(test)]
+mod epoch_batch_tests {
+    use super::*;
+    use crate::storage::{BatchGetOptions, Database};
+    use std::num::NonZeroUsize;
+
+    #[test]
+    fn batched_epoch_digest_preserves_order_absence_and_original_snapshot() {
+        let path = std::env::temp_dir().join(format!("epoch-batch-{}.redb", Uuid::new_v4()));
+        let db = Database::create(&path).unwrap();
+        let write = db.begin_write().unwrap();
+        {
+            let mut table = write.open_table(EPOCHS).unwrap();
+            for (reader, contract, token) in [(2, 4, 11), (3, 8, 12)] {
+                table
+                    .insert(
+                        epoch_key(Uuid::from_u128(reader), contract),
+                        Uuid::from_u128(token).as_bytes().as_slice(),
+                    )
+                    .unwrap();
+            }
+        }
+        write.commit().unwrap();
+        let snapshot = db.begin_read().unwrap();
+        let write = db.begin_write().unwrap();
+        write
+            .open_table(EPOCHS)
+            .unwrap()
+            .insert(
+                epoch_key(Uuid::from_u128(2), 4),
+                Uuid::from_u128(99).as_bytes().as_slice(),
+            )
+            .unwrap();
+        write.commit().unwrap();
+        let mut scope = crate::access::Scope::local(crate::native_slice::Context {
+            tenant: Uuid::from_u128(1),
+            actor: Uuid::from_u128(2),
+        });
+        scope.accessible.insert(Uuid::from_u128(3));
+        // The pre-batch wire contract: sorted reader/code key then token (or nil).
+        let mut expected = Sha256::new();
+        expected.update(b"rebase-query-scope-1\0");
+        for (reader, contract, token) in [(2, 4_u16, 11), (2, 8, 0), (3, 4, 0), (3, 8, 12)] {
+            expected.update(Uuid::from_u128(reader).as_bytes());
+            expected.update(contract.to_be_bytes());
+            expected.update(Uuid::from_u128(token).as_bytes());
+        }
+        let expected = native_codec::hex(&expected.finalize());
+        for width in [1, 2, 64] {
+            let options = BatchGetOptions {
+                max_keys: width,
+                max_bytes: width * 34,
+                concurrency: NonZeroUsize::new(2).unwrap(),
+            };
+            assert_eq!(
+                scope_revision(&snapshot, &scope, &[4, 8], false, options).unwrap(),
+                expected
+            );
+            assert_ne!(
+                scope_revision(&db.begin_read().unwrap(), &scope, &[4, 8], false, options).unwrap(),
+                expected
+            );
+        }
+        drop(snapshot);
+        drop(db);
+        std::fs::remove_file(path).unwrap();
+    }
+}

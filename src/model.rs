@@ -417,7 +417,11 @@ impl<B: Binding> Prepared<B> {
                     .iter()
                     .find(|index| index.code == root.kind)
                     .ok_or_else(|| model_error("unknown root index code"))?;
-                if root.reads.iter().any(|read| !index.reads.contains(read))
+                if root
+                    .reads
+                    .iter()
+                    .any(|read| *read != "members" && !index.reads.contains(read))
+                    || (root.reads.contains(&"members") && !root.reads.contains(&"summary"))
                     || root.reads.iter().collect::<BTreeSet<_>>().len() != root.reads.len()
                 {
                     return Err(model_error("unsupported published root read"));
@@ -765,6 +769,7 @@ fn model_capabilities<B: Binding>() -> Value {
         "records.page",
         "records.exists",
         "roots.read",
+        "roots.page",
         "session.describe",
         "access.describe",
         "access.replace",
@@ -781,7 +786,10 @@ fn model_capabilities<B: Binding>() -> Value {
         "versions":"record/root/mutation revisions are opaque UUID tokens, never ordered; access revision is an administration-only counter; pages return a scoped digest",
         "updates":"set replaces complete fields; unset must be empty in this model",
         "receipt":"required actor/store/generation context from session.describe; same operation ID/content replays; offline archive advances its fence",
-        "not_observed":"receipt absence does not prove failure"});
+        "not_observed":"receipt absence does not prove failure",
+        "root_members":{"policy":crate::root_page::RootPagePolicy::default(),
+            "declaration":"members and summary; raw topology/count disclosure, per-record projection required",
+            "order":"native key, UUID, membership slot; occurrence ranks are not visible-record ranks"}});
     if let Some(action) = B::effect_action() {
         catalog["effects"] = crate::effects::capabilities::<B>(&action);
     }
@@ -1020,7 +1028,7 @@ pub(crate) fn declarations() -> Result<Vec<Contract>> {
                 kind: if code == 2 { QUOTE } else { FINANCIAL },
                 reads: match code {
                     2 => vec!["summary", "latest"],
-                    4 => vec!["summary", "before", "range"],
+                    4 => vec!["summary", "before", "range", "members"],
                     _ => vec!["summary", "range"],
                 },
                 invariant: if code == 4 {

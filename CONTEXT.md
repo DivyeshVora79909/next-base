@@ -1,5 +1,27 @@
 # Current checkpoint
 
+## C1.4 — Authorized batched occurrence pages
+
+`Store::root_page` and JSON-RPC `roots.page` compose native rank windows, epoch
+guards and batch hydration in one snapshot. Members require readable root owner,
+explicit members+summary declarations and per-record public projection. Only the
+Calculation Account history opts in by default. Raw count/rank gaps are declared
+topology disclosure; hidden IDs, leaves and private bodies are not returned.
+
+Continuation binds query/root/store/model/actor/tenant plus root and authority/
+reader-contract projection revisions. Output/candidate budgets may change on resume
+under trusted ceilings. Signed payloads are not confidential; cursor contains no
+hidden member IDs/keys. Epoch guards now use the existing bounded batch API too,
+preserving UUID cursor digest framing. RPC uses default policy; trusted Rust callers
+can supply another RootPagePolicy. Ordinary Node client.call needs no new wrapper.
+
+Default-backend acceptance includes normal validated populations of 50/100/1,000
+sources, private/denied gaps, budget adaptation, cross-scope/tampered cursors and
+member payload/reader edits that leave root revision unchanged. See
+docs/checkpoints/c1-authorized-pages.json and docs/rank-reads.md. This is not
+distributed performance/deployment acceptance. Next: remaining C2 catalog relation
+guards, then C3 access/order work as their contracts require.
+
 ## C2.R — Owner-inclusive minimal readers
 
 The selected policy is resource owner first, then recursively followed
@@ -16,9 +38,9 @@ reader indexes, cursor epochs and independent source checks must agree.
 require explicit recreation; storage codec remains native-slice-kv-9.
 Verification: docs/checkpoints/c2-reader-policy.json.
 
-Next is C1.4: compose authorized root member paging, same-snapshot hydration and
-root/scope-bound cursors from the accepted trusted rank reader. Keep existing
-UUID-page semantics. A summary declaration alone must not enumerate members;
+The accepted C1.4 layer composes authorized root member paging, same-snapshot
+hydration and root/scope-bound cursors. Existing UUID-page semantics are retained.
+A summary declaration alone must not enumerate members;
 explicit member capability permits raw topology/counts, not hidden IDs or bodies.
 Signed cursors have integrity, not confidentiality. See docs/rank-reads.md.
 
@@ -40,8 +62,9 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
 
 ## Remaining core gates
 
-- C1.1 structural sizes/count-only family, C1.2 same-view storage batches and C1.3
-  trusted rank windows are accepted. Public member paging is still C1.4.
+- C1.1 structural sizes/count-only family, C1.2 same-view storage batches, C1.3
+  trusted rank windows and C1.4 authorized member paging are accepted on the default
+  backend. Broader distributed workload acceptance is separate.
 - C2 retains catalog 1:1/pair uniqueness and final-graph relationship predicates.
   Parent/child order comparisons must register parent inputs and revalidate parent
   edits, not only child insertion. Local JSON Schema alone is insufficient.

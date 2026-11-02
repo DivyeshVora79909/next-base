@@ -1,0 +1,91 @@
+{
+  "format": "next-base-authorized-root-pages-1",
+  "checkpoint": "C1.4",
+  "status": "accepted bounded default-backend member paging",
+  "parentCommit": "681fe22f9513c154c27e3779853acdb49d8ce0f5",
+  "inputs": [
+    {
+      "path": "src/root_page.rs",
+      "sha256": "24afd0e159dd5c18ac0e680caa8c8db51a2ebf5870a9b0f4e65553a7726b1d4e"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "8ddd41a1bbcf69d524b0c85d4e089e782f2dff41838c6cc1f45f1d14879c70c8"
+    },
+    {
+      "path": "src/query.rs",
+      "sha256": "f4a6fc0583205c590114b68bf53c0c2d528649e1ec81d789f9ee9745b8e26cd7"
+    },
+    {
+      "path": "src/rpc.rs",
+      "sha256": "c22e8242c77c2d863b38458e8856dc8c7bf4cc9837a03f1572e1e5c26507b73a"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "2b86f42be63e6f026c1adc39cfe780d22c08bd959c22981b3765395303df0030"
+    },
+    {
+      "path": "tests/root_pages.rs",
+      "sha256": "6bca05ab243c34f8ced3ea546bd06e32c4e2efbdfeed8e5641f018643f2524b1"
+    }
+  ],
+  "api": {
+    "rust": "Store::root_page(request, &RootPagePolicy)",
+    "rpc": "roots.page",
+    "node": "client.call('roots.page', request)",
+    "declaration": "members plus summary; default Calculation Account history opt-in",
+    "semantics": "raw occurrence ranks/counts/gaps explicitly disclosed; hydrate and project every member under same-snapshot current authority",
+    "cursor": "HMAC domain separated; root/store/model/actor/tenant/scope-bound raw continuation, no hidden IDs/keys; per-page limits may vary",
+    "limits": "trusted policy governs cumulative setup, node, hydration and output budgets; default RPC32 outputs/128 candidates/4096 application gets/4MiB accounted bytes",
+    "epochs": "existing UUID digest framing retained with bounded same-snapshot batch epoch reads"
+  },
+  "checks": {
+    "defaultRust": {
+      "passed": 251,
+      "failed": 0,
+      "ignored": 0,
+      "logSha256": "4c3faba1a3b29d55152749291800a877f65feef81c0e8e32c23a65df2865fc31"
+    },
+    "focusedPublicCases": 10,
+    "node": {
+      "version": "24.22.1",
+      "passed": 168,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "nativeBinarySha256": "ed8805f691fa42cabff49579b057e8eb7507f9a452d72933ee70131c33a8afaf",
+      "logSha256": "013098952f67f5c1734fcb6e8eeafd0a5c8263a24d7100d76a134d650f8df658"
+    },
+    "clippy": {
+      "allTargets": true,
+      "warningsDenied": true,
+      "logSha256": "ca099a7d2411cbfca93be4ff994f482bd073c3a9ebd99fcba46e2f8bf4913507"
+    },
+    "foundationdbFeatureCheck": {
+      "passed": true,
+      "lockedOffline": true,
+      "logSha256": "446d2828bfd7be743a068e7ea95d7e347b3cd9c52023fdc6a273c986d0a79f61",
+      "scope": "feature compilation only, no new live or distributed workload acceptance"
+    },
+    "relativeDocumentationLinks": 47,
+    "formatting": "Pinned Rust1.95 cargo-fmt and git diff --check passed",
+    "review": "Separate reader-policy author reviewed paging auth/snapshot/progress/allocations; suggested empty-header concern is already rejected by canonical native codec; missing unchanged-root fencing witnesses added."
+  },
+  "witnesses": [
+    "validated mutation populations50/100/1000 and independent authored full order with time ties",
+    "private managed output and denied contract bodies/IDs filtered; empty pages still progress",
+    "output limit preserves unprocessed readable tail, resume budgets can shrink",
+    "plaintext signed cursor omits hidden member identity; tamper/root/model/store/actor substitution rejected",
+    "member rule retarget preserves value and root revision but invalidates cursor via projection epoch",
+    "member subsidiary retarget changes reader5 to6 with unchanged native root and authority revision; both disclosure and cursor repair checked",
+    "RPC declaration opt-in, mandatory summary and request policy override rejection",
+    "old epoch digest framing matches independent ordered byte fold across batch widths and original snapshot"
+  ],
+  "deferred": [
+    "distributed latency/throughput acceptance",
+    "C2 general relationship uniqueness and parent/order predicates",
+    "C3 resource-scoped access trees, general ordered subscriptions and conditional capacity coordination",
+    "C4 broader declarative valid population and selected service extensions"
+  ],
+  "handoff": "Read AGENTS.md, CONTEXT.md and the relevant roadmap contract. Continue the authorized goal through independently verified checkpoints; conversation usage budgets are not standing commit-count instructions."
+}

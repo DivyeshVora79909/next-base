@@ -27,6 +27,7 @@ pub mod native_slice;
 pub mod plan;
 pub mod query;
 mod receipts;
+pub mod root_page;
 pub mod routes;
 pub mod rpc;
 pub mod security;
