@@ -1,0 +1,260 @@
+# Run and use the local prototype
+
+This reference retains the model, operation and storage contracts recorded by
+the 0.16.0 /API 4 source. Select the compiled model explicitly in the native
+configuration. Earlier CLI walkthroughs below are retired; the operation
+semantics remain useful when composing the current JavaScript client.
+See [equipment semantics](equipment.md) and [backend selection](storage-backends.md).
+Original 0.4 calculation/equipment and 0.6 invoicing acceptance remain dated.
+There are no runtime imports from the original ReBase or MetaSol projects.
+
+## Build and demonstrate
+
+From the repository root:
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+The demo requires a **new directory**; choose another name for another run.
+It creates `demo.redb`, `inspect.html`, separate public/developer model catalogs,
+a request/response transcript and `result.json`. Open `inspect.html` in a browser.
+The inspector is an offline snapshot with expandable details and no network
+connection. Its local developer view includes private records and role bindings.
+
+The workflow creates fourteen authored sources and five private outputs, then
+moves two prefix readers atomically. The published values change as follows:
+
+| Publication | Initial | After moving the readers |
+| --- | ---: | ---: |
+| A | 30 | 20 |
+| Left = 2 × A | 60 | 40 |
+| Right = 3 × A | 90 | 60 |
+| Final = Left + Right | 150 | 100 |
+
+It also demonstrates a budget-limited `exists=unknown`, stale-version rejection,
+zero-valued feedback rejection, durable replay/status and reopening the store.
+All operations use the same public operation adapter. Only initialization and
+the final trusted developer snapshot use their dedicated local tooling paths.
+
+## Model and developer tools
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+For the validation example, `model-moment.json` contains `{"at":"10"}`.
+Preparation/export/explain/view do not open a store or activate a model. Output
+goes to stdout. Shell redirection is the caller's choice; use a fresh output path.
+Preparation compiles the authored self-contained Draft 2020-12 schemas and checks
+the explicit codes, references, memberships, queries, formulas and publications.
+Formats are disabled; UUID patterns plus native binding enforce canonical UUIDs.
+Schema defaults/readOnly annotations do not create fields or grant authority.
+
+The binary selects one of its compiled bindings;
+there is no runtime behavior loader. Model identity binds resolved declarations
+and schemas to the binding's explicit behavior contract and codec. Build bytes,
+HTML/CSS and source-location labels do not define data compatibility.
+Current source uses `rebase-store-10`, `native-slice-kv-8`, `rebase-effects-4`
+and API 4. Model identity includes configured limits and explicit behavior
+identity. No older store or saved operation is reinterpreted by this API; old
+stores are rejected without automatic migration. Historically, version
+0.4.0 used `rebase-store-4` and `native-slice-kv-4`, calculation behavior
+`rebase-calculation-contract-4` and equipment behavior `equipment-reservations-3`.
+Resolved declarations also contribute to model identity. That version rejected
+format 2 and 3 stores and backups without migration or automatic reset. Retain the old
+compatible binary and its verified backups, and use that binary to restore old
+backups. See [storage upgrades](storage.md#data-identity-and-upgrades).
+
+The following contract table describes `calculation`:
+
+| Code | Contract | Role |
+| ---: | --- | --- |
+| 1 | Rule | Direct coefficient |
+| 2 | Curve | Unit pair and quote root |
+| 3 | Quote | Unique dated rate |
+| 4 | Account | Native history and nonnegative complete-time prefixes |
+| 5 | Subsidiary | Reporting history |
+| 6 | Posting | Native/reporting contributions from coefficient and dated rate |
+| 7 | Moment | Shared authored time |
+| 8 | Entry | Authored history contribution |
+| 9 | Adjustment | Strict prefix, target difference and optional private output |
+| 10 | Basis | One/two source totals, factor and private output roles |
+| 11 | Pin | Trusted research-fixture contract, unavailable through the local API |
+| 12 | Output | Engine-managed private contribution |
+
+All input fields are required. Basis feedback is explicitly `null` when inactive.
+Updates replace whole named fields through `set`; `unset` must be empty in this
+model. Unit codes are immutable. Exact amounts and times are canonical decimal
+strings. Record versions and `if_version` are canonical nonnil UUID strings;
+compare them only for equality. Codes/counts/limits are JSON integers. Native binding applies
+the declared i64/i128 ranges in addition to JSON Schema validation.
+
+Equipment instead declares Pool 101 (availability root slot 7), Delivery 205,
+Reservation 410 (published availability/allocation), and private Output 900.
+Use the selected model's catalogs and fixtures rather than calculation codes:
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+Fixture plans are authored drafts for the [ordinary client](developer-tools.md),
+not direct writes. The `demo` command remains a calculation-only scenario.
+
+## Start a fresh store and process API
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+`init` requires a new file; its parent directory must exist. `rpc` requires an
+existing compatible store. One process owns the file; close the process before
+opening the store in another command. The API accepts one JSON-RPC 2.0 object
+per input line and produces one response per output line. IDs are strings of
+1–128 bytes. EOF closes the process. Batches and notifications reject without
+executing their operations; a JSON-RPC batch is not a transaction.
+
+The process acts as the initialized local actor/tenant. Requests cannot change
+that identity, select a model implementation, enable fixture mode or write raw
+storage. This local process/file trust boundary is not a login service. For the
+authenticated HTTP listener and current principal/grant administration, use
+[`serve` and the public authority API](server.md).
+
+Start with:
+
+```json
+{"jsonrpc":"2.0","id":"model","method":"model.describe","params":{}}
+```
+
+Use the returned `model` identity in operations that require it.
+`session.describe` takes an empty object. The public catalog
+includes input schemas, published fields, permitted predicates and limits.
+
+| Method | Params besides `model` |
+| --- | --- |
+| `session.describe` | No params; returns model, actor and operation context |
+| `access.describe` | Administrator-only current graph and numeric administration revision |
+| `access.replace` | Administrator-only decimal-string `if_revision`, `graph` |
+| `records.get` | `id` |
+| `records.mutate` | `context` from `session.describe`, `operation_id`, `commands`, `returning` UUID array |
+| `operations.status` | original `context`, `operation_id` |
+| `records.page` | `query`, `limit`, `visit_budget`, nullable `cursor` |
+| `records.exists` | `query`, `visit_budget`, nullable `cursor` |
+| `roots.read` | `owner`, `slot`, `read` |
+
+Unknown fields and duplicate object keys reject. Input is bounded to 65,536
+bytes before parsing. `get` returns a public envelope or `null`; private and
+absent identities both return `null`. Public operations expose no private role
+IDs, tree links, signing material or raw receipt tables.
+
+## Client example
+
+This Python client opens the completed demo, reads an actual version and edits
+one source. All arithmetic remains on the engine; values stay strings.
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+One `records.mutate` is atomic. Create supplies `op`, `id`, `contract`, `fields`;
+update supplies `op`, `id`, `if_version`, `set`, `unset`; delete supplies `op`,
+`id`, `if_version`. A command may refer to earlier creations in that mutation.
+Forward references reject. Every source ID may occur in only one command.
+The returned `result.records` contains settled public records/nulls for the
+requested IDs, alongside the confirmed operation ID and a fresh UUID result
+`revision`. Changed records and roots receive that mutation token. An unchanged
+record retains its prior token, including in a genuine no-op operation whose
+receipt has a new result token. Delete/recreate always obtains a fresh token.
+These values provide identity comparisons, not a store-wide ordering of commits.
+
+Same operation ID and normalized content replays its original confirmed result
+without applying it again. Changed content rejects with `operation_conflict`.
+Data, public index and receipt commit together. A stale editor version requires
+review, not an automatic replacement version. On `outcome_unknown`, retain the
+operation ID and request, reopen and reconcile. `not_observed` is not proof of
+failure. The local store retains up to 1024 receipts without eviction; reaching
+that bound rejects new mutations, while existing receipts can still replay.
+Allocation uses 1,024 independently guarded slots with bounded hash-start probing,
+not an ordinary-mutation write to one global count. See [receipt retention](storage.md#receipt-retention-without-unsafe-retries)
+for collision cost and complete-digest archive cleanup.
+
+## Query and publication semantics
+
+```json
+{"path":"records.by_id","contract":9,"equals":{"field":"target","value":"20"}}
+```
+
+`contract` and `equals` may be `null`. Equality requires one public contract and
+a scalar field listed in its `predicate_fields`; arrays/nested objects and
+derived/private fields are not predicates. The only order is ascending public
+record UUID. Pages contain distinct public records. Every visited candidate,
+including a filter rejection, consumes the budget.
+
+An empty page may carry a cursor. `exists` returns `yes` on a match, `no` only
+after exhausting the remaining scope, and `unknown` if its budget ends first.
+There is no extra uncounted lookahead: a page that ends exactly at its limit may
+need one final empty continuation to establish exhaustion.
+
+Cursors are HMAC authenticated and bind the store, model, actor/tenant, exact
+query, last visited public ID and scoped query `revision`. This revision is a
+64-character lowercase SHA-256 digest of the selected reader/contract epochs,
+including absent partitions, plus the numeric authority administration revision
+for secured stores. The bounded epoch vector is represented by this one signed
+field; cursors retain the 4,096-byte limit. Limit/budget may change when resuming.
+
+Changes to a selected public partition invalidate the cursor with `query_changed`,
+including derived-only changes and either side of a reader move. An actual
+authority graph change invalidates secured cursors. A genuine no-op, receipt
+replay or mutation outside the selected reader/contract scope preserves it.
+Changes within a selected partition may invalidate even if the particular
+filter's result would stay equal. Cursors survive unchanged reopen. Each page
+uses one fresh snapshot; this is not a frozen multi-request export. Neither the
+digest nor the authority counter is a global domain-mutation sequence.
+
+Root reads use one of:
+
+```json
+{"kind":"summary"}
+{"kind":"before","at":"20"}
+{"kind":"latest","at":"20"}
+```
+
+For calculation, Account slot 2 allows summary and strict `before`; Subsidiary slot 3 allows
+summary; Curve slot 1 allows summary and `latest`. A financial summary publishes
+count, sum, complete-time minimum, and first/last time. `before` excludes **all**
+equal-time occurrences, including at i64 extrema. `latest` returns a public quote
+ID/rate or `null`. Root results include their opaque UUID `revision`; there is
+no `store_revision` field.
+Equipment Pool slot 7 allows summary and strict `before` over availability.
+These publications include declared private contributions without exposing their
+private record identities. Record-list filtering does not redefine a root sum.
+
+## Bounds and validation
+
+Current compiled models configure no fixed public-record, output or reservation
+ceilings; population counters are u64. Shared limits remain: a 262,144-row
+observation budget for full inventory and check operations, 64 commands, 32
+returning IDs or page rows, 128 query visits, 1,024
+receipts, 200,000 mutation work units and 64 MiB backups. Equipment quantities
+have model-specific bounds; read its catalog and allocation semantics.
+Calculated i128 overflow rejects. Redb-connected end-to-end checks cover 5,001
+and 10,001 records in scoped tests, without establishing unrestricted or
+production capacity.
+
+Ordered reverse AVL routes select affected read endpoints and a compact
+prefix-gate graph preserves final producer dependencies. Tree paths are
+logarithmic; an entire affected closure may still exceed the unchanged work
+budget and reject atomically. Store checks and backups inventory complete state,
+and backups retain the 64 MiB bound.
+
+The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
+
+The historical population probe covered both models at 64, 256, 1,024 and 4,096
+public sources. Its HTTP checks and measured fanout boundaries are described in the
+[population result](../research/24-population-scaling-result.md). It records
+work-limit rollback rather than assuming every full-population edit can commit.
+
+The historical local observer is privileged and used only for disposable acceptance stores.
+Its complete application-table images include test-store signing material; it
+is absent from RPC and from the normal inspector. The checker independently
+derives sources/outputs, every subtree, public index membership and receipt
+results/content hashes. Earlier native corpora cover the wider causal and original
+settlement matrix at their recorded source revisions; their commands are in the
+research result papers. Keep their numeric-version fixtures and dated evidence
+with the matching historical implementation. Do not rerun them against API 4 by
+silently interpreting numeric versions as UUID tokens.
+
+Current [transactional adapters](storage-backends.md) and bounded
+[external work](external-effects.md) have their own gate results and limits.
+TiKV, G6 accounting, G8 workload/release expansion, arbitrary model loading,
+implicit migrations and frontend remain deferred.

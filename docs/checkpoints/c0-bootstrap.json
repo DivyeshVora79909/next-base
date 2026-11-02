@@ -1,0 +1,65 @@
+{
+  "format": "next-base-bootstrap-1",
+  "sourceImport": {
+    "repository": "https://github.com/DivyeshVora79909/ReBase",
+    "commit": "270d875a6e97b276d9cf7876a9bb4666a21d0f53",
+    "subdirectory": "rebase-next",
+    "tree": "b9f2779ee1050dec437179603e259f40782277cc"
+  },
+  "verifiedCodeFiles": 181,
+  "executableInputsSha256": "027cbde9b09f947df3a1c80ef75fadfd288db80ee72a16503645449b87cfd870",
+  "codeModelTestsAndDependenciesUnchanged": true,
+  "research": {
+    "repository": "https://github.com/DivyeshVora79909/research",
+    "commit": "0986b06d120b18713f76fec26b71faa5c40c60b6",
+    "movedFiles": 68,
+    "removedOnlyAfterVerifiedPush": true
+  },
+  "checks": {
+    "node": {
+      "version": "24.22.1",
+      "checkout": "/workspace/Next-Base",
+      "passed": 167,
+      "failed": 0,
+      "skipped": 0,
+      "logSha256": "2061578c3a6abbae1443184ec4b3e7ddc4bf44add0fc9d58cffccb31b58ce9fd",
+      "nativeBinarySha256": "497eba3b0f88b26b44d9538e736360250f0d8be6b3fcaab39ccea599c7b55d89",
+      "scope": "Full suite in standalone destination; native integrations use unchanged source-bound imported binary, not a newly built release."
+    },
+    "rust": {
+      "version": "1.95.0",
+      "checkout": "/tmp/rebase-cleanup/next-base",
+      "passed": 116,
+      "failed": 0,
+      "ignored": 0,
+      "logSha256": "0f096e10c86327670099ffa9cd1821d1cb2e495ebd88d038656e0804159f6fd0",
+      "scope": "Library tests rebuilt against standalone staged source; implementation/model inputs byte-identical to destination. Optional backends and native integration campaigns not rerun."
+    },
+    "formatting": {
+      "status": "passed",
+      "tool": "pinned cargo-fmt 1.95.0"
+    },
+    "lockedOfflineCargoMetadata": {
+      "status": "passed"
+    },
+    "ignoredPrivateAndGeneratedPaths": [
+      ".env",
+      ".local/store",
+      "tools/node/node_modules/a",
+      "target/a"
+    ],
+    "requiredFixturesPresent": [
+      "research/fixtures/causal-slice.json",
+      "research/fixtures/native-slice.json",
+      "research/fixtures/n0-native-protocol.json",
+      "research/fixtures/s0-inputs.json",
+      "research/fixtures/s0-trace.schema.json",
+      "research/fixtures/s0-workload-manifest.json"
+    ],
+    "ci": {
+      "status": "statically validated; not claimed executed",
+      "defaultBackend": "redb",
+      "optionalBackends": "not run by default job"
+    }
+  }
+}

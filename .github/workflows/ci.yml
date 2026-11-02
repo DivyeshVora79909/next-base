@@ -1,0 +1,46 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  default-backend:
+    name: Rust and Node (default redb backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      REBASE_NODE_N1_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+      REBASE_NODE_N2_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+      REBASE_NODE_N3_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+      REBASE_NODE_N4_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+      REBASE_NODE_N5_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+      REBASE_NODE_N6_BINARY: ${{ github.workspace }}/target/debug/rebase-next
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: tools/node/package-lock.json
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - name: Install locked Node dependencies
+        run: npm --prefix tools/node ci
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Check Rust lint
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Build native host for Node integration tests
+        run: cargo build --locked --bin rebase-next
+      - name: Test Rust default backend
+        run: cargo test --locked
+      - name: Test Node with native integration enabled
+        run: |
+          test -x "$REBASE_NODE_N1_BINARY"
+          npm --prefix tools/node test

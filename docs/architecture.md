@@ -1,0 +1,78 @@
+# Native base architecture
+
+The selected foundation is the existing Rust engine, native RPC and transactional KV adapters,
+with linked augmented AVL indexes. This is the current design direction; earlier S0/N-series
+reports remain historical evidence with their original acceptance boundaries.
+The [roadmap](roadmap.md) distinguishes implemented behavior from planned checkpoints.
+
+## Implemented authority and transaction boundary
+
+[`identity.rs`](../src/identity.rs) verifies EdDSA JWT signature, issuer, audience, tenant,
+subject and time bounds. [`server.rs`](../src/server.rs) authenticates transport ingress;
+TLS terminates at the configured trusted deployment boundary. A subject identifies a principal,
+not an owner supplied by an untrusted claim. JWT verification does not grant a client scope.
+[`access.rs`](../src/access.rs) prepares the tenant principal DAG and separates record owner
+from reader: contract action plus owner accessibility controls writes; Read plus reader
+accessibility controls disclosure. Current DAG grants have specific bounded semantics,
+not arbitrary transitive ACL intersection. Incomparable reader candidates retain declared order.
+
+[`security.rs`](../src/security.rs) loads current persisted authority and credential epochs
+inside transaction scope. Authority changes and operation-context fencing are separate from
+JWT expiry. Each attempt must use current authority; retries must not reuse stale permission
+results. [`local.rs`](../src/local.rs) authorizes client actions and new/changed reference targets;
+[`mutation.rs`](../src/mutation.rs) checks declared type, tenant, existence and final invariants.
+Trusted settlement can repair hidden nodes and derived records without user read filtering.
+That internal privilege does not authorize extra client edits or disclose hidden records.
+
+[`staging.rs`](../src/staging.rs) and the native workspace hold attempt-local reads and patches.
+Ordinary functions receive explicit state; they need no hidden process-global workflow context.
+[`storage.rs`](../src/storage.rs) defines protected transactional reads/scans and one commit.
+Source changes, references, indexes, calculations, reader repairs, receipts and applicable effect
+intent publish together. A helper must not publish intermediate writes. Point-overlay no-op
+elimination does not remove conflict guards or protected empty-range reads.
+When commit outcome is uncertain, timeout/cancellation alone does not prove rollback: use
+receipt/status recovery and preserve the original operation ID, request and context.
+Known precommit validation rejection publishes nothing. External delivery follows committed intent;
+[`effects.rs`](../src/effects.rs) does not promise exactly-once external execution.
+
+## One model authority and explicit relationships
+
+[`model.rs`](../src/model.rs) prepares schemas, references, roots, memberships, capabilities
+and model identity; public/developer catalogs are projections of this authority.
+[`binding.rs`](../src/binding.rs) supplies compiled native semantics. Keep new query,
+population and authorization declarations attached to that catalog rather than parallel schemas.
+Typed references have stable slots, target types, optionality and dependency/reader roles.
+Implemented model deletion declarations use `reject`; generic cascade/nullify are not supplied.
+Incoming references and subscribers guard deletion and must be repaired in the same final graph.
+1:n uses a child-to-parent reference, with an ordered membership only when a query needs it.
+Generic 1:1 uniqueness remains planned: a reference alone cannot prevent concurrent partners.
+Reuse a protected count/root cardinality invariant where it fully expresses the relationship;
+otherwise use a protected uniqueness key. Do not maintain both without a distinct obligation.
+n:m uses an explicit typed junction; duplicate-pair uniqueness and endpoint deletion rules
+must be declared and transactionally guarded. Reader choice requires an explicit policy.
+
+## Selected index structure and planned read work
+
+[`tree.rs`](../src/tree.rs) maintains individually stored AVL nodes, parent/child and prev/next
+links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
+[`indexes/standard.rs`](../src/indexes/standard.rs) define the typed family contracts.
+Constant-size associative summaries permit logarithmic path work per changed occurrence;
+full mutation work also includes fanout, reference checks, authority repairs and cascades.
+Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
+The count-pruned, batched BFS reader is verified scratch research, not integrated public paging.
+C1 must preserve same-transaction visibility, authorization, ordering and continuation semantics.
+[Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
+
+No proposed chronological analytics indexes are implemented. Add zero or more only for measured
+queries: owner-time and tenant-time have different access paths. Created time is immutable
+ingestion chronology; effective time is mutable business chronology. Each ordering needs stable
+identity ties. Each added membership increases index maintenance; unchanged payload edits need
+not touch an index whose key, leaf and dependencies are unchanged. Prefer tenant/owner roots
+where their query scope fits; tenant prefixes inside one global root do not avoid hot ancestors.
+Avoid a universal hot counter. Optional live invalidations would publish through a durable outbox
+after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
+
+Existing write contention also needs measurement: settlement reads the store-wide Population
+key and writes it when counts/reservations change; public edits update reader/contract epochs.
+These can couple independent AVL trees. C3 must distinguish these guards from tree-root work
+and preserve required business constraints while evaluating finer operational coordination.

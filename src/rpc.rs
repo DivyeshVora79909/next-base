@@ -1,0 +1,261 @@
+//! Local JSON-RPC selects typed operations, never authority, fixture mode or KV.
+
+use crate::binding::Binding;
+use crate::{
+    json::{self, MAX_REQUEST_BYTES},
+    local::{Mutation, Store},
+    native_codec::uuid_text,
+    native_slice::{Error, Result},
+    query::{ExistsRequest, PageRequest, RootRequest},
+};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::io::{BufRead, Read, Write};
+use uuid::Uuid;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Request {
+    jsonrpc: String,
+    id: String,
+    method: String,
+    params: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Empty {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ModelOnly {
+    model: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Get {
+    model: String,
+    #[serde(with = "uuid_text")]
+    id: Uuid,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Status {
+    model: String,
+    context: String,
+    #[serde(with = "uuid_text")]
+    operation_id: Uuid,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EffectStatus {
+    model: String,
+    #[serde(with = "uuid_text")]
+    execution_id: Uuid,
+}
+
+fn bind<T: for<'de> Deserialize<'de>>(params: Value) -> Result<T> {
+    serde_json::from_value(params)
+        .map_err(|_| Error::new("invalid_input", "invalid operation params"))
+}
+
+fn dispatch<B: Binding>(store: &Store<B>, method: &str, params: Value) -> Result<Value> {
+    match method {
+        "model.describe" => {
+            let _: Empty = bind(params)?;
+            let (read, _, _) = store.read(store.model().identity())?;
+            store.authority(&read)?;
+            Ok(store.model().public_catalog())
+        }
+        "access.describe" => {
+            let p: ModelOnly = bind(params)?;
+            store.access_graph(&p.model)
+        }
+        "session.describe" => {
+            let _: Empty = bind(params)?;
+            let (read, _, header) = store.read(store.model().identity())?;
+            let scope = store.authority(&read)?;
+            Ok(
+                json!({"tenant":scope.tenant,"actor":scope.actor,"credential_epoch":scope.credential_epoch,
+                "permissions":scope.grants,"model":store.model().identity(),"store":header.store_id,
+                "operation_context":crate::security::operation_context(&header,store.context(),store.model().identity())?}),
+            )
+        }
+        "access.replace" => store.replace_access(&bind(params)?),
+        "records.get" => {
+            let p: Get = bind(params)?;
+            serde_json::to_value(store.get(&p.model, p.id)?)
+                .map_err(|e| Error::new("internal", e.to_string()))
+        }
+        "records.mutate" => {
+            let p: Mutation = bind(params)?;
+            store.mutate(&p)
+        }
+        "operations.status" => {
+            let p: Status = bind(params)?;
+            store.operation_status(&p.model, &p.context, p.operation_id)
+        }
+        "effects.status" if B::effect_action().is_some() => {
+            let p: EffectStatus = bind(params)?;
+            store.effect_status(&p.model, p.execution_id)
+        }
+        "effects.cancel" if B::effect_action().is_some() => store.cancel_effect(&bind(params)?),
+        "records.page" => {
+            let p: PageRequest = bind(params)?;
+            serde_json::to_value(store.page(&p)?).map_err(|e| Error::new("internal", e.to_string()))
+        }
+        "records.exists" => {
+            let p: ExistsRequest = bind(params)?;
+            store.exists(&p)
+        }
+        "roots.read" => {
+            let p: RootRequest = bind(params)?;
+            store.root_read(&p)
+        }
+        _ => Err(Error::new("method_not_found", "unknown public method")),
+    }
+}
+
+pub(crate) fn failure(id: Value, kind: &str) -> Value {
+    let (code, message) = match kind {
+        "parse_error" => (-32700, "Parse error"),
+        "invalid_request" => (
+            -32600,
+            "A JSON-RPC 2.0 request with a string ID is required",
+        ),
+        "method_not_found" => (-32601, "Method not found"),
+        "invalid_input" => (-32602, "Invalid operation input"),
+        "outcome_unknown" => (
+            -32001,
+            "Commit outcome unknown; retain the operation ID and reconcile after reopening",
+        ),
+        "forbidden" => (-32000, "Operation is not permitted"),
+        "not_found" => (-32000, "Record or root is unavailable"),
+        "unavailable_reference" => (-32000, "A required identity is unavailable"),
+        "already_exists" => (-32000, "Record already exists"),
+        "stale_version" => (-32000, "Record changed; refresh before editing"),
+        "transaction_conflict" => (
+            -32000,
+            "Concurrent protected state changed; attempt aborted",
+        ),
+        "transaction_aborted" => (-32000, "The storage attempt aborted; no automatic retry"),
+        "transaction_limit" => (
+            -32000,
+            "A storage key, value, size or lifetime limit was reached",
+        ),
+        "model_mismatch" => (-32000, "Model or store format differs"),
+        "wrong_target" => (-32000, "Service store identity changed"),
+        "invariant" => (-32000, "The settled state violates a declared rule"),
+        "feedback" => (-32000, "The final calculation graph contains feedback"),
+        "duplicate_time" => (-32000, "A quote already occupies that time"),
+        "operation_conflict" => (-32000, "Operation ID is bound to different content"),
+        "operation_expired" => (
+            -32000,
+            "Request context expired; reconcile using the archive, never refresh an uncertain request",
+        ),
+        "invalid_cursor" => (-32000, "Invalid cursor for this query or store"),
+        "query_changed" => (-32000, "Query changed; restart pagination"),
+        "unsupported_query" => (-32000, "Query path or operation is not declared"),
+        "work_limit" | "state_limit" | "receipt_limit" | "request_limit" => {
+            (-32000, "A declared local limit was reached")
+        }
+        "overflow" | "revision_exhausted" => (-32000, "An exact numeric limit was reached"),
+        "inexact" => (-32000, "The value requires a fractional minor unit"),
+        "allocation_collision" | "allocation_exhausted" => {
+            (-32000, "Could not reserve an output identity")
+        }
+        _ => (-32603, "Local operation failed"),
+    };
+    let safe_kind = if code == -32603 { "internal" } else { kind };
+    json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message,"data":{"kind":safe_kind}}})
+}
+
+pub fn handle<B: Binding>(store: &Store<B>, bytes: &[u8]) -> Value {
+    let value = match json::parse(bytes) {
+        Ok(v) => v,
+        Err(e) => return failure(Value::Null, e.code),
+    };
+    let id = value
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty() && s.len() <= 128)
+        .map_or(Value::Null, |s| json!(s));
+    let request = match serde_json::from_value::<Request>(value) {
+        Ok(r)
+            if r.jsonrpc == "2.0"
+                && !r.id.is_empty()
+                && r.id.len() <= 128
+                && r.params.is_object() =>
+        {
+            r
+        }
+        _ => return failure(id, "invalid_request"),
+    };
+    match dispatch(store, &request.method, request.params) {
+        Ok(result) => json!({"jsonrpc":"2.0","id":request.id,"result":result}),
+        Err(error) => failure(json!(request.id), error.code),
+    }
+}
+
+/// Oversize lines are drained without growing the buffer; framing resumes at
+/// the next line. Parsing and method dispatch happen only after the byte limit.
+pub fn serve<B: Binding>(
+    store: &Store<B>,
+    mut input: impl BufRead,
+    mut output: impl Write,
+) -> std::io::Result<()> {
+    loop {
+        let mut bytes = vec![];
+        let read = (&mut input)
+            .take((MAX_REQUEST_BYTES + 1) as u64)
+            .read_until(b'\n', &mut bytes)?;
+        if read == 0 {
+            return Ok(());
+        }
+        if bytes.len() > MAX_REQUEST_BYTES && bytes.last() != Some(&b'\n') {
+            loop {
+                let available = input.fill_buf()?;
+                if available.is_empty() {
+                    break;
+                }
+                let end = available.iter().position(|b| *b == b'\n');
+                let count = end.map_or(available.len(), |i| i + 1);
+                input.consume(count);
+                if end.is_some() {
+                    break;
+                }
+            }
+        }
+        serde_json::to_writer(&mut output, &handle(store, &bytes))?;
+        output.write_all(b"\n")?;
+        output.flush()?;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn definite_storage_rejections_remain_distinct_from_uncertain_commit() {
+        for kind in [
+            "transaction_conflict",
+            "transaction_aborted",
+            "transaction_limit",
+        ] {
+            let reply = failure(json!("attempt"), kind);
+            assert_eq!(reply["error"]["code"], -32000);
+            assert_eq!(reply["error"]["data"]["kind"], kind);
+        }
+        let unknown = failure(json!("attempt"), "outcome_unknown");
+        assert_eq!(unknown["error"]["code"], -32001);
+        assert_eq!(unknown["error"]["data"]["kind"], "outcome_unknown");
+        assert_eq!(
+            failure(json!("attempt"), "private_backend_detail")["error"]["data"]["kind"],
+            "internal"
+        );
+    }
+}
