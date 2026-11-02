@@ -10,7 +10,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-9";
+pub const CODEC: &str = "native-slice-kv-10";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -187,6 +187,11 @@ impl Address {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Key {
+    Unique {
+        contract: u16,
+        constraint: u16,
+        targets: Vec<Uuid>,
+    },
     Meta,
     Population,
     Record(Uuid),
@@ -206,6 +211,21 @@ pub enum Key {
 impl Key {
     pub fn encode(&self) -> Vec<u8> {
         let (tag, id, slot) = match self {
+            Self::Unique {
+                contract,
+                constraint,
+                targets,
+            } => {
+                let mut bytes = vec![14];
+                bytes.extend_from_slice(&contract.to_be_bytes());
+                bytes.extend_from_slice(&constraint.to_be_bytes());
+                // Invalid in-memory keys are rejected by value validation.
+                bytes.extend_from_slice(&(targets.len() as u16).to_be_bytes());
+                for target in targets {
+                    bytes.extend_from_slice(target.as_bytes());
+                }
+                return bytes;
+            }
             Self::Meta => return vec![0],
             Self::Population => return vec![13],
             Self::Record(id) => (1, *id, None),
@@ -238,6 +258,26 @@ impl Key {
             return Ok(Self::Population);
         }
         let tag = *bytes.first().ok_or_else(bad)?;
+        if tag == 14 {
+            if bytes.len() < 7 {
+                return Err(bad());
+            }
+            let contract = u16::from_be_bytes([bytes[1], bytes[2]]);
+            let constraint = u16::from_be_bytes([bytes[3], bytes[4]]);
+            let count = u16::from_be_bytes([bytes[5], bytes[6]]) as usize;
+            if contract == 0 || constraint == 0 || count == 0 || bytes.len() != 7 + count * 16 {
+                return Err(bad());
+            }
+            let targets = bytes[7..]
+                .chunks_exact(16)
+                .map(|part| Uuid::from_slice(part).map_err(|_| bad()))
+                .collect::<Result<Vec<_>>>()?;
+            return Ok(Self::Unique {
+                contract,
+                constraint,
+                targets,
+            });
+        }
         let length = match tag {
             1 | 5 | 6 | 9 => 17,
             2..=4 | 7 | 8 | 10..=12 => 19,
@@ -286,6 +326,7 @@ impl Key {
     deserialize = "B::Input: serde::de::DeserializeOwned, B::Derived: serde::de::DeserializeOwned"
 ))]
 pub enum StoredValue<B: Binding> {
+    Unique(#[serde(with = "uuid_text")] Uuid),
     Meta(Meta),
     Population(Population),
     Record(ModelRecord<B>),
@@ -333,6 +374,19 @@ pub fn decode_for<B: Binding>(key: &Key, bytes: &[u8]) -> Result<StoredValue<B>>
 
 fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
     let valid = match (key, value) {
+        (
+            Key::Unique {
+                contract,
+                constraint,
+                targets,
+            },
+            StoredValue::Unique(_),
+        ) => {
+            *contract > 0
+                && *constraint > 0
+                && !targets.is_empty()
+                && targets.len() <= u16::MAX as usize
+        }
         (Key::Meta, StoredValue::Meta(meta)) => !meta.codec.is_empty() && !meta.model.is_empty(),
         (Key::Population, StoredValue::Population(population)) => {
             population.counts.keys().all(|code| *code > 0)

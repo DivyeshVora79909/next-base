@@ -130,6 +130,7 @@ fn declarations() -> Vec<Contract> {
     ]
     .into_iter()
     .map(|(code, name, names, properties, references, publications, expression)| Contract {
+                uniqueness: vec![],
         code,
         name,
         visibility: Visibility::Public,

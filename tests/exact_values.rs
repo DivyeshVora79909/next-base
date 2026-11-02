@@ -123,6 +123,7 @@ impl Binding for ExactEntries {
             ),
         ] {
             let mut contract = Contract {
+                uniqueness: vec![],
                 code,
                 name,
                 visibility: Visibility::Public,

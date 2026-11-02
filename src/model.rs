@@ -119,7 +119,15 @@ pub struct Calculation {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct Unique {
+    pub code: u16,
+    /// Ordered scalar reference slots; a missing optional slot omits the claim.
+    pub reference_slots: Vec<u16>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct Contract {
+    pub uniqueness: Vec<Unique>,
     pub code: u16,
     pub name: &'static str,
     pub visibility: Visibility,
@@ -359,6 +367,30 @@ impl<B: Binding> Prepared<B> {
                 contract.references.iter().map(|r| r.slot),
                 "reference slots",
             )?;
+            unique(
+                contract.uniqueness.iter().map(|u| u.code),
+                "uniqueness codes",
+            )?;
+            for constraint in &contract.uniqueness {
+                if constraint.reference_slots.is_empty()
+                    || constraint.reference_slots.len() > u16::MAX as usize
+                {
+                    return Err(model_error(
+                        "uniqueness requires 1..65535 scalar reference slots",
+                    ));
+                }
+                unique(
+                    constraint.reference_slots.iter().copied(),
+                    "uniqueness reference slots",
+                )?;
+                if constraint
+                    .reference_slots
+                    .iter()
+                    .any(|slot| !contract.references.iter().any(|r| r.slot == *slot))
+                {
+                    return Err(model_error("unresolved uniqueness reference slot"));
+                }
+            }
             unique(contract.roots.iter().map(|r| r.slot), "root slots")?;
             unique(contract.memberships.iter().map(|m| m.slot), "member slots")?;
             unique(contract.queries.iter().map(|q| q.slot), "query slots")?;
@@ -985,6 +1017,7 @@ pub(crate) fn declarations() -> Result<Vec<Contract>> {
     let mut contracts = Vec::new();
     for &(code, name, _, schema, fields) in sources {
         let mut c = Contract {
+            uniqueness: vec![],
             code,
             name,
             visibility: match code {

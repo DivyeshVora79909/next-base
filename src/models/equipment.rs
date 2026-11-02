@@ -195,6 +195,7 @@ fn declarations() -> Result<Vec<Contract>> {
             })
             .collect();
         let mut c = Contract {
+            uniqueness: vec![],
             code,
             name,
             visibility: if code == 900 {

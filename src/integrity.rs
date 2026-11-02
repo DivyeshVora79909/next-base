@@ -660,6 +660,62 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 )?;
             }
         }
+        // Derive the complete claim inventory from source, never writer caches.
+        let mut expected_unique = BTreeMap::new();
+        for (&id, record) in &records {
+            let contract = store.model().contract(record.contract)?;
+            let references = record.input.references();
+            for constraint in &contract.uniqueness {
+                let mut targets = Vec::new();
+                let mut missing = false;
+                for slot in &constraint.reference_slots {
+                    let values: Vec<_> = references.iter().filter(|(_, _, s)| s == slot).collect();
+                    require(values.len() <= 1, "non-scalar unique source reference")?;
+                    if let Some((target, _, _)) = values.first() {
+                        targets.push(*target);
+                    } else {
+                        let declaration = contract
+                            .references
+                            .iter()
+                            .find(|r| r.slot == *slot)
+                            .ok_or_else(|| local::corrupt("undeclared unique source reference"))?;
+                        require(
+                            declaration.optional,
+                            "missing required unique source reference",
+                        )?;
+                        missing = true;
+                    }
+                }
+                if missing {
+                    continue;
+                }
+                let key = Key::Unique {
+                    contract: contract.code,
+                    constraint: constraint.code,
+                    targets,
+                };
+                require(
+                    expected_unique.insert(key.clone(), id).is_none(),
+                    "duplicate unique source tuple",
+                )?;
+                require(
+                    all.get(&key) == Some(&StoredValue::Unique(id)),
+                    "exact unique claim holder",
+                )?;
+                expected_keys.insert(key);
+            }
+        }
+        let actual_unique: BTreeMap<_, _> = all
+            .iter()
+            .filter_map(|(key, value)| match (key, value) {
+                (Key::Unique { .. }, StoredValue::Unique(holder)) => Some((key.clone(), *holder)),
+                _ => None,
+            })
+            .collect();
+        require(
+            actual_unique == expected_unique,
+            "complete unique claim inventory",
+        )?;
         require(counts == population.counts, "record population")?;
         check_populations(store.model(), &counts, population.reserved)?;
         Ok(Self {

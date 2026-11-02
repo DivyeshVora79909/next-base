@@ -59,11 +59,13 @@ Typed references have stable slots, target types, optionality and dependency/rea
 Implemented model deletion declarations use `reject`; generic cascade/nullify are not supplied.
 Incoming references and subscribers guard deletion and must be repaired in the same final graph.
 1:n uses a child-to-parent reference, with an ordered membership only when a query needs it.
-Generic 1:1 uniqueness remains planned: a reference alone cannot prevent concurrent partners.
-Reuse a protected count/root cardinality invariant where it fully expresses the relationship;
-otherwise use a protected uniqueness key. Do not maintain both without a distinct obligation.
-n:m uses an explicit typed junction; duplicate-pair uniqueness and endpoint deletion rules
-must be declared and transactionally guarded. Reader choice requires an explicit policy.
+Catalog `Contract.uniqueness` reserves protected reference tuples for 1:1 partners
+or ordered n:m junction pairs. A reference alone does not imply uniqueness.
+Old releases precede final acquisitions, so joint retargets depend on the final graph.
+See [relationship semantics](relationships.md) for scope, optionality, costs and
+independent inventory checking. Endpoint deletion still follows declared reject
+rules. Reuse a cardinality root instead when it fully expresses a distinct invariant;
+do not duplicate coordination without a reason. Reader choice remains explicit.
 
 ## Selected index structure and planned read work
 

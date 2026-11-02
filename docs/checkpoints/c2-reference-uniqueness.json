@@ -1,0 +1,147 @@
+{
+  "format": "next-base-reference-uniqueness-1",
+  "checkpoint": "C2.U",
+  "status": "accepted bounded protected scalar reference tuple uniqueness",
+  "parentCommit": "9dc016311ef21086c90318f14be669294a503905",
+  "codec": "native-slice-kv-10",
+  "inputs": [
+    {
+      "path": "src/integrity.rs",
+      "sha256": "6d031d41de5e81c837f81df4a27bdc5654b06d2fcf316ee0a8e42e81bf2329ba"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "5e20524183dd8e9525a0f0c60c7300692df9d339745f6b09c467d6720d7739a7"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "db862e05ab2a1c81459a2e988e0e90e831d7c8a4478b9a6b50abe760bb790507"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "06eab2c2a3fa1aac1d2c6bc2274bed8ca04867332ff7d1858ee366e5e5b3bd1a"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "7eb583dd9df9a5ff7a1ca33881527bc2038f76b80b9a6c91d6512fcaa44eff8d"
+    },
+    {
+      "path": "src/models/invoicing.rs",
+      "sha256": "d2a745762667827c1d4497254af9ff0908fc1208ed845c0e01e70bd9214081f5"
+    },
+    {
+      "path": "src/models/measurement.rs",
+      "sha256": "564e9f9f0c38c35cd10678987e837d1b0ef49fb4b512f89464595de348d65a0e"
+    },
+    {
+      "path": "src/models/quantity.rs",
+      "sha256": "986533e37ab66dad2598baccf1870ea2c8d6cbf09ff0eb053c63669d747979ea"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "0fa4ea79a30ae6a0c67b1e50cb9acefe16de359a9fb18f8225baa82d16899963"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "038bdf242bd28fc2f1ddc6a539e91eaee475309bdb105b4fff784d6df6c089aa"
+    },
+    {
+      "path": "src/parameter_tests.rs",
+      "sha256": "eeb0351d554659246ed5a9e3612bbde21fdbafe21c695ee0959d45a219dedf1d"
+    },
+    {
+      "path": "src/publication_tests.rs",
+      "sha256": "257f5f86b0c71fe3bab59201f1c49b33afecbfb9304affb51cb571f987734d10"
+    },
+    {
+      "path": "src/uniqueness.rs",
+      "sha256": "1e06d1c086a9e94d7038f425ba72fe25ede291a8483c39f2d627ec8a46303dd4"
+    },
+    {
+      "path": "src/window_tests.rs",
+      "sha256": "107556f3ca1f2ce40f43637bec940b2c97e56910c66fc3b77f218d229a62ea22"
+    },
+    {
+      "path": "tests/exact_values.rs",
+      "sha256": "948b82ac24ef95d8096cb3100327b8cb7fc78f68e03f38677d2c7dc49fff31f0"
+    },
+    {
+      "path": "tests/reference_uniqueness.rs",
+      "sha256": "420a3d6540f0d49cae71d81fed1bcf58a3d5eb926b51de30d8acc3a1e9cb1a06"
+    },
+    {
+      "path": "tools/node/storage-check.mjs",
+      "sha256": "61f2fa8638f502efb77dbea84c1da8cbac635b4bc843afcc6418c6c6924e67fa"
+    },
+    {
+      "path": "tools/node/test/unique-storage.test.mjs",
+      "sha256": "0894e39b68002aeab3225d254a7355e9e6437024c061e8ad6eda6c77b298fe17"
+    }
+  ],
+  "semantics": {
+    "declaration": "Contract.uniqueness: positive code plus ordered nonempty distinct reference_slots; included in developer catalog and prepared identity",
+    "scope": "store tenant namespace + source contract + constraint code + ordered target UUID tuple",
+    "cardinality": "at most one source holder; no mandatory companion existence inferred",
+    "optionality": "missing optional slot omits entire tuple; required missing or repeated bound slot rejected; nil UUID is a target",
+    "staging": "after final client reference authorization; include all changed records; verify old holders, detach all moved old claims, acquire final claims via protected point reads",
+    "checker": "Snapshot independently reconstructs complete expected source-derived claims; Node checks framing, holder contract and target existence without pretending catalog completeness",
+    "work": "charge constraint/slot/reference traversal including omitted optional tuples; no-constraint model fast path"
+  },
+  "checks": {
+    "defaultRust": {
+      "passed": 272,
+      "failed": 0,
+      "ignored": 0,
+      "allTargets": true,
+      "includesExampleTests": true,
+      "logSha256": "7d7989fcac91b8926b690bb36d8f1d53bacf78f0acf1bc9629e49cece1ceb4b7"
+    },
+    "node": {
+      "passed": 171,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "version": "24.22.1",
+      "logSha256": "329f02d39828995b8861ef21c7ae6912dd996a1fad1975140f35eceeec1156ca"
+    },
+    "clippy": {
+      "allTargetsDefault": true,
+      "warningsDenied": true,
+      "defaultLogSha256": "265e665f24603dcfce18649053d63c862a9a771c51cb6902efd4f284cf9a3f0e",
+      "foundationdbTarget": "reference_uniqueness",
+      "foundationdbLogSha256": "c6ec9aaaf323774aeeb3113a1802f3b9d36a01811e140eeb5c9387fe3e8f5e8e"
+    },
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "scope": "actual uniqueness::reconcile primitive; shared Population and reader epochs absent; no business-reference validation",
+      "passed": 1,
+      "failed": 0,
+      "explicitIgnoredTestInvoked": true,
+      "logSha256": "a89dd9f0656eedd1cd0fe1d5452372be5ebf11f3bba2adc9d6cd96921400c6d9",
+      "cases": [
+        "same absent tuple: first wins, second transaction_conflict; loser Record and claim absent",
+        "disjoint tuples: both commit; exact six-row final inventory"
+      ],
+      "stdout": "\nrunning 1 test\ntest foundationdb_claim_primitive_protects_absence_and_preserves_disjointness ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.04s\n\n"
+    },
+    "format": "cargo fmt --all; git diff --check"
+  },
+  "witnesses": [
+    "scalar, optional, ordered pairs, repeated targets, contract/constraint scope separation and identity",
+    "all six retarget three-cycles and both delete/reuse orders",
+    "nil target vs null absence; invalid catalog declarations",
+    "settlement-only source edit moves claim; conflict rolls back full image",
+    "missing/wrong/extra claims and duplicate source facts rejected by actual Snapshot::load",
+    "optional omitted claim work exhaustion and partial claim-load failure publish nothing",
+    "hidden reference occupied/unoccupied probes both forbidden before uniqueness disclosure",
+    "real redb close/open retains exact state; explicit source oracle and duplicate rollback after reopen"
+  ],
+  "limits": [
+    "FoundationDB proof isolates the real claim primitive; no full application or multi-host performance claim",
+    "source inventory remains bounded by its existing completeness budget",
+    "private managed-role lifecycle with nonempty uniqueness declarations has no new dedicated campaign; generic reconciliation includes all changed records",
+    "Node structure checking cannot prove declared slot semantics or missing expected claims without catalog metadata",
+    "generic relationship predicates/mandatory companions and parent-edit invalidation remain the next C2 slice; C3 population/epoch contention remains separate",
+    "SurrealKV-specific acceptance was not rerun in this checkpoint"
+  ]
+}

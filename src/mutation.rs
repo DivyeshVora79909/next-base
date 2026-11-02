@@ -339,6 +339,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         let current = ws.record(change.id)?;
         authorize(ws, command, change.old.as_ref(), current.as_ref())?;
     }
+    crate::uniqueness::reconcile(ws, model)?;
     for id in ws.changed_roots() {
         if let Some(StoredValue::Root(mut root)) = ws.get(&Key::Root(id))? {
             root.revision = revision;

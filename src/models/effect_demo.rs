@@ -133,6 +133,7 @@ impl Binding for EffectDemo {
             ),
         ] {
             contracts.push(Contract {
+                uniqueness: vec![],
                 code, name, visibility: Visibility::Public,
                 schema: json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"required":names,"properties":fields}),
                 fields: names.into_iter().enumerate().map(|(i, name)| InputField { code: i as u16 + 1, name, mutable: code == 101 }).collect(),

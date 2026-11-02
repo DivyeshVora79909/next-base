@@ -186,6 +186,7 @@ fn contract(
     properties: Value,
 ) -> Contract {
     Contract {
+        uniqueness: vec![],
         code,
         name,
         visibility: if code == OUTPUT {

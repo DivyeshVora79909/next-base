@@ -89,6 +89,10 @@ Final-graph source reference binding and final client reference authorization ar
 accepted as C2.F: see [evidence](checkpoints/c2-final-graph-references.json).
 Early action/CAS boundaries remain; readers are repaired before final target access.
 This does not implement arbitrary relationship predicates or allow causal cycles.
+Catalog scalar/pair tuple uniqueness is accepted as C2.U: see
+[semantics](relationships.md) and [evidence](checkpoints/c2-reference-uniqueness.json).
+The remaining implementation slice is explicit relationship predicates and
+parent-edit revalidation; preserve the following full C2 obligations.
 
 Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.

@@ -169,6 +169,7 @@ fn declarations() -> Result<Vec<Contract>> {
             .keys()
             .collect();
         let mut c = Contract {
+            uniqueness: vec![],
             code,
             name,
             visibility: Visibility::Public,

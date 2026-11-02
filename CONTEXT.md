@@ -1,5 +1,31 @@
 # Current checkpoint
 
+## C2.U — Protected catalog reference tuple uniqueness
+
+`Contract.uniqueness` declares positive local constraint codes and ordered scalar
+reference slots. A single slot gives 1:1 target uniqueness; multiple slots give
+ordered junction-pair uniqueness. Missing optional slots omit the whole claim;
+nil UUID remains a target. Per-record bound multiplicity is checked natively,
+without another JSON Schema shape parser. The developer catalog is the authority.
+
+After final client reference authorization, shared settlement reconciles all
+changed source records, including settlement-only edits. Verify original claims,
+release all changed old tuples, then acquire final tuples through protected point
+reads. Swaps/delete-reuse are final-graph operations. Exact independent Snapshot
+inventory detects missing/wrong/extra claims and duplicate source facts. Optional
+omitted constraints consume work too; models without constraints skip this path.
+
+Codec is now native-slice-kv-10; explicitly recreate older stores. See
+docs/relationships.md and docs/checkpoints/c2-reference-uniqueness.json for scope,
+evidence and limits. Node backup checking validates physical claims/holder contract/
+target existence; native checking additionally derives complete semantic inventory.
+The explicit local FoundationDB test isolates the claim primitive from population
+and reader epochs; it is not full application or multi-host performance acceptance.
+
+Next C2 dependency: pure final-graph relationship predicates with explicit parent
+inputs and revalidation of affected children on parent edits. This is not provided
+by tuple uniqueness or local JSON Schema. C3 access/order changes follow that contract.
+
 ## C2.F — Final-graph reference binding and authorization
 
 Authored commands retain early action/old-owner checks before version diagnostics.
@@ -7,14 +33,15 @@ Bind/stage all proposed sources and headers before resolving typed references.
 After model settlement and final deletion checks, repair readers, then authorize
 new/retargeted references for explicit client commands against final readers.
 Internal repairs cannot grant extra client actions. Reference policy is part of
-prepared identity; old stores require explicit recreation. Codec remains kv-9.
+prepared identity; old stores require explicit recreation. C2.F retained kv-9;
+the subsequent C2.U checkpoint changes the codec to kv-10.
 
 Quantity witnesses cover all six source/scale/scale create and delete permutations,
 literal quantities, hidden references, owner-before-CAS rejection and exact rollback.
 A multiple-parent authority witness ensures a newly hidden parent cannot authorize
 its child using the temporary creation reader, in either command order.
-See docs/checkpoints/c2-final-graph-references.json. Next: protected catalog tuple
-uniqueness; general parent-field predicates and their invalidation remain deferred.
+See docs/checkpoints/c2-final-graph-references.json. C2.U adds protected catalog
+tuples; general parent-field predicates and their invalidation remain deferred.
 
 ## C1.4 — Authorized batched occurrence pages
 
@@ -51,7 +78,7 @@ including when an upstream chosen reader and published value stay unchanged.
 Initial payload-only edits do not scan irrelevant consumers. Writer/admin repair,
 reader indexes, cursor epochs and independent source checks must agree.
 `access::READER_POLICY` is part of every prepared model identity. Old model identities
-require explicit recreation; storage codec remains native-slice-kv-9.
+require explicit recreation; C2.R itself retained native-slice-kv-9.
 Verification: docs/checkpoints/c2-reader-policy.json.
 
 The accepted C1.4 layer composes authorized root member paging, same-snapshot
@@ -81,7 +108,8 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
 - C1.1 structural sizes/count-only family, C1.2 same-view storage batches, C1.3
   trusted rank windows and C1.4 authorized member paging are accepted on the default
   backend. Broader distributed workload acceptance is separate.
-- C2 retains catalog 1:1/pair uniqueness and final-graph relationship predicates.
+- C2.F final-graph references and C2.U catalog 1:1/pair uniqueness are accepted.
+  Generic final-graph relationship predicates remain.
   Parent/child order comparisons must register parent inputs and revalidate parent
   edits, not only child insertion. Local JSON Schema alone is insufficient.
 - C3 access indexes are explicitly opted-in resource/tenant/reader-or-owner/order

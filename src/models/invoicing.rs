@@ -476,6 +476,7 @@ fn declarations() -> Result<Vec<Contract>> {
     }
     for (code, name, properties, names) in contracts {
         let mut c = Contract {
+            uniqueness: vec![],
             code,
             name,
             visibility: if code >= 900 {

@@ -57,6 +57,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const nodes = new Map();
   const observation = { records: [], roots: [], queries: [], roles: [], reserved: [] };
   const nativeKeys = new Set();
+  const recordsById = new Map();
+  const uniqueClaims = [];
   for (const row of rows) {
     object(row, 'native KV row');
     exactKeys(row, ['key', 'value'], 'native KV row');
@@ -71,13 +73,19 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     object(value, 'stored native value');
     exactKeys(value, ['type', 'data'], 'stored native value');
     requireThat(value.type === decodedKey.type, 'native key/value tag differs');
-    object(value.data, 'stored tree value');
+    if (decodedKey.type === 'unique') {
+      requireThat(typeof value.data === 'string' && UUID.test(value.data), 'unique holder must be a canonical UUID');
+    } else object(value.data, 'stored tree value');
     if (decodedKey.type === 'root' || decodedKey.type === 'node') {
       requireThat(canonicalTypedValue(value) === valueText, 'root/node bytes are not canonical serde JSON');
     } else {
       requireThat(JSON.stringify(value) === valueText, 'non-tree native value bytes are not compact JSON');
     }
-    if (decodedKey.type === 'record') observation.records.push({ id: decodedKey.id, record: value.data });
+    if (decodedKey.type === 'record') {
+      recordsById.set(decodedKey.id, value.data);
+      observation.records.push({ id: decodedKey.id, record: value.data });
+    }
+    else if (decodedKey.type === 'unique') uniqueClaims.push({ key: decodedKey, holder: value.data });
     else if (decodedKey.type === 'query') observation.queries.push({ query: decodedKey.address, descriptor: value.data });
     else if (decodedKey.type === 'role') observation.roles.push({ source_role: decodedKey.address, binding: value.data });
     else if (decodedKey.type === 'reserved') observation.reserved.push({ id: decodedKey.id, source_role: value.data });
@@ -89,6 +97,14 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       observation.roots.push({ root: decodedKey.address, revision: value.data.revision, summary: value.data.summary });
     }
     else nodes.set(token, { address: decodedKey.address, value: value.data });
+  }
+  for (const claim of uniqueClaims) {
+    const holder = recordsById.get(claim.holder);
+    requireThat(holder !== undefined, 'unique holder has no source record');
+    requireThat(holder.contract === claim.key.contract, 'unique holder contract differs from key contract');
+    for (const target of claim.key.targets) {
+      requireThat(recordsById.has(target), 'unique target has no source record');
+    }
   }
   requireThat(nodes.size <= MAX_TREE_NODES, 'tree node inventory exceeds its bound');
   requireThat(expectedMembers === undefined || expectedMembers instanceof Map, 'expectedMembers must be a Map');
@@ -277,6 +293,19 @@ function decodeKey(bytes) {
   if (bytes.length === 1 && bytes[0] === 0) return { type: 'meta' };
   if (bytes.length === 1 && bytes[0] === 13) return { type: 'population' };
   const tag = bytes[0];
+  if (tag === 14) {
+    requireThat(bytes.length >= 7, 'invalid native uniqueness key');
+    const contract = bytes.readUInt16BE(1);
+    const constraint = bytes.readUInt16BE(3);
+    const count = bytes.readUInt16BE(5);
+    requireThat(contract > 0 && constraint > 0 && count > 0
+      && bytes.length === 7 + count * 16, 'invalid native uniqueness key');
+    const targets = [];
+    for (let offset = 7; offset < bytes.length; offset += 16) {
+      targets.push(formatUuid(bytes.subarray(offset, offset + 16)));
+    }
+    return { type: 'unique', contract, constraint, targets };
+  }
   const expectedLength = new Set([1, 5, 6, 9]).has(tag) ? 17
     : new Set([2, 3, 4, 7, 8, 10, 11, 12]).has(tag) ? 19 : 0;
   requireThat(expectedLength > 0 && bytes.length === expectedLength, 'invalid native point key');
