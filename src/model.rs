@@ -605,6 +605,7 @@ impl<B: Binding> Prepared<B> {
             B::NAME.as_bytes(),
             B::BEHAVIOR.as_bytes(),
             crate::access::READER_POLICY.as_bytes(),
+            crate::mutation::REFERENCE_POLICY.as_bytes(),
             core_identity.as_bytes(),
             bytes.as_slice(),
         ] {

@@ -658,20 +658,29 @@ impl<B: Binding> Store<B> {
                     }
                     Ok(())
                 },
+                &mut |ws, revision| {
+                    if self.secured {
+                        let ids = ws.changed_records();
+                        let mut dominance = std::collections::BTreeMap::new();
+                        crate::security::repair_readers(
+                            ws,
+                            &self.model,
+                            ids,
+                            revision,
+                            &mut |owners, fallback| {
+                                crate::security::stored_reader(
+                                    &write,
+                                    owners,
+                                    fallback,
+                                    &mut dominance,
+                                )
+                            },
+                        )?;
+                    }
+                    Ok(())
+                },
             )?;
-            if self.secured {
-                let ids = ws.changed_records();
-                let mut dominance = std::collections::BTreeMap::new();
-                crate::security::repair_readers(
-                    &mut ws,
-                    &self.model,
-                    ids,
-                    settled.revision,
-                    &mut |owners, fallback| {
-                        crate::security::stored_reader(&write, owners, fallback, &mut dominance)
-                    },
-                )?;
-            }
+
             let mut records = vec![];
             for &id in &request.returning {
                 records.push(ReturnedValue {

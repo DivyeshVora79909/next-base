@@ -1046,6 +1046,7 @@ fn observation_report_budget_failure_discards_staged_queries_and_all_tables() {
         &mut || panic!("report allocation"),
         false,
         &mut |_, _, _, _| Ok(()),
+        &mut |_, _| Ok(()),
     )
     .unwrap();
     let needed = ws.work.work_units;
@@ -1061,6 +1062,7 @@ fn observation_report_budget_failure_discards_staged_queries_and_all_tables() {
         &mut || panic!("report allocation"),
         false,
         &mut |_, _, _, _| Ok(()),
+        &mut |_, _| Ok(()),
     );
     assert_eq!(failure.unwrap_err().code, "work_limit");
     assert!(ws.work.staged_patches > 0);
@@ -1316,6 +1318,7 @@ fn latest_observation_final_retarget_unit_repairs_and_budget_are_atomic() {
             &mut || panic!("selection allocation"),
             false,
             &mut |_, _, _, _| Ok(()),
+            &mut |_, _| Ok(()),
         )
         .unwrap();
         assert_eq!(ws.work.causal_evaluations, 1);
@@ -1330,7 +1333,8 @@ fn latest_observation_final_retarget_unit_repairs_and_budget_are_atomic() {
                 &attempt.commands,
                 &mut || panic!("selection allocation"),
                 false,
-                &mut |_, _, _, _| Ok(())
+                &mut |_, _, _, _| Ok(()),
+                &mut |_, _| Ok(())
             )
             .unwrap_err()
             .code,

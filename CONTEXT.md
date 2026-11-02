@@ -1,5 +1,21 @@
 # Current checkpoint
 
+## C2.F — Final-graph reference binding and authorization
+
+Authored commands retain early action/old-owner checks before version diagnostics.
+Bind/stage all proposed sources and headers before resolving typed references.
+After model settlement and final deletion checks, repair readers, then authorize
+new/retargeted references for explicit client commands against final readers.
+Internal repairs cannot grant extra client actions. Reference policy is part of
+prepared identity; old stores require explicit recreation. Codec remains kv-9.
+
+Quantity witnesses cover all six source/scale/scale create and delete permutations,
+literal quantities, hidden references, owner-before-CAS rejection and exact rollback.
+A multiple-parent authority witness ensures a newly hidden parent cannot authorize
+its child using the temporary creation reader, in either command order.
+See docs/checkpoints/c2-final-graph-references.json. Next: protected catalog tuple
+uniqueness; general parent-field predicates and their invalidation remain deferred.
+
 ## C1.4 — Authorized batched occurrence pages
 
 `Store::root_page` and JSON-RPC `roots.page` compose native rank windows, epoch

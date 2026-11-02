@@ -85,6 +85,11 @@ reinterpret old stored readers or widen read/write/reference permissions.
 
 ### Remaining relationship guards
 
+Final-graph source reference binding and final client reference authorization are
+accepted as C2.F: see [evidence](checkpoints/c2-final-graph-references.json).
+Early action/CAS boundaries remain; readers are repaired before final target access.
+This does not implement arbitrary relationship predicates or allow causal cycles.
+
 Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.
 Cover 1:n child references, 1:1 target uniqueness and n:m typed junction/pair uniqueness.

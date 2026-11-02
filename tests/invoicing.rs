@@ -712,13 +712,13 @@ fn partial_payments_repeated_refunds_and_self_memberships_follow_the_final_graph
         let directory = Directory::new();
         let store = create(&directory);
         baseline(&store);
-        // New parent links follow the shared API's creation order. Once the
-        // parents exist, both simultaneous refund command orders are valid.
+        // A refund whose payment is absent from the final staged graph remains
+        // invalid even when the treasury and a different payment are present.
         reject(
             &store,
             5998,
             json!([
-                {"op":"create","id":id(80),"contract":809,"fields":{"invoice":id(10),"treasury":id(60),"payment":id(70),"at":"0","amount_minor":"2000"}},
+                {"op":"create","id":id(80),"contract":809,"fields":{"invoice":id(10),"treasury":id(60),"payment":id(999),"at":"0","amount_minor":"2000"}},
                 {"op":"create","id":id(60),"contract":601,"fields":{"currency":1,"name":"Cash"}},
                 {"op":"create","id":id(70),"contract":701,"fields":{"invoice":id(10),"treasury":id(60),"at":"0","amount_minor":"5000"}}
             ]),
@@ -784,6 +784,44 @@ fn partial_payments_repeated_refunds_and_self_memberships_follow_the_final_graph
                 .unwrap()
                 .is_empty()
         );
+        store.check_integrity().unwrap();
+    }
+}
+
+#[test]
+fn forward_treasury_payment_and_refund_links_resolve_in_every_command_order() {
+    let orders = [
+        [60, 70, 80],
+        [60, 80, 70],
+        [70, 60, 80],
+        [70, 80, 60],
+        [80, 60, 70],
+        [80, 70, 60],
+    ];
+    for (index, order) in orders.into_iter().enumerate() {
+        let directory = Directory::new();
+        let store = create(&directory);
+        baseline(&store);
+        let command = |record| match record {
+            60 => {
+                json!({"op":"create","id":id(60),"contract":601,"fields":{"currency":1,"name":"Cash"}})
+            }
+            70 => {
+                json!({"op":"create","id":id(70),"contract":701,"fields":{"invoice":id(10),"treasury":id(60),"at":"0","amount_minor":"5000"}})
+            }
+            80 => {
+                json!({"op":"create","id":id(80),"contract":809,"fields":{"invoice":id(10),"treasury":id(60),"payment":id(70),"at":"0","amount_minor":"2000"}})
+            }
+            _ => unreachable!(),
+        };
+        commit(
+            &store,
+            7100 + index as u128,
+            json!(order.into_iter().map(command).collect::<Vec<_>>()),
+        );
+        assert_eq!(root_sum(&store, 10, 21), 3000);
+        assert_eq!(root_sum(&store, 60, 37), 3000);
+        assert_eq!(root_sum(&store, 70, 41), 3000);
         store.check_integrity().unwrap();
     }
 }

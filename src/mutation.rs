@@ -13,6 +13,9 @@ use crate::{
 use std::collections::BTreeSet;
 use uuid::Uuid;
 
+/// Bound into prepared identity when reference authorization semantics change.
+pub const REFERENCE_POLICY: &str = "final-graph-reference-policy-v1";
+
 pub fn check_counts<B: Binding>(model: &Prepared<B>, population: &Population) -> Result<()> {
     check_counts_with_limits(model, population, &B::limits())
 }
@@ -128,6 +131,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         Option<&ModelRecord<B>>,
         Option<&ModelRecord<B>>,
     ) -> Result<()>,
+    finalize: &mut dyn FnMut(&mut Attempt<L, B>, Uuid) -> Result<()>,
 ) -> Result<Settled> {
     let Some(StoredValue::Meta(meta)) = ws.get(&Key::Meta)? else {
         return Err(Error::new("corrupt_state", "missing model header"));
@@ -203,7 +207,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                     }
                 }
                 let input = model.validate(*contract, fields)?;
-                validate_references(ws, model, &input, context)?;
                 let count = population.counts.entry(*contract).or_default();
                 *count = count
                     .checked_add(1)
@@ -248,7 +251,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                         .extend(set.clone());
                     let mut next = previous.clone();
                     next.input = model.validate(previous.contract, &value)?;
-                    validate_references(ws, model, &next.input, context)?;
                     Some(next)
                 } else {
                     let count = population
@@ -262,7 +264,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                 }
             }
         };
-        authorize(ws, command, old.as_ref(), new.as_ref())?;
         ws.put(Key::Record(id), new.clone().map(StoredValue::Record))?;
         changes.push(ModelChange { id, old, new });
     }
@@ -278,6 +279,12 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                 }
                 ws.put(key, Some(value))?;
             }
+        }
+    }
+    // Resolve authored references only after every proposed record is staged.
+    for change in &changes {
+        if let Some(new) = &change.new {
+            validate_references(ws, model, &new.input, context)?;
         }
     }
     B::settle_changes(
@@ -323,6 +330,14 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                 ws.put(key, None)?;
             }
         }
+    }
+    // Trusted settlement and reader repair do not authorize client mutations.
+    // Resolve readers first, then authorize only the original client commands
+    // against their final records and references.
+    finalize(ws, revision)?;
+    for (command, change) in commands.iter().zip(&changes) {
+        let current = ws.record(change.id)?;
+        authorize(ws, command, change.old.as_ref(), current.as_ref())?;
     }
     for id in ws.changed_roots() {
         if let Some(StoredValue::Root(mut root)) = ws.get(&Key::Root(id))? {
@@ -478,6 +493,7 @@ mod tests {
                 &mut || Err(Error::new("unexpected_allocation", "source has no outputs")),
                 false,
                 &mut |_, _, _, _| Ok(()),
+                &mut |_, _| Ok(()),
             )?;
             let batch = ws.finish()?;
             drop(ws);

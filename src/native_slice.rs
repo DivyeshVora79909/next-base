@@ -1037,7 +1037,14 @@ fn settle_inner<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
 ) -> Result<Settled> {
     let prepared = crate::model::PreparedModel::for_native_engine(model)?;
     crate::mutation::settle_authorized(
-        ws, &prepared, context, commands, allocate, trusted, authorize,
+        ws,
+        &prepared,
+        context,
+        commands,
+        allocate,
+        trusted,
+        authorize,
+        &mut |_, _| Ok(()),
     )
 }
 

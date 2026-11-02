@@ -961,6 +961,7 @@ mod tests {
                 &mut || Ok(Uuid::new_v4()),
                 false,
                 &mut |_, _, _, _| Ok(()),
+                &mut |_, _| Ok(()),
             )?;
             let batch = ws.finish()?;
             let work = ws.work.clone();

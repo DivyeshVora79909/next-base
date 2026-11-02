@@ -69,8 +69,9 @@ not a separate field-level index. All source commands are staged before
 resolution, so a parent edit and child retarget observe the same final authored
 values in either command order. The parameter bundle is attempt-local: it needs
 no Serde schema, stored copy, global cache or `Default` value for deleted records.
-Creating new reference targets still requires parents before children during
-command staging. Final-graph calculation does not imply arbitrary creation order.
+Typed source references resolve after all proposed records are
+staged; authorized target access uses their repaired final readers. Forward creation
+references are supported without permitting causal feedback or dangling targets.
 
 Keep published parent calculations out of authored parameters: a parent may
 still be pending during resolution. Declare them through `Contract.publication_inputs`:

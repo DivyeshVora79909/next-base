@@ -29,6 +29,14 @@ results. [`local.rs`](../src/local.rs) authorizes client actions and new/changed
 [`mutation.rs`](../src/mutation.rs) checks declared type, tenant, existence and final invariants.
 Trusted settlement can repair hidden nodes and derived records without user read filtering.
 That internal privilege does not authorize extra client edits or disclose hidden records.
+Action/old-owner checks run before binding or version diagnostics. All authored
+records and their headers are staged before typed reference existence/type/tenant
+checks, so a valid forward reference does not depend on command order. After model
+settlement, reader repair resolves final authority before new/retargeted client
+references are authorized. Only explicit client commands receive this authorization;
+internal derivation does not acquire client privileges. The shared reference-policy
+revision participates in prepared model identity. This does not permit causal
+feedback or defer external side effects into the transaction.
 
 [`staging.rs`](../src/staging.rs) and the native workspace hold attempt-local reads and patches.
 Ordinary functions receive explicit state; they need no hidden process-global workflow context.

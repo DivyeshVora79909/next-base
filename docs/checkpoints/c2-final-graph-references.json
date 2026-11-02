@@ -1,0 +1,85 @@
+{
+  "format": "next-base-final-graph-references-1",
+  "checkpoint": "C2.F",
+  "status": "accepted bounded default-backend final-graph references and authority",
+  "parentCommit": "56dd55adecdeb132cd80e51a924becc949d7eece",
+  "inputs": [
+    {
+      "path": "src/mutation.rs",
+      "sha256": "6bdd31865441964708abcc14b436123b66ccf3183bc4cbab95a1289e5bf6e12c"
+    },
+    {
+      "path": "src/local.rs",
+      "sha256": "c16564718b5b8f72f02fc7b8a6eaf3100d31781f19f2d6657bb5074d52bf0d9a"
+    },
+    {
+      "path": "src/effects/application.rs",
+      "sha256": "f06edcf3dff21964dc11bd640b9d6fd51f8fb26f05abd68b7245862955a1fbd9"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "64198f772dd7cfc191aadf366fdeb0d8dcefb839de802eff7380e374ab80cb06"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "fa407cdd0d0bbc8213a9e2883b66b4fa79519edfc613343101c3d547ddab8ef3"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "f5843e8ac58331d52b8a5cbec7879d698251e0e1cb0358e6d5ea9fda8c22f215"
+    },
+    {
+      "path": "tests/final_graph_references.rs",
+      "sha256": "3a250370a6af5d085e1fb3b86def684bd03a2e289729e67260e43ffd97ced34a"
+    },
+    {
+      "path": "tests/invoicing.rs",
+      "sha256": "3f996756fd751412ab3fb49da40dc4c55cac80f94ebabfe2573283a2e9c807bb"
+    },
+    {
+      "path": "tests/measurement.rs",
+      "sha256": "727dc48f44860d31ba76f62f42d19950104ba9cbacd01ffa566d0b7bfb036397"
+    }
+  ],
+  "semantics": {
+    "identity": "mutation::REFERENCE_POLICY participates in prepared identity; codec unchanged",
+    "stage": "early action/old-owner checks; stage all proposed records and headers before typed reference resolution",
+    "final": "settlement and deletion checks, reader repair, explicit-command new/retarget access, final versions, one publication",
+    "privilege": "internal repair cannot authorize extra client actions"
+  },
+  "checks": {
+    "defaultRust": {
+      "passed": 259,
+      "failed": 0,
+      "ignored": 0,
+      "includesExampleTests": true,
+      "logSha256": "7a66b95e93b2055468385da0df61e267e7fc21ab26cbaf975985d170810a950f"
+    },
+    "node": {
+      "version": "24.22.1",
+      "passed": 168,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "logSha256": "14ec25eb5db7d702f70ab95c54363adb973bb18ac1edc33f09c5f709a8bee974"
+    },
+    "clippy": {
+      "allTargets": true,
+      "warningsDenied": true,
+      "logSha256": "1ee424f255300a70e94794ee54aec1b96291279200140b0a0df5bbc5059c9351"
+    },
+    "format": "cargo fmt --all; git diff --check"
+  },
+  "witnesses": [
+    "all six source/scale/scale create and delete orders with literal quantities and independent checking",
+    "all six treasury/payment/refund creation orders with three literal 3000 root sums",
+    "missing-parent and surviving-reference rejection preserves complete state",
+    "hidden-target create/retarget and authority-before-stale-version rejection",
+    "multiple-parent DAG changes hide a new parent: both parent/child orders reject with exact rollback, despite a readable immediate target"
+  ],
+  "limits": [
+    "redb acceptance; not a distributed performance campaign",
+    "causal feedback and transaction work limits still apply",
+    "catalog uniqueness and generic relationship predicates/parent-edit invalidation remain separate"
+  ]
+}
