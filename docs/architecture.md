@@ -4,6 +4,8 @@ The selected foundation is the existing Rust engine, native RPC and transactiona
 with linked augmented AVL indexes. This is the current design direction; earlier S0/N-series
 reports remain historical evidence with their original acceptance boundaries.
 The [roadmap](roadmap.md) distinguishes implemented behavior from planned checkpoints.
+The [server execution plan](server-execution.md) defines service composition and
+E-series acceptance; ordinary async functions are not durable execution records.
 
 ## Implemented authority and transaction boundary
 

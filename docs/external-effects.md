@@ -1,13 +1,15 @@
 # Bounded external work
 
-The experimental `effect-demo` worker introduced in source 0.12 uses an independent
-local fake provider. Current source 0.16.0 retains that bounded workflow with
-the API 4 token and storage contracts below. Business changes and immutable intent commit together.
+The experimental `effect-demo` worker uses an independent local fake provider.
+This guide describes that implemented bounded workflow. The
+[server execution plan](server-execution.md) distinguishes it from planned general
+credentials, provider operations, object storage and recurring schedules.
+Business changes and immutable intent commit together.
 Provider facts commit before a separate ordinary domain application. The
 [G5c checkpoint](../research/39-ingress-recovery-implementation.md) records signed
 ingress and recovery acceptance; [G5b](../research/38-fenced-worker-implementation.md)
-retains the delivery evidence;
-the last packaged deployment remains 0.6.0.
+retains the delivery evidence. Use CONTEXT.md for current checkpoint/release scope,
+and the running host description/catalog for its authoritative identities.
 
 The [N5 lifecycle example](../tools/node/examples/n5-lifecycle.mjs) shows scoped operator use; [N6 signed ingress](../tools/node/examples/n6-signed-ingress.mjs) remains a separate bounded example.
 
@@ -33,6 +35,9 @@ later. Explicit due is within twenty-four hours before/after creation; expiry
 is later than creation/due and at most twenty-four hours after creation.
 Claim/start require `execute_at <= now < not_after`.
 
+The existing credential epoch fences the service principal's authentication; it is
+not a versioned external-provider secret or a typed BYOC credential-record facility.
+
 Create Dispatch through `records.mutate`, with ordinary Create/reference Read
 and current Account Update permission. Final request, target, requester/credential
 epoch, action version and fixed `fake-account-1` identity are frozen. Replay
@@ -45,8 +50,6 @@ archive cannot replace it. Every retained execution pins its Account.
 
 The existing authenticated server configuration works without a worker. Start
 the independent fake journal, then add its `ready.json` endpoint to that config:
-
-The [N5 lifecycle example](../tools/node/examples/n5-lifecycle.mjs) shows scoped operator use; [N6 signed ingress](../tools/node/examples/n6-signed-ingress.mjs) remains a separate bounded example.
 
 ```json
 {"effects":{"endpoint":"http://127.0.0.1:12345","mode":"delivery"}}
@@ -145,8 +148,6 @@ may return `null`. Never refresh an archived uncertain operation's context.
 Repair a blocked Account through the ordinary authenticated API, stop the server
 gracefully, then retry using the current execution revision:
 
-The [N5 lifecycle example](../tools/node/examples/n5-lifecycle.mjs) shows scoped operator use; [N6 signed ingress](../tools/node/examples/n6-signed-ingress.mjs) remains a separate bounded example.
-
 Restart the configured server to apply. This also permits another bounded
 observation round for uncertain/waiting work, including a quarantined ready row
 whose observation claims were exhausted by repeated ownership loss. It never resets submission attempts
@@ -192,8 +193,8 @@ identities change on clean reset, so old contexts and execution events cannot
 attach to reused source IDs. No force-ready override, live-provider, distributed-clone or
 exactly-once remote-execution claim is made.
 
-Current source 0.16.0 uses store format 10 /native codec 7 /effect codec 4 /API 4
-and behavior `effect-demo-ingress-4`. Historically, source 0.12 used store 9 /
-native codec 6 /effect codec 3 /API 3 and left its four prior model identities
-unchanged. Old stores and archives require their matching binaries; there is no
-implicit migration. See [storage](storage.md) for recovery procedures.
+Read actual format/behavior identities from the configured native host and catalog,
+and compare stored/backup metadata before opening or restoring. Historical checkpoint
+reports retain their original identities; they are not a substitute for this check.
+Old stores and archives need matching identities; no implicit migration is provided.
+See [storage](storage.md) for recovery procedures.

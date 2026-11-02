@@ -16,12 +16,17 @@ do not load every historical paper or duplicate these instructions into memories
   No second query/workflow DSL, hidden registry or duplicate schema authority.
 - Preserve capabilities, not old names or backwards compatibility. Map an obligation
   to a retained implementation/test before deleting its machinery.
+- Server services compose ordinary functions and typed versioned operations. Read
+  [server execution](docs/server-execution.md) for credentials, grants, durable jobs,
+  objects and scheduling; these extensions are planned, not implemented capability.
 
 ## Working loop
 
 1. Inspect Git status, source provenance and the current checkpoint.
 2. Select a coherent slice and its input/output/invariant obligations. Begin with
    a small independent oracle or counterexample, then integrate.
+   Translate informal requests into established concepts and explicit guarantees
+   first; do not turn a mistaken name into an architectural requirement.
 3. Delegate disjoint files when it reduces total work; include context, retries and
    integration cost. One owner builds Cargo and one owner integrates Git.
 4. Run checks for changed obligations. A skipped prerequisite or mock is not acceptance.
@@ -51,6 +56,9 @@ do not impose that policy on every workstation. Keep user updates concise.
 - Constant-size associative summaries plus AVL balance give logarithmic path work
   per changed membership. Cascades, authorization DAGs, bytes and returned rows add
   work; do not claim universal logarithmic mutations or unrestricted capacity.
+- External I/O follows committed intent outside engine transactions. Keep native
+  transactional KV I/O distinct from provider calls. Preserve unknown-outcome,
+  secret-ingress, fenced-worker and fact/application boundaries when composing services.
 - Format/semantic changes require explicit identities. Historical evidence remains
   bound to its original source; do not rewrite old checksums as new acceptance.
 

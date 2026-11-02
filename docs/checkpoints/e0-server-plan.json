@@ -1,0 +1,94 @@
+{
+  "format": "next-base-server-plan-review-1",
+  "status": "E0 planning review only; feature-specific schemas/library selections and E1-E5 implementation remain pending",
+  "sourceCommit": "1c31b34bfa88009c908183d201d87466aa40f527",
+  "executableInputsSha256": "027cbde9b09f947df3a1c80ef75fadfd288db80ee72a16503645449b87cfd870",
+  "unchangedExecutableInputs": 181,
+  "sourceReviewed": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "077b38cf84b01e58c728aa67b74a2410a06306d452d4c13d53b4e95534bc29b7"
+    },
+    {
+      "path": "src/binding.rs",
+      "sha256": "4db677c0605fad1d40a608314aaaac1bbe76af52a947d8009cd01dc95abf4b80"
+    },
+    {
+      "path": "src/server.rs",
+      "sha256": "e50694678dde340ae67b17d208f9c013a24e9649054bafc7596bb04dc55d991a"
+    },
+    {
+      "path": "src/rpc.rs",
+      "sha256": "36769059fe33732133166e757c4610c5bd07376a2d3ed75bb93fb706264bac4b"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "30b68706126eb12d0af7a8773d4a06b454c487ac9cb1bfc06ae85ff0265ef063"
+    },
+    {
+      "path": "src/effects.rs",
+      "sha256": "3d7d888c1b3ba09bc1c08714a4016f8d88d772b2e1cbb8aeb24360d1238972d6"
+    },
+    {
+      "path": "src/effects/state.rs",
+      "sha256": "cb309a2996c3b2851aa0e50d41b2885da58d8ff0599c5cfb0a56f1d888113b53"
+    },
+    {
+      "path": "src/effects/worker.rs",
+      "sha256": "f3f80ef7691a0f85edf04205c95e438f0542d0ee13bb735133dc64cb88dc96ec"
+    },
+    {
+      "path": "src/effects/application.rs",
+      "sha256": "0a71e7d39c76afa1e3d5c50f08c89b06f9eae7bdcc08486c98c94be8d8ba7495"
+    },
+    {
+      "path": "src/effects/fake.rs",
+      "sha256": "7f3f70e5043606b8e2eef81b64eb588a7fbdd0a9623e169b73487ce629755232"
+    },
+    {
+      "path": "src/effects/inbox.rs",
+      "sha256": "11673198ca86dcd500fe4d49490d9d04e8f010c2c82278b540e01d68f87bd0af"
+    },
+    {
+      "path": "src/effects/conformance.rs",
+      "sha256": "ff53b80e39874f7e44b2d0a711c66903450eab35fa10b2317b8bdbc9a461aaef"
+    },
+    {
+      "path": "src/effects/worker_tests.rs",
+      "sha256": "b78dfb75d0bf78c2a537a3be017d661baeeeaaa46fc8b1273c6c56548e0b2793"
+    },
+    {
+      "path": "src/effects/inbox_tests.rs",
+      "sha256": "a3c21608cf98b17771e7b6e39422b1c99ab44ef9db1d9a328ccf9c934b03aaa2"
+    },
+    {
+      "path": "src/effect_tests.rs",
+      "sha256": "3d4c0aea0251ca8ff0404855274001b4d85a92f66ccde9cf1ff3e117339fd58b"
+    }
+  ],
+  "legacyReference": {
+    "repository": "https://github.com/DivyeshVora79909/ReBase",
+    "commit": "270d875a6e97b276d9cf7876a9bb4666a21d0f53",
+    "paths": [
+      "designs/rebase-system/operations.md",
+      "designs/rebase-system/credential-ownership-contract.md",
+      "designs/rebase-system/core-configuration.md",
+      "dev-tools/compiler/table-handlers.js",
+      "designs/test/table-handlers/send_brevo_email.js",
+      "designs/test/table-handlers/send_twilio_sms.js"
+    ]
+  },
+  "checks": {
+    "relativeDocumentationLinks": 39,
+    "currentVersusPlannedMatrixReviewed": true,
+    "existingExecutionFailureInvariantsMapped": true,
+    "noRuntimeOrDependencyChanges": true,
+    "nativeTestsRerun": false,
+    "liveProviderTestsRun": false,
+    "reason": "Documentation/contract checkpoint; unchanged source identity checked against C0. No new feature acceptance inferred."
+  },
+  "next": {
+    "core": "C1 bounded count-pruned reader implementation when implementation resumes",
+    "services": "Freeze E1 exact ingress/credential schemas, use-authority matrix and key custody before implementation."
+  }
+}

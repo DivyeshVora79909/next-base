@@ -5,6 +5,9 @@ Historical accepted N/S0 evidence stays unchanged; it does not choose a differen
 Plan and bootstrap work proceeds now. Checkpoints can continue automatically when their stated
 obligations pass; unresolved semantic choices or failed evidence must be reported explicitly.
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
+The current server-extension checkpoint is planning-only. The
+[E0–E5 service plan](server-execution.md) adds contracts and acceptance witnesses;
+it does not declare credentials, object storage or recurrence implemented.
 
 ## C0 — Clean root and reproducible bootstrap
 
@@ -85,3 +88,23 @@ authority governs subscription/replay disclosure. Reuse native receipt, effects,
 coordination and backend failure checks; preserve TLS/JWT ingress and private operator boundaries.
 Report tested topology and recovery limits. Frontend, external providers and TiKV are optional
 follow-ons, not mandatory dependencies of completing this base.
+
+## E-series — Composable server services
+
+The [server plan](server-execution.md) preserves existing execution/fact/application
+machinery while adding strict typed capabilities. E0 is the current contract pass;
+C1 stays the next core implementation checkpoint when implementation resumes.
+
+| Gate | Scope | Dependencies |
+| --- | --- | --- |
+| E0 | Current/absent capabilities, modes and recovery obligations | C0 and existing effect evidence; planning only |
+| E1 | Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
+| E2 | Explicit operation versions and durable inline/queued jobs | E1 contracts; reuse the present worker state machine |
+| E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2; one selected object adapter |
+| E4 | Optional recurrence producing ordinary one-shot jobs | E2 and protected occurrence uniqueness; no workflow engine |
+| E5 | Independent fake full-pipeline, failure and recovery verification | Each selected E feature; C4 catalog tooling where used |
+
+C1 and service contract preparation can proceed independently. Shared source edits
+and schema/codec changes require a single integrator. Live-provider acceptance is
+separate from fake protocol checks. Client WebSocket invalidations remain C5 work;
+they are not provider webhooks or a substitute for the durable job protocol.

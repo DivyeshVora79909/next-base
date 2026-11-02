@@ -1,5 +1,27 @@
 # Current checkpoint
 
+## E0 — Server execution contracts, planning only
+
+The user's latest steering keeps this pass in planning mode. Read
+docs/server-execution.md for the current/absent capability matrix, ordinary Rust
+composition, secret-safe credential records, grants, versioned jobs, object
+lifecycle and optional recurrence. E1–E5 have acceptance witnesses and dependencies
+in docs/roadmap.md. No server capability, API, schema, dependency or codec changed.
+
+Preserve the existing intent/start-marker/fence/fact/application machinery.
+Async functions are not durable jobs; client-callable entries are explicitly
+authorized and private helpers consume trusted capabilities. Secret-safe ingress
+must account for saved plans and receipts, not only at-rest encryption or redaction.
+Native transactional KV awaits are distinct from unrelated provider I/O.
+
+The legacy design had signing grants and queued/inline tasks, but removed cron;
+the current native demo has one-shot scheduling, not object storage or provider
+credential records. These are planned extensions, not features inferred from names.
+C1 remains the next core implementation checkpoint when implementation resumes.
+For each slice: meaning -> established concept -> invariant/counterexample -> small
+prototype -> composition -> independent verification -> checkpoint. Do not start
+production service implementation as part of this documentation-only contract pass.
+
 ## C0 — Clean application and research repositories, verified
 
 Selected: native Rust KV harness and linked augmented AVL. No SurrealDB wrapper
