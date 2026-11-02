@@ -42,15 +42,19 @@ their nodes. C1.1 implements structural size and supplies a String-keyed
 Keep a separate business count only if it has different meaning or is needed by
 the algebra; avoid two conflicting authorities for the same cardinality.
 
-## Proposed explicitly opted-in global indexes
+## Proposed resource-scoped authorized indexes
 
 Logical orders, including deterministic cross-resource ties, are:
 
-- Created: `(tenant, created_at, resource_kind, record_id, slot)`.
-- Readable-created: `(tenant, reader, created_at, resource_kind, record_id, slot)`.
+- Readable: `(resource_kind, tenant, reader, declared_order, record_id, slot)`.
+- Owned: `(resource_kind, tenant, owner, declared_order, record_id, slot)` when needed.
 
-Every participating resource explicitly registers a contribution to these shared
-definitions. They are not automatically applied to private worker/tree records.
+Every participating resource explicitly registers the relevant definitions;
+`declared_order` may be creation, effective time or another native total order.
+Read scope follows reader visibility; ownership and visibility are distinct.
+Equal projections may reuse an index only when their scope/query guarantees agree.
+Do not create duplicate memberships simply to give an access path another name.
+These declarations are not automatically applied to private worker/tree records.
 Created time is immutable, server-authored creation metadata, distinct from
 business effective time, dispatch admission and completion. General resource
 created-at metadata and these indexes are not yet implemented.
@@ -63,18 +67,27 @@ namespace for tenant/principal scopes: authority DAG principals are not automati
 interchangeable with model records owning today's roots. Validate address collisions,
 scope existence, root retirement and declaration coverage in C2/C3.
 
-Physical root partitioning may remove a constant logical prefix: a tenant-created
-root orders by creation/ties; reader-created roots may be per tenant/reader.
-A true shared tenant tree includes opted-in resource kinds. Separate per-resource
-trees provide the same global result only through a declared merge; label that
-different physical choice and its costs. Tenant-wide roots share write ancestors;
-reader partitions reduce some contention. Measure current Population/epoch guards
-as well as the additional trees before claiming independent writers.
+Physical roots may encode constant resource/tenant/reader-or-owner prefixes rather
+than repeat them in every node key. Tenant is a strict authority/store namespace;
+cross-tenant graph edges and references remain invalid. A matching UUID in another
+tenant grants no access and cannot address a root in this snapshot.
+Resolve the current authorized principal closure, select streams for the requested
+resource/order and merge those streams. Reader roots serve reads; owner roots are
+not a substitute when disclosure follows a different reader. A tenant-only ordered
+index is optional for a measured workload, not a default second global tree. It may
+still help when enumerating many streams costs more than filtering one scan.
+Tenant-wide roots share write ancestors; resource/reader partitions reduce some
+contention. Measure current Population/epoch guards as well as the additional trees
+before claiming independent writers. Domain integrity roots remain independently
+declared; these access paths do not replace their validators.
 
 Use one stream when one root already has the requested order. K-way merge is for
 multiple sorted reader/resource/root streams: heap heads use the same total order
 under one snapshot, then advance the smallest. Initialization is at least O(K),
 with seek work per stream; merging k candidates adds O(k log K) heap work.
+Cache each stream's head within the request, advance only the popped stream and
+batch independent initialization/refills under explicit budgets. Scope discovery
+and K initial seeks are not free; merge does not dominate every tenant-wide scan.
 Bind cursor to query, full ordering key and current scope/revision semantics.
 A shared last-key cursor can suffice when every stream can reseek and duplicate/
 filter rules are defined; per-stream cursor state is not mandatory by default.

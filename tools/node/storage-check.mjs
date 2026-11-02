@@ -102,6 +102,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     const ordered = [];
     const stats = visit(root.head, null, rootRow.address, root, 0, ordered);
     requireThat(root.height === stats.height, 'root height differs');
+    requireThat(root.size === stats.count, 'root structural size differs');
     requireThat(sameAddress(root.first, stats.firstAddress), 'root first link differs');
     requireThat(sameAddress(root.last, stats.lastAddress), 'root last link differs');
     requireThat(root.span === null ? ordered.length === 0 : ordered.length > 0, 'root span presence differs');
@@ -136,7 +137,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       const row = nodes.get(token);
       requireThat(row !== undefined, 'linked tree node is missing');
       const node = row.value;
-      exactKeys(node, ['kind', 'root', 'key', 'leaf', 'parent', 'left', 'right', 'prev', 'next', 'height', 'span', 'summary'], 'tree node');
+      structuralSize(node.size, false);
+      exactKeys(node, ['kind', 'root', 'key', 'leaf', 'parent', 'left', 'right', 'prev', 'next', 'height', 'size', 'span', 'summary'], 'tree node');
       exactKeys(node.key, ['value', 'id', 'slot'], 'tree node key');
       exactKeys(node.span, ['first', 'last'], 'tree node span');
       requireThat(addressToken(node.root) === addressToken(owner), 'node root owner differs');
@@ -161,7 +163,9 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       const singleton = singletonSummary(node.kind, time, node.leaf);
       const summary = combineSummaries(node.kind, combineSummaries(node.kind, left.summary, singleton), right.summary);
       requireThat(equalJson(node.summary, summary), 'tree node summary differs');
-      return { height, count: left.count + 1 + right.count, firstTime, lastTime,
+      const count = left.count + 1 + right.count;
+      requireThat(node.size === count, 'node structural size differs');
+      return { height, count, firstTime, lastTime,
         firstAddress: left.count ? left.firstAddress : address,
         lastAddress: right.count ? right.lastAddress : address, summary };
     }
@@ -350,8 +354,13 @@ function parseAddressToken(token) {
   return { id: match[1], slot };
 }
 function sameAddress(left, right) { return (left === null && right === null) || (left !== null && right !== null && addressToken(left) === addressToken(right)); }
+function structuralSize(value, emptyAllowed) {
+  requireThat(Number.isSafeInteger(value) && value >= (emptyAllowed ? 0 : 1) && value <= MAX_TREE_NODES,
+    'invalid structural size for bounded tree inventory');
+}
 function validateRoot(root, address) {
-  exactKeys(root, ['kind', 'head', 'first', 'last', 'height', 'span', 'summary', 'revision'], 'tree root');
+  structuralSize(root.size, true);
+  exactKeys(root, ['kind', 'head', 'first', 'last', 'height', 'size', 'span', 'summary', 'revision'], 'tree root');
   if (root.span !== null) { object(root.span, 'tree root span'); exactKeys(root.span, ['first', 'last'], 'tree root span'); }
   requireThat(address.slot > 0 && (root.head === null) === (root.height === 0)
     && (root.head === null) === (root.first === null) && (root.head === null) === (root.last === null)
@@ -368,21 +377,21 @@ function canonicalTypedValue(value) {
   if (value.type === 'root') {
     const data = value.data;
     const kind = data.kind;
-    exactKeys(data, ['kind', 'head', 'first', 'last', 'height', 'span', 'summary', 'revision'], 'tree root');
+    exactKeys(data, ['kind', 'head', 'first', 'last', 'height', 'size', 'span', 'summary', 'revision'], 'tree root');
     return JSON.stringify({ type: 'root', data: {
       kind, head: orderedAddress(data.head), first: orderedAddress(data.first), last: orderedAddress(data.last),
-      height: data.height, span: orderedSpan(data.span), summary: orderedSummary(kind, data.summary), revision: data.revision,
+      height: data.height, size: data.size, span: orderedSpan(data.span), summary: orderedSummary(kind, data.summary), revision: data.revision,
     } });
   }
   const data = value.data;
-  exactKeys(data, ['kind', 'root', 'key', 'leaf', 'parent', 'left', 'right', 'prev', 'next', 'height', 'span', 'summary'], 'tree node');
+  exactKeys(data, ['kind', 'root', 'key', 'leaf', 'parent', 'left', 'right', 'prev', 'next', 'height', 'size', 'span', 'summary'], 'tree node');
   exactKeys(data.key, ['value', 'id', 'slot'], 'tree node key');
   return JSON.stringify({ type: 'node', data: {
     kind: data.kind, root: orderedAddress(data.root),
     key: { value: data.key.value, id: data.key.id, slot: data.key.slot },
     leaf: orderedLeaf(data.kind, data.leaf), parent: orderedAddress(data.parent), left: orderedAddress(data.left),
     right: orderedAddress(data.right), prev: orderedAddress(data.prev), next: orderedAddress(data.next),
-    height: data.height, span: orderedSpan(data.span), summary: orderedSummary(data.kind, data.summary),
+    height: data.height, size: data.size, span: orderedSpan(data.span), summary: orderedSummary(data.kind, data.summary),
   } });
 }
 function orderedAddress(address) {

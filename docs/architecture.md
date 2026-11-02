@@ -16,7 +16,10 @@ not an owner supplied by an untrusted claim. JWT verification does not grant a c
 [`access.rs`](../src/access.rs) prepares the tenant principal DAG and separates record owner
 from reader: contract action plus owner accessibility controls writes; Read plus reader
 accessibility controls disclosure. Current DAG grants have specific bounded semantics,
-not arbitrary transitive ACL intersection. Incomparable reader candidates retain declared order.
+not arbitrary transitive ACL intersection. Current immediate-owner greedy reader
+selection differs from the newly selected owner-inclusive first-minimal policy;
+[C2.R](roadmap.md#c2r--owner-inclusive-minimal-reader-policy-before-c14) must update
+mutation/admin repair and checking together before C1.4 integration.
 
 [`security.rs`](../src/security.rs) loads current persisted authority and credential epochs
 inside transaction scope. Authority changes and operation-context fencing are separate from
@@ -65,12 +68,15 @@ own declared meaning. Codec v9 requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
-The count-pruned, batched BFS reader is verified scratch research, not integrated public paging.
-C1 must preserve same-transaction visibility, authorization, ordering and continuation semantics.
+The count-pruned batched reader is implemented as a trusted native rank-window
+primitive in C1.3. Public authorized member paging remains C1.4; preserve snapshot,
+disclosure, ordering and continuation semantics. See [rank reads](rank-reads.md).
 [Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
 
-The planned shared indexes are tenant/created and tenant/reader/created, explicitly
-opted into per resource, with stable resource/ID/slot ties. They are not yet implemented.
+Planned authorized indexes use resource/tenant/reader-or-owner/declared-order,
+explicitly opted into per resource, with stable ID/slot ties. Merge current authorized
+reader streams for reads; owner and reader are distinct policies. Tenant-only
+analytics indexes are optional for measured workloads. These are not yet implemented.
 Each resource may also declare multiple domain indexes with time or non-time keys,
 business summaries and optional invariants. Created and effective time differ.
 Each added membership increases maintenance; unchanged projections need not be rewritten.

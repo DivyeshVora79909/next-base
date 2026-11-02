@@ -7,6 +7,12 @@ codebook, checked summary operations and exact schemas. Financial and quote
 histories use `indexes::standard`; measurements use `indexes::measurement`.
 Both use the same mutation, codec, integrity, authority and lifecycle paths.
 
+Structural Root/Node size counts occurrences independently of the business
+summary. `indexes::count_only::CountOnly` supplies String keys with unit leaf/summary
+values when only order and cardinality are required. Trusted engine callers can
+use the [rank-window reader](rank-reads.md); public authorized member paging is
+still C1.4 work. A record in two slots counts twice, including within one root.
+
 The measurement model maintains count, sum, minimum, maximum and a uniform unit
 for authored observations. For `5 @0`, `-2 @10` and `9 @10`, all in unit 7, the
 root returns count 3, sum 12, minimum -2 and maximum 9. The closed window `[10,10]`
@@ -49,9 +55,8 @@ Observation joins it through membership slot 17. Observations reference an
 Instrument, and their reader follows the declared reference-owner policy.
 Both consumers inherit their reader through the same reference and declare
 their direct dependency on the Instrument's authored unit. They have no root,
-membership or private output. The limit is 64 total public records, including
-instruments, observations, reports and selectors. Existing models keep
-their separately declared limits and the same mutation work budget.
+membership or private output. Current compiled models set no population ceiling;
+configured work, request, storage and inventory limits remain independent bounds.
 
 The settled root must be empty or contain only observations whose unit equals
 the instrument's unit. Changing the owner unit alone on a populated root rejects.

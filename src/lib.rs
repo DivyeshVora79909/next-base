@@ -35,6 +35,7 @@ pub mod staging;
 pub mod storage;
 pub mod time_range;
 pub mod tree;
+pub mod tree_read;
 pub mod values;
 
 #[cfg(test)]

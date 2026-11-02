@@ -1,0 +1,102 @@
+{
+  "format": "next-base-c1-rank-reader-1",
+  "checkpoint": "C1.3",
+  "status": "accepted trusted primitive; public member API deferred",
+  "parentCommit": "e87e3e15097b9251ebf2ad0745fb30bba23e5283",
+  "inputs": [
+    {
+      "path": "src/lib.rs",
+      "sha256": "890bfe57c3918292c8007a2245fdd982a12cd06c4ab0c033288463b491023545"
+    },
+    {
+      "path": "src/tree_read.rs",
+      "sha256": "6d4d4bd78b5df9b83f887425a4c8aee91a148f0051a214817991f11d0355519c"
+    },
+    {
+      "path": "tests/rank_read.rs",
+      "sha256": "cdde612378614fd5d3040aaa7c0ad2d9f1e5ec1d6eebedb441c698cd3ec58105"
+    },
+    {
+      "path": "tools/node/storage-check.mjs",
+      "sha256": "ee428e8f41b4755b070409fb375c7bcb7d413a0b514d6800555e29601ed5282d"
+    },
+    {
+      "path": "tools/node/test/storage-check.test.mjs",
+      "sha256": "10a9c84b43384e9924c1d09cf825c4e1f862a88f8537ac650d62e91957e80a9d"
+    },
+    {
+      "path": "tools/node/test/n6-complete-backup.test.mjs",
+      "sha256": "728c14534e17adc5abb0fe4015ee118353b8685d1f90b31e387b363a4b3337d1"
+    },
+    {
+      "path": "tools/node/test/s0-baseline.test.mjs",
+      "sha256": "5e848875e4a2906d1d485f357216eaa5ead037ef541e76ae9b38af5a4e3ee04a"
+    }
+  ],
+  "contract": {
+    "api": "tree_read::rank_window on same-snapshot Table",
+    "order": "native total key order, UUID and membership slot; zero-based half-open raw occurrence ranks",
+    "result": "ordered occurrences, structural total, root revision, gets/batches/waves and accounted bytes",
+    "limits": "explicit fetched-node and input/value/output/reserved-vector budgets; not strict peak heap or RTT bounds",
+    "disclosure": "privileged engine primitive only; no new public RPC",
+    "trust": "validate encountered nodes/children; unvisited subtree caches require independent full integrity checking"
+  },
+  "checks": {
+    "focusedRankTests": {
+      "passed": 8,
+      "failed": 0,
+      "logSha256": "8e8007fbd08429faaa1a7d5d437d14666759a2f1d675e5043c4b906e4ac15f97"
+    },
+    "defaultRustSuite": {
+      "passed": 233,
+      "failed": 0,
+      "ignored": 0,
+      "targets": 25,
+      "docTestsPassed": 0,
+      "logSha256": "7db2197df69b7985572be53c2fc3fd8cb11a9ab4ff42d7bced2499050a4a8c32"
+    },
+    "node": {
+      "version": "24.22.1",
+      "passed": 168,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "nativeBinarySha256": "aa81d274a2caf2a4ec16ce00888cf7aca1c4c2a6f78e784aa56b13c381d407f4",
+      "logSha256": "20ead2aa63597e15bc87a1fd02fe651d4642832535f29626e4efd4ec2348f25b"
+    },
+    "clippy": {
+      "allTargets": true,
+      "warningsDenied": true,
+      "logSha256": "fdf16d17ecbe7ad174c7fb0baff8ff352fd4a482ea78c9f4845e2e392a613694"
+    },
+    "relativeDocumentationLinks": 62,
+    "formatting": "pinned Rust 1.95 cargo-fmt and git diff --check passed",
+    "reviews": [
+      "independent rank arithmetic/structure review",
+      "preallocation budget flaw corrected and independently re-reviewed",
+      "Node backup size reconstruction and S0 synthetic format integration corrected"
+    ],
+    "historicalEvidenceUnmodified": true,
+    "distributedPerformanceClaim": false
+  },
+  "witnesses": [
+    "independent authored order for empty/50/100/1000 occurrences",
+    "ties, multislot rows and non-time String/unit-summary native family",
+    "adjacent windows compose; full enumeration gets root plus each node once",
+    "same-snapshot reads despite later writer; no reader writes",
+    "exact node budget and header-only empty/outside windows",
+    "size/cycle/cross-root/parent corruption on discovered nodes",
+    "oversized root counts rejected before output allocation"
+  ],
+  "latestUserSteering": {
+    "stop": "Finish this one next commit and stop; supersedes earlier six-commit allowance",
+    "indexPlan": "resource/tenant/reader-or-owner/declared-order roots; merge authorized streams, tenant-only index optional",
+    "readerPolicy": "include own owner plus declared relation hierarchy; choose first minimal candidate, allow incomparable survivors",
+    "confirmedReaderGap": "current immediate-owner greedy fold excludes own owner except fallback and is not stable first-minimal; C2.R before C1.4"
+  },
+  "next": [
+    "C2.R independently validate reader selection and propagation, explicit semantic identity change",
+    "C1.4 authorized declaration-gated member pages, same-snapshot hydration and safe scope/root-bound cursors",
+    "C3 resource-scoped access trees, generic ordered subscriptions and evidence-led removal of unnecessary Population contention"
+  ]
+}

@@ -117,6 +117,24 @@ test('rejects disconnected nodes, cycles, broken links, heights, spans and summa
   }
 });
 
+test('requires exact structural sizes independently of cached business summaries', () => {
+  for (const index of [0, 1]) {
+    for (const size of [undefined, -1, 0, 0.5, '1', 2, Number.MAX_SAFE_INTEGER + 1]) {
+      const rows = treeRows();
+      const value = JSON.parse(Buffer.from(rows[index].value, 'hex').toString('utf8'));
+      if (size === undefined) delete value.data.size;
+      else value.data.size = size;
+      rows[index].value = hex(JSON.stringify(value));
+      assert.throws(() => checkBackupStructure(JSON.stringify(backupWith(rows))), /fields|structural size|unsafe JSON integer/i);
+    }
+  }
+  const rows = [emptyRootRow(ROOT_ID)];
+  const value = JSON.parse(Buffer.from(rows[0].value, 'hex').toString('utf8'));
+  value.data.size = 1;
+  rows[0].value = hex(JSON.stringify(value));
+  assert.throws(() => checkBackupStructure(JSON.stringify(backupWith(rows))), /root structural size/i);
+});
+
 test('uses source expectations only as an independent membership check', () => {
   const expectedMembers = new Map([[`${NODE_ID}/1`, {
     root: { id: ROOT_ID, slot: 1 }, time: '1', leaf: { kind: 'financial', value: '10' },
@@ -212,7 +230,7 @@ test('combines each subtree summary bottom-up across a three-node financial tree
   const nodeValue = (address, time, amount, parent, leftLink, rightLink, prev, next, height, summary, span) => ({
     kind: 1, root: { id: ROOT_ID, slot: 1 }, key: { value: String(time), id: address.id, slot: address.slot },
     leaf: { kind: 'financial', value: String(amount) }, parent, left: leftLink, right: rightLink, prev, next,
-    height, span, summary,
+    height, size: height === 2 ? 3 : 1, span, summary,
   });
   const leafSummary = (time, amount) => ({ kind: 'financial', value: {
     count: 1, first: String(time), last: String(time), sum: String(amount),
@@ -223,7 +241,7 @@ test('combines each subtree summary bottom-up across a three-node financial tree
     count: 3, first: '-1', last: '1', sum: '7', min_prefix: '-2', max_prefix: '8',
     boundary_min: '-2', boundary_max: '8',
   } };
-  const rootValue = { kind: 1, head: middle, first: left, last: right, height: 2,
+  const rootValue = { kind: 1, head: middle, first: left, last: right, height: 2, size: 3,
     span: { first: '-1', last: '1' }, summary: rootSummary, revision: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' };
   const rows = [
     { key: encodeKey(2, ROOT_ID), value: hex(JSON.stringify({ type: 'root', data: rootValue })) },
@@ -250,11 +268,11 @@ test('folds equal-time financial leaves in full UUID key order and rejects group
   const nodeValue = (address, amount, parent, leftLink, rightLink, prev, next, height, summary) => ({
     kind: 1, root: { id: ROOT_ID, slot: 1 }, key: { value: '1', id: address.id, slot: address.slot },
     leaf: { kind: 'financial', value: String(amount) }, parent, left: leftLink, right: rightLink,
-    prev, next, height, span: { first: '1', last: '1' }, summary,
+    prev, next, height, size: height === 2 ? 3 : 1, span: { first: '1', last: '1' }, summary,
   });
   const rows = [
     { key: encodeKey(2, ROOT_ID), value: hex(JSON.stringify({ type: 'root', data: {
-      kind: 1, head: middle, first: left, last: right, height: 2,
+      kind: 1, head: middle, first: left, last: right, height: 2, size: 3,
       span: { first: '1', last: '1' }, summary: fullSummary, revision: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     } })) },
     nodeRow({ type: 'node', data: nodeValue(left, -2, middle, null, null, null, middle, 1, leafSummary(-2)) }, left.id),
@@ -285,7 +303,7 @@ function treeRows() {
   const row = node();
   return [
     { key: encodeKey(2, ROOT_ID), value: hex(JSON.stringify({ type: 'root', data: {
-      kind: 1, head: address, first: address, last: address, height: 1,
+      kind: 1, head: address, first: address, last: address, height: 1, size: 1,
       span: { first: '1', last: '1' }, summary: financialSummary(), revision: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     } })) },
     nodeRow(row, NODE_ID),
@@ -293,7 +311,7 @@ function treeRows() {
 }
 function emptyRootRow(id) {
   return { key: encodeKey(2, id), value: hex(JSON.stringify({ type: 'root', data: {
-    kind: 1, head: null, first: null, last: null, height: 0, span: null,
+    kind: 1, head: null, first: null, last: null, height: 0, size: 0, span: null,
     summary: { kind: 'financial', value: { count: 0, first: null, last: null, sum: '0',
       min_prefix: '0', max_prefix: '0', boundary_min: null, boundary_max: null } },
     revision: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -301,10 +319,10 @@ function emptyRootRow(id) {
 }
 function singleTree(kind, leaf, summary) {
   const address = { id: NODE_ID, slot: 1 };
-  const rootValue = { kind, head: address, first: address, last: address, height: 1,
+  const rootValue = { kind, head: address, first: address, last: address, height: 1, size: 1,
     span: { first: '1', last: '1' }, summary, revision: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' };
   const nodeValue = { kind, root: { id: ROOT_ID, slot: 1 }, key: { value: '1', id: NODE_ID, slot: 1 }, leaf,
-    parent: null, left: null, right: null, prev: null, next: null, height: 1,
+    parent: null, left: null, right: null, prev: null, next: null, height: 1, size: 1,
     span: { first: '1', last: '1' }, summary };
   return [
     { key: encodeKey(2, ROOT_ID), value: hex(JSON.stringify({ type: 'root', data: rootValue })) },
@@ -315,7 +333,7 @@ function node() {
   return { type: 'node', data: {
     kind: 1, root: { id: ROOT_ID, slot: 1 },
     key: { value: '1', id: NODE_ID, slot: 1 }, leaf: { kind: 'financial', value: '10' },
-    parent: null, left: null, right: null, prev: null, next: null, height: 1,
+    parent: null, left: null, right: null, prev: null, next: null, height: 1, size: 1,
     span: { first: '1', last: '1' }, summary: financialSummary(),
   } };
 }

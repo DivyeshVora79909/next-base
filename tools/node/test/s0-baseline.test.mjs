@@ -24,8 +24,8 @@ function run(){
   const key=(tag,id,slot)=>`${tag.toString(16).padStart(2,'0')}${id.replaceAll('-','')}${slot===undefined?'':slot.toString(16).padStart(4,'0')}`;
   const row=(key,type,data)=>{const decoded={type,data};return{key,value:Buffer.from(JSON.stringify(decoded)).toString('hex'),decoded};};
   const rows=corpus.setupCommands.map(command=>row(key(1,command.id),'record',{contract:command.contract,tenant:corpus.tenant,owner:corpus.actor,reader:corpus.actor,version:revision,input:command.fields,derived:null}));
-  rows.push(row(key(2,root.id,root.slot),'root',{kind:1,head:member,first:member,last:member,height:1,span:{first:'0',last:'0'},summary,revision}));
-  rows.push(row(key(3,member.id,member.slot),'node',{kind:1,root,key:{value:'0',id:member.id,slot:1},leaf:{kind:'financial',value:'1'},parent:null,left:null,right:null,prev:null,next:null,height:1,span:{first:'0',last:'0'},summary}));
+  rows.push(row(key(2,root.id,root.slot),'root',{kind:1,head:member,first:member,last:member,height:1,size:1,span:{first:'0',last:'0'},summary,revision}));
+  rows.push(row(key(3,member.id,member.slot),'node',{kind:1,root,key:{value:'0',id:member.id,slot:1},leaf:{kind:'financial',value:'1'},parent:null,left:null,right:null,prev:null,next:null,height:1,size:1,span:{first:'0',last:'0'},summary}));
   const snapshot={complete:true,tables:['native_kv'],rows};
   const setupCommandBatches=Array.from({length:Math.ceil(corpus.setupCommands.length/64)},(_,index)=>corpus.setupCommands.slice(index*64,(index+1)*64));
   const sample={corpusId:'entry-1',action:'prefix',actionId:'focused/entry-1/prefix/0/false',operationId:null,sampleIndex:0,pairIndex:null,traceEnabled:false,readOnly:true,setupCommands:corpus.setupCommands,setupCommandBatches,actionCommands:[],allocations:[],before:snapshot,after:snapshot,result:'1',work:work(),trace:null,setupNs:1,warmupNs:1,beforeObservationNs:1,afterObservationNs:1,observationNs:2,operationNs:10,commitNs:null,commitBoundaryNs:null,outcome:'success',error:null};
@@ -80,8 +80,8 @@ test('S0 posting revalue checks both financial memberships and quote membership 
     for(const tree of trees){
       const [member]=tree.members;assert.ok(member,'fixture tree has one member');
       const address={id:member.id,slot:member.slot},summary=tree.summaryKind==='quote'?{kind:'quote',value:{count:1,first:member.time,last:member.time}}:{kind:'financial',value:tree.summary};
-      rows.push(encode(nativeKey(2,tree.owner,tree.slot),{type:'root',data:{kind:tree.kind,head:address,first:address,last:address,height:1,span:{first:member.time,last:member.time},summary,revision:recordRevision}}));
-      rows.push(encode(nativeKey(3,member.id,member.slot),{type:'node',data:{kind:tree.kind,root:{id:tree.owner,slot:tree.slot},key:{value:member.time,id:member.id,slot:member.slot},leaf:member.leaf,parent:null,left:null,right:null,prev:null,next:null,height:1,span:{first:member.time,last:member.time},summary}}));
+      rows.push(encode(nativeKey(2,tree.owner,tree.slot),{type:'root',data:{kind:tree.kind,head:address,first:address,last:address,height:1,size:1,span:{first:member.time,last:member.time},summary,revision:recordRevision}}));
+      rows.push(encode(nativeKey(3,member.id,member.slot),{type:'node',data:{kind:tree.kind,root:{id:tree.owner,slot:tree.slot},key:{value:member.time,id:member.id,slot:member.slot},leaf:member.leaf,parent:null,left:null,right:null,prev:null,next:null,height:1,size:1,span:{first:member.time,last:member.time},summary}}));
     }
     return {complete:true,tables:['native_kv'],rows};
   };

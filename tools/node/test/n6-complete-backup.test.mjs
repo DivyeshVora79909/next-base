@@ -232,7 +232,7 @@ test('N6 complete Quantity backup checks exact source arithmetic and requires em
     mustFail(checkSourceBackup({ model: 'quantity', facts: facts(), backup: altered }), 'source-derived-values');
     const extraRoot = JSON.parse(bytes);
     extraRoot.payload.tables.native_kv.push({ key: `02${randomUUID().replaceAll('-', '')}0007`, value: Buffer.from(JSON.stringify({ type: 'root', data: {
-      kind: 1, head: null, first: null, last: null, height: 0, span: null,
+      kind: 1, head: null, first: null, last: null, height: 0, size: 0, span: null,
       summary: { kind: 'financial', value: { count: 0, first: null, last: null, sum: '0', min_prefix: '0', max_prefix: '0', boundary_min: null, boundary_max: null } }, revision: randomUUID(),
     } })).toString('hex') });
     const selfConsistent = seal(extraRoot);

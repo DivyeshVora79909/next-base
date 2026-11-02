@@ -5,10 +5,10 @@ Historical accepted N/S0 evidence stays unchanged; it does not choose a differen
 Plan and bootstrap work proceeds now. Checkpoints can continue automatically when their stated
 obligations pass; unresolved semantic choices or failed evidence must be reported explicitly.
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
-M0 recorded planning and bounded algebra witnesses. The user has now authorized
-three implementation commits, then a stop for a new flag. C1 is split into C1.1
+M0 recorded planning and bounded algebra witnesses. C1 is split into C1.1
 structural size/count-only indexes, C1.2 same-view storage batches, C1.3 trusted
-rank-window traversal, and C1.4 authorized member paging/cursors. Stop after C1.3;
+rank-window traversal, and C1.4 authorized member paging/cursors. The latest user
+instruction is to finish only the next C1.3 commit, then STOP for a new flag;
 do not call the whole C1 gate complete before its public integration is accepted.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
 separate mathematical representability from implemented capability. The
@@ -49,6 +49,40 @@ Reuse [`src/index_tests.rs`](../src/index_tests.rs) and access/page witnesses in
 
 ## C2 — Catalog relationships and final-graph guards
 
+### C2.R — Owner-inclusive minimal reader policy, before C1.4
+
+The selected policy includes the resource's own owner and owners from its declared
+reader-affecting relation hierarchy. Deduplicate candidates in a stable, documented
+declaration traversal order. Eliminate every candidate that strictly dominates
+another candidate, then select the first surviving candidate. Incomparable survivors
+are permitted; do not invent a rejection or an ACL-intersection rule. Never compare
+principals across tenants. Managed private outputs retain their producer's reader.
+
+Current code uses immediate referenced owners, excludes the resource owner when
+references are nonempty, and greedily replaces a selected ancestor. It is not this
+policy. Example: candidates [A,B,C], A dominates C and B is incomparable. Stable
+minimal survivors are [B,C], so select B; the current fold selects C. A referenced
+ancestor plus a strictly lower resource owner also exposes the fallback-only gap.
+
+Reuse current tenant reachability closures for comparisons; do not enumerate all
+principal paths. A simple first-minimal scan uses O(k^2) dominance checks for k
+distinct candidates. Closure bitsets can accelerate set intersections for large k,
+but are optional and must remain bound to the current authority revision. If relation
+hierarchy discovery is recursive, visit each reachable source once under a work
+budget, define ordering/deduplication/cycle handling, and propagate changed inputs
+through reverse references. A single previously chosen scalar reader is not a
+lossless summary of several incomparable candidates; retain/discover the necessary
+candidate frontier rather than assuming scalar composition proves the policy.
+
+Acceptance: independent source-edge DAG oracle, own-owner inclusion, diamonds,
+ties/duplicates, incomparable first choice, reordered declarations under defined
+semantics, relation retargeting, parent edits, graph changes, private outputs and
+full rollback. Update mutation/admin repair, persisted reader indexes and independent
+checker together, with explicit shared semantic identity change. Do not silently
+reinterpret old stored readers or widen read/write/reference permissions.
+
+### Remaining relationship guards
+
 Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.
 Cover 1:n child references, 1:1 target uniqueness and n:m typed junction/pair uniqueness.
@@ -71,8 +105,20 @@ First measure current Population-key, reader/contract-epoch and AVL-root content
 Existing independent-tree writes are not automatically independent transactions. Refine only
 operational coordination that can be split without weakening exact business invariants.
 Preserve query-change detection and authority fences when evaluating epoch alternatives.
-Implement the selected shared tenant/created and tenant/reader/created definitions with explicit
-per-resource opt-in, stable ties, root scope and created metadata. Multiple domain indexes may
+Population is a capacity cache, not the output identity allocator. For bindings with
+no configured ceilings, evaluate an explicit immutable untracked accounting mode;
+retain the exact protected-counter path when any ceiling is configured. A skipped
+write leaving stale totals or fake zero counts is invalid. Update accounting helpers,
+codec identity, source-derived reopen/integrity totals, backup/reset and checkers
+together. Preserve original/current Record/Reserved/Role collision guards and receipt
+recovery. Prove otherwise-disjoint output-producing creates/deletes can both commit
+on real FoundationDB in different reader partitions, and a bounded cap-1 race still
+rejects one contender. Reader/contract epochs remain separate coordination under
+the current strong cursor-change contract. Do not remove them to manufacture success.
+Implement resource/tenant/reader-or-owner/declared-order access definitions with explicit
+per-resource opt-in, stable ties, root scope and created metadata. Prefer scoped streams and
+authorized k-way merge; tenant-only ordered indexes are optional for measured workloads.
+Owner controls writes and reader controls disclosure; do not collapse them. Multiple domain indexes may
 order by effective time, created time, distance or another declared total order with independent
 summaries/validators. Define principal-root namespaces and transaction-domain boundaries.
 Generalize non-time range query/dependency cuts deliberately: current subscriber routes are
@@ -84,7 +130,7 @@ Acceptance: independent scan oracle matches results under rekeys, deletion and a
 changes; payload-only updates avoid unchanged index writes where semantics permit.
 Measure bytes, changed memberships, hot ancestors and conflicts for tenant/owner root alternatives.
 Do not add a shared global count/root solely for convenience or claim filtered counts from raw rank.
-Shared analytics roots are selected intentionally; measure their unavoidable write coordination.
+Measure write coordination of each opted-in root; do not impose a universal analytics root.
 
 ## R0 — Declarative rate admission, after its scoped contract is selected
 

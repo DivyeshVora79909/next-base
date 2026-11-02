@@ -1,5 +1,40 @@
 # Current checkpoint
 
+## C1.3 — Trusted count-pruned rank windows
+
+`tree_read::rank_window` now composes same-view Table batching with generic linked
+AVL structural counts. It returns raw ordered occurrences, root revision/count and
+accounted work/byte counters. Explicit budgets cover fetched nodes and checked
+output reservations; selective reads trust unvisited subtree metadata. Non-time
+String/unit-summary membership, ties, multislot order, pruning, snapshot, exact
+budgets and encountered corruption have independent tests. See docs/rank-reads.md
+and docs/checkpoints/c1-rank-reader.json. Node backup/S0 checkers and synthetic test
+constructors now match mandatory codec-v9 sizes; historical evidence stays unchanged.
+
+The latest user instruction supersedes the earlier six-commit allowance: complete
+this ONE next commit (C1.3), then STOP for a new flag. Do not begin C1.4 here.
+Next implementation must first settle C2.R's owner-inclusive minimal-reader policy,
+then C1.4 authorized member paging/hydration/cursors. The trusted primitive is not
+exposed over RPC. Retain existing UUID-page meaning. Read docs/roadmap.md C2.R;
+current immediate-owner/fallback folding is not the newly requested policy.
+
+Latest C3 direction: explicitly opt into resource/tenant/reader-or-owner/declared-
+order streams and merge authorized streams; a tenant-only index is optional for a
+measured workload. Reads use reader visibility; owner controls writes. Tenant is a
+strict namespace. Do not add a universal hot counter or remove required guards to
+claim independent writers. Existing Population capacity accounting is still shared
+even for unbounded models; specialize it only with inventory/recovery/race evidence.
+Non-time range subscriptions still require C3 type/routing integration; time is
+simply one total order. Direct parent/child field predicates remain C2 work.
+
+Handoff for a fresh agent: read AGENTS.md, this file, docs/roadmap.md,
+docs/index-mathematics.md and docs/rank-reads.md; inspect current Git before editing.
+Continue only for the user's newly authorized commit count. Start C2.R with a small
+source-DAG oracle/counterexample before changing reader semantics/identities; preserve
+tenant isolation, current action grants, request reference checks, privileged internal
+repairs, receipts and rollback. Then compose C1.4 from existing primitives. Do not
+infer that a signed cursor hides its payload or that owner and reader are identical.
+
 ## C1.2 — Bounded same-view storage batches
 
 ReadView/Table batch_get preserves positions, duplicates, missing keys and native
@@ -9,21 +44,21 @@ adapters retain the ordinary fallback. Byte budgets describe accounted input/out
 not strict heap or wire bounds. Diagnostic facade get events use role batch; native
 binding requests retain their own counts. See docs/storage.md and
 docs/checkpoints/c1-storage-batches.json for tests and the single-host FDB campaign.
-No public member API is added. Next is C1.3 trusted rank traversal, then STOP for
-the user's next flag. C1.4 public authorization/cursor integration remains pending.
+No public member API is added. C1.3 adds trusted rank traversal; C1.4 public
+authorization/cursor integration remains pending.
 
 ## C1.1 — Checked structural size and count-only indexes
 
-The user authorized three implementation commits in this run, then an explicit
-stop for a new flag. C1.1 adds mandatory Root/Node size and a supplied String-keyed
+The initial implementation authorization covered three commits and was later
+extended as above. C1.1 adds mandatory Root/Node size and a supplied String-keyed
 CountOnly family with unit business summary. Independent inventory/topology checks
 reconstruct sizes; CRUD, rotations, ties, multislot membership and overflow are tested.
 Native codec is now native-slice-kv-9. Recreate old stores explicitly; missing-size
 values are rejected. Historical fixture/evidence bytes remain unchanged. The host
 protocol test derives only its expected model identity from the current catalog.
 
-Next are C1.2 same-view storage batches and C1.3 trusted rank-window traversal.
-Then STOP. C1.4 must integrate authorized member paging, hydration, scope/root
+C1.2 adds same-view storage batches; C1.3 adds trusted rank-window traversal.
+C1.4 must integrate authorized member paging, hydration, scope/root
 revision-bound cursors and declared read permissions before C1 is complete.
 No new public member enumeration or non-time subscription API is accepted here.
 Parent/child order predicates are C2 direct-dependency rules; parent edits must
@@ -44,8 +79,8 @@ Results and reviewed identities are in docs/checkpoints/m0-index-contract.json.
 No production source, API, schema, dependency or codec changed.
 
 Selected targets: structural count independent of business summaries; count-only
-indexes; explicitly opted-in tenant/created and tenant/reader/created definitions;
-multiple arbitrary total orders and declared memberships. Current generic Key: Ord
+indexes and multiple arbitrary total orders/memberships. The initial shared-index
+proposal is superseded by the resource-scoped C3 direction above. Generic Key: Ord
 does not generalize time-specific Query/routing subscriptions. C3 must address it.
 Associativity permits regrouping; commutativity permits reordering. Linear totals
 allow arbitrary declared exact coefficients, but validation is not a solver.
@@ -112,7 +147,8 @@ UUID paging is separate. Structural counts and count-only indexing are C1.1;
 add bounded batch fetch and authorized root/rank traversal under one transaction. Preserve query meaning,
 ordering, continuation, work/byte limits and original receipt semantics.
 
-No shared tenant/reader/created or tenant/created indexes exist. Created and effective differ;
+Resource/tenant/reader-or-owner/order access trees are not implemented; the current
+public index is reader/contract/UUID. Created and effective differ;
 generic created-at metadata is not yet a query primitive. Measure Population-key,
 reader/contract-epoch and AVL-root contention before adding analytics indexes.
 Typed references exist; generic 1:1 uniqueness and declarative adaptive
