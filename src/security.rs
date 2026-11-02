@@ -149,15 +149,151 @@ pub(crate) fn store_graph(write: &WriteTransaction, graph: &PreparedGraph) -> Re
     Ok(())
 }
 
+/// Final-source preorder: resource owner, then reader references in catalog order.
+/// Record cycles and diamond paths are visited once; scalar reader caches are unused.
+/// Prepared catalogs prohibit public references to engine-private contracts, so
+/// public discovery cannot encounter a managed output. Managed roots are repaired
+/// separately by following their producer chain.
+pub(crate) fn reader_candidates<B: Binding, L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+    ws: &mut Attempt<L, B>,
+    model: &Prepared<B>,
+    id: Uuid,
+) -> Result<Vec<Uuid>> {
+    let mut stack = vec![id];
+    let mut seen = BTreeSet::new();
+    let mut owners = BTreeSet::new();
+    let mut candidates = Vec::new();
+    while let Some(id) = stack.pop() {
+        ws.charge("reader", 1)?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let record = ws
+            .record(id)?
+            .ok_or_else(|| corrupt("missing reader reference"))?;
+        if owners.insert(record.owner) {
+            candidates.push(record.owner);
+        }
+        let contract = model.contract(record.contract)?;
+        let references = record.input.references();
+        let mut targets = Vec::new();
+        for declaration in &contract.references {
+            ws.charge("reader", 1)?;
+            if declaration.reader {
+                for &(target, _, slot) in &references {
+                    ws.charge("reader", 1)?;
+                    if slot == declaration.slot {
+                        targets.push(target);
+                    }
+                }
+            }
+        }
+        stack.extend(targets.into_iter().rev());
+    }
+    Ok(candidates)
+}
+
+// Authored provenance only: payload, derived values and selected-reader caches
+// cannot change the reachable owner frontier.
+type ReaderProvenance = (Uuid, Option<Uuid>, Vec<(u16, Uuid)>);
+
+fn reader_provenance<B: Binding, L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+    ws: &mut Attempt<L, B>,
+    model: &Prepared<B>,
+    record: Option<&ModelRecord<B>>,
+) -> Result<Option<ReaderProvenance>> {
+    ws.charge("reader", 1)?;
+    let Some(record) = record else {
+        return Ok(None);
+    };
+    let mut references = Vec::new();
+    let source = record.input.references();
+    for declaration in &model.contract(record.contract)?.references {
+        ws.charge("reader", 1)?;
+        if declaration.reader {
+            for &(target, _, slot) in &source {
+                ws.charge("reader", 1)?;
+                if slot == declaration.slot {
+                    references.push((slot, target));
+                }
+            }
+        }
+    }
+    Ok(Some((
+        record.owner,
+        record.input.managed().map(|(producer, _)| producer),
+        references,
+    )))
+}
+
 pub(crate) fn repair_readers<B: Binding, L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
     ws: &mut Attempt<L, B>,
     model: &Prepared<B>,
-    ids: BTreeSet<Uuid>,
+    mut ids: BTreeSet<Uuid>,
     revision: Uuid,
     select: &mut impl FnMut(&[Uuid], Uuid) -> Result<Uuid>,
 ) -> Result<()> {
-    // Public readers use immediate owners, so there is no recursive reader fold.
-    // Managed outputs inherit their producer only after public repair completes.
+    // Expand through final reverse references even when the selected scalar stays
+    // equal: a hidden candidate may change a downstream minimal survivor.
+    // Initial payload-only changes need repair, but cannot affect consumers.
+    // Keep expansion visitation separate from ids: an initially payload-only
+    // consumer can later be reached from a changed ancestor frontier.
+    let mut pending = Vec::new();
+    let mut enqueued = BTreeSet::new();
+    for &id in &ids {
+        let original = match ws.original(&Key::Record(id))? {
+            Some(StoredValue::Record(record)) => Some(record),
+            None => None,
+            _ => return Err(corrupt("reader source record type")),
+        };
+        let current = ws.record(id)?;
+        if reader_provenance(ws, model, original.as_ref())?
+            != reader_provenance(ws, model, current.as_ref())?
+        {
+            enqueued.insert(id);
+            pending.push(id);
+        }
+    }
+    while let Some(id) = pending.pop() {
+        ws.charge("reader", 1)?;
+        let consumers = crate::routes::select(
+            ws,
+            &Key::Incoming(id),
+            std::ops::Bound::Unbounded,
+            std::ops::Bound::Unbounded,
+            false,
+        )?;
+        for consumer in consumers {
+            let record = ws
+                .record(consumer.id)?
+                .ok_or_else(|| corrupt("missing reader consumer"))?;
+            if model
+                .contract(record.contract)?
+                .references
+                .iter()
+                .any(|r| r.slot == consumer.slot && r.reader)
+                && enqueued.insert(consumer.id)
+            {
+                ids.insert(consumer.id);
+                pending.push(consumer.id);
+            }
+        }
+        if let Some(record) = ws.record(id)? {
+            for output in &model.contract(record.contract)?.outputs {
+                ws.charge("reader", 1)?;
+                if let Some(StoredValue::Role(role)) = ws.get(&Key::Role(
+                    crate::native_codec::Address::new(id, output.role),
+                ))? && !role.retired
+                    && ws.record(role.output)?.is_some()
+                    && enqueued.insert(role.output)
+                {
+                    ids.insert(role.output);
+                    pending.push(role.output);
+                }
+            }
+        }
+    }
+    // Managed outputs inherit only after all public source readers are repaired.
     for private in [false, true] {
         for &id in &ids {
             let Some(mut record) = ws.record(id)? else {
@@ -172,26 +308,33 @@ pub(crate) fn repair_readers<B: Binding, L: FnMut(&[u8]) -> Result<Option<Vec<u8
                 continue;
             }
             let reader = if let Some((producer, _)) = record.input.managed() {
-                ws.record(producer)?
-                    .ok_or_else(|| corrupt("missing output producer"))?
-                    .reader
-            } else {
-                let contract = model.contract(record.contract)?;
-                let mut owners = vec![];
-                for (target, _, slot) in record.input.references() {
-                    if contract
-                        .references
-                        .iter()
-                        .any(|r| r.slot == slot && r.reader)
-                    {
-                        let target = ws
-                            .record(target)?
-                            .ok_or_else(|| corrupt("missing reader reference"))?;
-                        owners.push(target.owner);
+                let mut producer = producer;
+                let mut visited = BTreeSet::new();
+                loop {
+                    ws.charge("reader", 1)?;
+                    if !visited.insert(producer) {
+                        return Err(corrupt("managed reader producer cycle"));
+                    }
+                    let source = ws
+                        .record(producer)?
+                        .ok_or_else(|| corrupt("missing output producer"))?;
+                    if let Some((parent, _)) = source.input.managed() {
+                        producer = parent;
+                    } else {
+                        break source.reader;
                     }
                 }
-                ws.charge("reader", owners.len() as u64 + 1)?;
-                select(&owners, record.owner)?
+            } else {
+                let candidates = reader_candidates(ws, model, id)?;
+                let count = u64::try_from(candidates.len())
+                    .map_err(|_| Error::new("work_limit", "reader candidates"))?;
+                let comparisons = count
+                    .checked_add(1)
+                    .and_then(|n| n.checked_mul(n))
+                    .and_then(|n| n.checked_mul(2))
+                    .ok_or_else(|| Error::new("work_limit", "reader comparisons"))?;
+                ws.charge("reader", comparisons)?;
+                select(&candidates, record.owner)?
             };
             if record.reader != reader {
                 record.reader = reader;
@@ -209,17 +352,20 @@ pub(crate) fn stored_reader(
     fallback: Uuid,
     cache: &mut BTreeMap<Uuid, BTreeSet<Uuid>>,
 ) -> Result<Uuid> {
-    let mut selected = owners.first().copied().unwrap_or(fallback);
     let table = write.open_table(AUTHORITY).map_err(storage)?;
-    for &next in owners.iter().skip(1) {
-        if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(selected) {
-            entry.insert(load_scope(&table, selected)?.descendants);
-        }
-        if cache[&selected].contains(&next) {
-            selected = next;
+    let tenant = load_scope(&table, fallback)?.tenant;
+    for owner in std::iter::once(fallback).chain(owners.iter().copied()) {
+        if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(owner) {
+            let scope = load_scope(&table, owner)?;
+            if scope.tenant != tenant {
+                return Err(corrupt("reader owner tenant"));
+            }
+            entry.insert(scope.descendants);
         }
     }
-    Ok(selected)
+    Ok(crate::plan::choose_reader(owners, fallback, |a, b| {
+        cache[&a].contains(&b)
+    }))
 }
 
 pub(crate) fn update_reader_index<B: Binding>(
@@ -523,5 +669,148 @@ impl<B: Binding> Store<B> {
             .insert(REVISION, encode(&revision)?.as_slice())?;
         write.commit().map_err(storage)?;
         Ok(json!({"revision":revision.to_string(),"changed":true}))
+    }
+}
+
+#[cfg(test)]
+mod reader_candidate_tests {
+    use super::*;
+    use crate::models::quantity::{Derived, Input, Quantity};
+
+    fn id(value: u128) -> Uuid {
+        Uuid::from_u128(value)
+    }
+
+    fn image() -> BTreeMap<Vec<u8>, Vec<u8>> {
+        // Raw source traversal fixture only: the publication resolver is not run.
+        // Its separate causal-cycle rule does not govern relation traversal.
+        [
+            (
+                1,
+                101,
+                Input::Join {
+                    left: id(2),
+                    right: id(3),
+                },
+            ),
+            (
+                2,
+                102,
+                Input::Join {
+                    left: id(4),
+                    right: id(4),
+                },
+            ),
+            (
+                3,
+                103,
+                Input::Join {
+                    left: id(4),
+                    right: id(5),
+                },
+            ),
+            (4, 104, Input::Source { value: 0 }),
+            (
+                5,
+                102,
+                Input::Join {
+                    left: id(1),
+                    right: id(4),
+                },
+            ),
+        ]
+        .into_iter()
+        .map(|(record_id, owner, input)| {
+            let key = Key::Record(id(record_id));
+            let record = ModelRecord::<Quantity> {
+                contract: input.contract(),
+                tenant: id(99),
+                owner: id(owner),
+                reader: id(999),
+                version: id(900),
+                input,
+                derived: Some(Derived { quantity: 0 }),
+            };
+            (
+                key.encode(),
+                native_codec::encode_for(&key, &StoredValue::Record(record)).unwrap(),
+            )
+        })
+        .collect()
+    }
+
+    #[test]
+    fn source_preorder_deduplicates_diamonds_and_terminates_record_loops() {
+        let image = image();
+        let model = Prepared::<Quantity>::prepare(Quantity::declarations().unwrap()).unwrap();
+        let mut ws = Attempt::new(|key: &[u8]| Ok(image.get(key).cloned()), 10_000);
+        assert_eq!(
+            reader_candidates(&mut ws, &model, id(1)).unwrap(),
+            vec![id(101), id(102), id(104), id(103)]
+        );
+
+        // Catalog order, rather than NativeInput's slot order, controls preorder.
+        let mut declarations = Quantity::declarations().unwrap();
+        declarations
+            .iter_mut()
+            .find(|c| c.code == crate::models::quantity::JOIN)
+            .unwrap()
+            .references
+            .reverse();
+        let reversed = Prepared::<Quantity>::prepare(declarations).unwrap();
+        let mut ws = Attempt::new(|key: &[u8]| Ok(image.get(key).cloned()), 10_000);
+        assert_eq!(
+            reader_candidates(&mut ws, &reversed, id(1)).unwrap(),
+            vec![id(101), id(103), id(102), id(104)]
+        );
+    }
+
+    #[test]
+    fn candidate_discovery_obeys_exact_work_budget() {
+        let image = image();
+        let model = Prepared::<Quantity>::prepare(Quantity::declarations().unwrap()).unwrap();
+        let mut ws = Attempt::new(|key: &[u8]| Ok(image.get(key).cloned()), 10_000);
+        reader_candidates(&mut ws, &model, id(1)).unwrap();
+        let required = ws.work.work_units;
+        assert!(required > 1);
+        let mut exact = Attempt::new(|key: &[u8]| Ok(image.get(key).cloned()), required);
+        reader_candidates(&mut exact, &model, id(1)).unwrap();
+        let mut short = Attempt::new(|key: &[u8]| Ok(image.get(key).cloned()), required - 1);
+        assert_eq!(
+            reader_candidates(&mut short, &model, id(1))
+                .unwrap_err()
+                .code,
+            "work_limit"
+        );
+    }
+
+    #[test]
+    fn payload_only_source_edit_does_not_read_incoming_routes() {
+        let image = image();
+        let model = Prepared::<Quantity>::prepare(Quantity::declarations().unwrap()).unwrap();
+        let mut ws = Attempt::new(
+            |key: &[u8]| {
+                // This source has several consumers in the fixture. Reader repair
+                // must not inspect their route, regardless of its population.
+                assert!(!matches!(Key::decode(key)?, Key::Incoming(_)));
+                Ok(image.get(key).cloned())
+            },
+            10_000,
+        );
+        let mut source = ws.record(id(4)).unwrap().unwrap();
+        source.input = Input::Source { value: 1 };
+        source.derived = Some(Derived { quantity: 1 });
+        ws.put(Key::Record(id(4)), Some(StoredValue::Record(source)))
+            .unwrap();
+        repair_readers(
+            &mut ws,
+            &model,
+            BTreeSet::from([id(4)]),
+            id(901),
+            &mut |_, owner| Ok(owner),
+        )
+        .unwrap();
+        assert_eq!(ws.record(id(4)).unwrap().unwrap().reader, id(104));
+        assert_eq!(ws.work.selector_visits, 0);
     }
 }

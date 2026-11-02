@@ -520,26 +520,61 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             }
             if let Some(graph) = &graph {
                 require(graph.scopes.contains_key(&r.owner), "principal owner")?;
-                let expected = if let Some((producer, _)) = r.input.managed() {
-                    records
-                        .get(&producer)
-                        .ok_or_else(|| local::corrupt("missing producer"))?
-                        .reader
-                } else {
-                    let owners: Vec<_> = r
-                        .input
-                        .references()
-                        .iter()
-                        .filter(|(_, _, slot)| {
-                            contract
-                                .references
+                // Reconstruct the full source hierarchy rather than trusting any
+                // persisted reader or the writer's candidate discovery/selection.
+                let mut root = id;
+                let mut producers = BTreeSet::new();
+                loop {
+                    require(producers.insert(root), "managed producer cycle")?;
+                    let source = records
+                        .get(&root)
+                        .ok_or_else(|| local::corrupt("missing producer"))?;
+                    let Some((producer, _)) = source.input.managed() else {
+                        break;
+                    };
+                    root = producer;
+                }
+                let mut pending = vec![root];
+                let mut visited = BTreeSet::new();
+                let mut owners = Vec::new();
+                let mut unique_owners = BTreeSet::new();
+                while let Some(source) = pending.pop() {
+                    if !visited.insert(source) {
+                        continue;
+                    }
+                    let source = records
+                        .get(&source)
+                        .ok_or_else(|| local::corrupt("missing reader source"))?;
+                    require(source.tenant == meta.tenant, "reader source tenant")?;
+                    require(graph.scopes.contains_key(&source.owner), "principal owner")?;
+                    if unique_owners.insert(source.owner) {
+                        owners.push(source.owner);
+                    }
+                    let references = source.input.references();
+                    let declaration = store.model().contract(source.contract)?;
+                    // Reverse the complete adjacency before using a LIFO stack:
+                    // root first, then declaration order, then field occurrence.
+                    let mut children = Vec::new();
+                    for relation in declaration.references.iter().filter(|r| r.reader) {
+                        children.extend(
+                            references
                                 .iter()
-                                .any(|r| r.slot == *slot && r.reader)
-                        })
-                        .map(|(target, _, _)| records[target].owner)
-                        .collect();
-                    graph.reader(&owners, r.owner)
-                };
+                                .filter(|(_, _, slot)| *slot == relation.slot)
+                                .map(|(target, _, _)| *target),
+                        );
+                    }
+                    pending.extend(children.into_iter().rev());
+                }
+                let expected = owners
+                    .iter()
+                    .copied()
+                    .find(|&candidate| {
+                        !owners
+                            .iter()
+                            .copied()
+                            .any(|other| candidate != other && graph.dominates(candidate, other))
+                    })
+                    .ok_or_else(|| local::corrupt("empty reader frontier"))?;
                 require(r.reader == expected, "declared reader")?;
             } else {
                 require(

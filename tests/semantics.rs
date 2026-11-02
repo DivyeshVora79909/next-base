@@ -131,11 +131,12 @@ fn declaration_order_never_overrides_actual_field_dependencies() {
 }
 
 #[test]
-fn scalar_reader_preserves_first_incomparable_choice_and_owner_fallback() {
+fn scalar_reader_includes_owner_and_preserves_first_minimal_choice() {
     let dominates = |a, b| [(1, 2), (2, 3), (1, 3), (1, 4)].contains(&(a, b));
-    assert_eq!(choose_reader(&[1, 2, 3], 9, dominates), 3);
-    assert_eq!(choose_reader(&[3, 4], 9, dominates), 3);
-    assert_eq!(choose_reader(&[4, 3], 9, dominates), 4);
+    assert_eq!(choose_reader(&[1, 2, 3], 9, dominates), 9);
+    assert_eq!(choose_reader(&[1, 2, 3], 1, dominates), 3);
+    assert_eq!(choose_reader(&[3, 4], 1, dominates), 3);
+    assert_eq!(choose_reader(&[4, 3], 1, dominates), 4);
     assert_eq!(choose_reader(&[], 9, dominates), 9);
 }
 

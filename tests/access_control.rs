@@ -49,7 +49,7 @@ fn graph() -> Graph {
     .graph;
     graph
         .principals
-        .extend([person(3, &[1]), person(4, &[3]), person(5, &[1])]);
+        .extend([person(3, &[2]), person(4, &[3]), person(5, &[2])]);
     graph
 }
 struct Directory(PathBuf);
@@ -176,7 +176,7 @@ fn direct_group_access_inherits_grants_without_granting_siblings() {
     let mut g = graph();
     let group = Principal {
         kind: PrincipalKind::Group,
-        ..person(6, &[1])
+        ..person(6, &[2])
     };
     g.principals.push(group);
     for n in [4, 5] {
@@ -344,7 +344,8 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
     );
     assert_eq!(stranger.mutate(&denied).unwrap_err().code, "forbidden");
     assert_eq!(admin.observe_for_verification().unwrap(), before);
-    // A diamond edge change repairs the reader but does not grant union access.
+    // Once owner3 and referenced owner4 become incomparable, own-owner first
+    // selects3. This changes disclosure without granting union access.
     let mut g = graph();
     g.principals
         .iter_mut()
@@ -352,17 +353,31 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
         .unwrap()
         .parents = vec![id(1)];
     replace(&admin, g.clone()).unwrap();
-    assert!(manager.get(model.identity(), id(11)).unwrap().is_none());
-    assert!(child.get(model.identity(), id(11)).unwrap().is_some());
+    assert!(manager.get(model.identity(), id(11)).unwrap().is_some());
+    assert!(child.get(model.identity(), id(11)).unwrap().is_none());
     assert!(child.get(model.identity(), id(21)).unwrap().is_none());
     assert!(manager.get(model.identity(), id(21)).unwrap().is_some());
     let raw = admin.observe_for_verification().unwrap();
     let entries = raw["tables"]["reader_records"].as_array().unwrap();
     assert_eq!(entries.len(), 5); // private outputs never enter public candidates
-    let entry_key = format!("{}{:04x}{}", id(4).simple(), 8, id(11).simple());
+    let entry_key = format!("{}{:04x}{}", id(3).simple(), 8, id(11).simple());
     let basis_key = format!("{}{:04x}{}", id(3).simple(), 10, id(21).simple());
     assert!(entries.iter().any(|r| r["key"] == entry_key));
     assert!(entries.iter().any(|r| r["key"] == basis_key));
+    // Reader ownership remains3, so revoke the concrete Read action to test
+    // current-authority receipt redaction without changing reader semantics.
+    g.principals
+        .iter_mut()
+        .find(|p| p.id == id(3))
+        .unwrap()
+        .grants
+        .contracts
+        .get_mut(&8)
+        .unwrap()
+        .remove(&Action::Read);
+    replace(&admin, g.clone()).unwrap();
+    assert!(manager.get(model.identity(), id(11)).unwrap().is_none());
+    assert!(manager.get(model.identity(), id(21)).unwrap().is_some());
     let replay = manager.mutate(&entry).unwrap();
     assert_eq!(replay["result"]["records"][0]["record"], Value::Null);
     assert_eq!(
@@ -429,7 +444,9 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
     assert_eq!(
         page(&reopened.session(id(4), 1).unwrap(), None, 128)
             .records
-            .len(),
-        2
+            .iter()
+            .map(|record| record.id)
+            .collect::<Vec<_>>(),
+        vec![id(10)]
     );
 }

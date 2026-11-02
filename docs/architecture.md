@@ -16,10 +16,11 @@ not an owner supplied by an untrusted claim. JWT verification does not grant a c
 [`access.rs`](../src/access.rs) prepares the tenant principal DAG and separates record owner
 from reader: contract action plus owner accessibility controls writes; Read plus reader
 accessibility controls disclosure. Current DAG grants have specific bounded semantics,
-not arbitrary transitive ACL intersection. Current immediate-owner greedy reader
-selection differs from the newly selected owner-inclusive first-minimal policy;
-[C2.R](roadmap.md#c2r--owner-inclusive-minimal-reader-policy-before-c14) must update
-mutation/admin repair and checking together before C1.4 integration.
+not arbitrary transitive ACL intersection. C2.R selects the first minimal owner
+from the resource and its reader-marked source hierarchy, in stable catalog order.
+Mutation/admin repair and independent checking follow the same declared meaning;
+managed outputs inherit their producer. The shared reader-policy revision is bound
+into every prepared model identity. See [C2.R](roadmap.md#c2r--owner-inclusive-minimal-reader-policy-before-c14).
 
 [`security.rs`](../src/security.rs) loads current persisted authority and credential epochs
 inside transaction scope. Authority changes and operation-context fencing are separate from

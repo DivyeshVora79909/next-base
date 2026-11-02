@@ -18,6 +18,8 @@ use crate::{
 pub const MAX_PRINCIPALS: usize = 128;
 pub const MAX_PARENTS: usize = 8;
 pub const MAX_READER_STREAMS: usize = 1280;
+/// Shared persisted-reader meaning, included in every prepared model identity.
+pub const READER_POLICY: &str = "source-owner-first-minimal-preorder-1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

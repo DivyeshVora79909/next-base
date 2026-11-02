@@ -7,9 +7,10 @@ obligations pass; unresolved semantic choices or failed evidence must be reporte
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
 M0 recorded planning and bounded algebra witnesses. C1 is split into C1.1
 structural size/count-only indexes, C1.2 same-view storage batches, C1.3 trusted
-rank-window traversal, and C1.4 authorized member paging/cursors. The latest user
-instruction is to finish only the next C1.3 commit, then STOP for a new flag;
-do not call the whole C1 gate complete before its public integration is accepted.
+rank-window traversal, and C1.4 authorized member paging/cursors. C2.R corrects
+reader policy before C1.4. Do not call the whole C1 gate complete before its public
+integration is accepted. Follow the current user's authorization; conversation
+usage budgets are not standing commit-count instructions for future agents.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
 separate mathematical representability from implemented capability. The
 [E0–E5 service plan](server-execution.md) adds contracts and acceptance witnesses;
@@ -58,11 +59,12 @@ another candidate, then select the first surviving candidate. Incomparable survi
 are permitted; do not invent a rejection or an ACL-intersection rule. Never compare
 principals across tenants. Managed private outputs retain their producer's reader.
 
-Current code uses immediate referenced owners, excludes the resource owner when
-references are nonempty, and greedily replaces a selected ancestor. It is not this
-policy. Example: candidates [A,B,C], A dominates C and B is incomparable. Stable
-minimal survivors are [B,C], so select B; the current fold selects C. A referenced
-ancestor plus a strictly lower resource owner also exposes the fallback-only gap.
+The previous implementation used immediate referenced owners and omitted the
+resource owner when references were nonempty. Its greedy ancestor replacement was
+incorrect for stable first-minimal choice. For [A,B,C], A dominates C and B is
+incomparable: minimal survivors are [B,C], so choose B, whereas the old fold chose C.
+C2.R now repairs writer/admin paths and checking together; its bounded witnesses
+include a changed hidden frontier with unchanged upstream reader/publication.
 
 Reuse current tenant reachability closures for comparisons; do not enumerate all
 principal paths. A simple first-minimal scan uses O(k^2) dominance checks for k

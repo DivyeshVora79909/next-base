@@ -5,6 +5,10 @@ developer functions. It requires Node 24 or newer and has no network, process,
 filesystem or service effects on import. Functions perform work only when the
 caller invokes them. Complete examples under `tools/node/examples/` show
 specific compositions and remain examples, not exports promoted into the SDK.
+Use these ordinary functions from the Node REPL or caller scripts. Do not maintain
+a parallel developer CLI/argument parser. The native Rust host/server and Cargo
+retain their standard command interfaces; a Node function may call those owned
+processes without inventing another command layer.
 N6 bootstrap and extracted-release acceptance are pending; see the
 [G10 program](../research/56-node-and-index-redesign-program.md) for status.
 

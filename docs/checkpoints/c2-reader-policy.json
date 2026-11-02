@@ -1,0 +1,89 @@
+{
+  "format": "next-base-reader-policy-1",
+  "checkpoint": "C2.R",
+  "status": "accepted default-backend policy correction",
+  "parentCommit": "e3c93a31b303695bfa74be980a510aabf450d1f6",
+  "policy": {
+    "identity": "source-owner-first-minimal-preorder-1",
+    "modelIdentity": "Shared policy contributes to every prepared model hash; recreate prior-model stores explicitly.",
+    "candidates": "resource owner followed by recursive reader:true source references in declaration preorder; deduplicate source/owner IDs",
+    "choice": "first candidate strictly dominating no other candidate; incomparable candidates allowed",
+    "managed": "ultimate producer reader",
+    "cost": "source graph work under budget plus quadratic distinct-candidate dominance checks; cached tenant reachability reused"
+  },
+  "inputs": [
+    {
+      "path": "src/access.rs",
+      "sha256": "b5b9205a289851efc59ae44ad5eece613895c660892abe28a85c7468b8b4c330"
+    },
+    {
+      "path": "src/plan.rs",
+      "sha256": "f54b28927849f6c8a89b08beca789e213fe3db73f2165f3e10db6801a1e7781f"
+    },
+    {
+      "path": "src/security.rs",
+      "sha256": "37402efb1b754e40fdc42044af7204a3ad73be39d737ce9b483bc58b964d2a46"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "012f9e4cb2bf1d879850f7f4aa812e686c276428f2bc2dab10911cca49e197ab"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "302bfbd3382df72bf2cb7d0044c7b110f966f11fb80bfc8b58edf01a3b1b2699"
+    },
+    {
+      "path": "tests/access_control.rs",
+      "sha256": "2ba616839bb820afaa7dcb9b42d441c2119cb984013d7de6d6838da9dd3d9d0d"
+    },
+    {
+      "path": "tests/reader_policy.rs",
+      "sha256": "ded88c75547eba27ca4c08af866ef583a6daa83967e7ef684e2eb6b29cfe567e"
+    },
+    {
+      "path": "tests/semantics.rs",
+      "sha256": "13c809b71cff16b9b827db886ba3cec26b4cb91e64aee41975e22978e5e3ba87"
+    }
+  ],
+  "checks": {
+    "isolatedCheckout": true,
+    "publicMemberPagingExcluded": true,
+    "rust": {
+      "passed": 240,
+      "failed": 0,
+      "ignored": 0,
+      "logSha256": "393b626149b511d93abac7b494a8c21323c1ff9ea00b2651fd471865b708dabf",
+      "note": "Full default suite passed. Equivalent type-alias/if-let lint cleanup followed by focused helper and integration reruns."
+    },
+    "focused": {
+      "helperPassed": 3,
+      "integrationPassed": 7,
+      "helperLogSha256": "80550633b259a4674c25077c4eadb3227d1673df336f07d43050afe2bde8eeb4",
+      "integrationLogSha256": "2e2227d6d91b93d03c3398193b16c0e3973d4d00e7e87238116b6b6477205aea"
+    },
+    "node": {
+      "version": "24.22.1",
+      "passed": 168,
+      "failed": 0,
+      "skipped": 0,
+      "nativeBinarySha256": "544ba961ab19465d1a75b3e1fa2e26033c79a24bddad8852d723c5627b5dce21",
+      "logSha256": "0f055bc2d51465f956eddbf571eb50ae83b3d02b17469e55ab7b0948e1307910"
+    },
+    "clippy": {
+      "allTargets": true,
+      "warningsDenied": true,
+      "logSha256": "82eeac1cbf469d0b500002d571c4d33daceb1f2e69ae109fc5f267c3e731d789"
+    },
+    "independentReview": "No concrete issue found in selection, provenance gating, final reverse propagation, private inheritance or transactional index/epoch repair.",
+    "optionalBackendCampaignRerun": false
+  },
+  "witnesses": [
+    "64 original-edge principal DAGs, own owners and ordered candidate lists",
+    "source diamonds, duplicate owners, declaration reorder and record-loop termination",
+    "strict work budget boundary and no Incoming scan for payload-only source edits",
+    "real Quantity hidden frontier retarget: upstream reader/value unchanged, child reader/version/index and both scoped cursors change",
+    "managed output inheritance, graph administration repair, unreadable-reference rollback and explicit Read revocation receipt redaction"
+  ],
+  "developerTools": "Audited existing Node surface: ordinary functions already; no production CLI wrappers to remove. Population parity gaps remain C4, not implied by callbacks.",
+  "next": "C1.4 authorized occurrence paging composed from accepted native reader; retain authority and cursor disclosure constraints."
+}
