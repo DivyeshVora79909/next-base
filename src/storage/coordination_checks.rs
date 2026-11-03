@@ -688,6 +688,8 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     cases.push("scoped-tokens-slots-and-business-state-persist-on-reopen");
     drop(reopened);
 
+    let contention_baseline = contention_baseline(&factory, concurrent, &mut cases)?;
+    let epoch_control = contention_epoch_control(&factory, concurrent, &mut cases)?;
     scoped_derived(&factory, &mut cases)?;
     let references = if concurrent {
         reference_schedules(&factory, &mut cases)?
@@ -700,7 +702,9 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "independent_attempts":independent.iter().map(trace_value).collect::<Vec<_>>(),
         "same_root_attempts":same_root.iter().map(trace_value).collect::<Vec<_>>(),
         "tracked_noop_attempts":noop_race.iter().map(trace_value).collect::<Vec<_>>(),
-        "reference_schedules":references,
+        "reference_schedules":references,"c3_0_contention_baseline":contention_baseline,
+        "c3_0_scoped_epoch_control":epoch_control,
+        "c3_0_business_root_control":{"evidence":"same_root_attempts","population_written":false,"concurrent":concurrent,"shared_root":native_codec::hex(&Key::Root(crate::native_codec::Address::new(id(100),2)).encode()),"exclusive_abort_key_attribution":false},
         "independent_balances":balances,"common_application_write_keys":[],"common_surreal_guard_buckets":shared_buckets,
         "receipt_hash_starts":[crate::receipts::start_slot(&[id(3).as_bytes().as_slice(),first_op.as_bytes()].concat()),crate::receipts::start_slot(&[id(4).as_bytes().as_slice(),second_op.as_bytes()].concat())],
         "genuine_noop":trace_value(&noop_trace),"table_inventory":local::table_names(true),
@@ -973,4 +977,367 @@ fn reference_schedules(
             "attempts":traces.iter().map(trace_value).collect::<Vec<_>>() }));
     }
     Ok(evidence)
+}
+
+// C3.0 measures the current exact-accounting path. No accounting policy changes.
+fn contention_class(table: &str, bytes: &[u8]) -> &'static str {
+    if table == "query_epochs" {
+        return "reader_contract_epoch";
+    }
+    if table == local::KV.name() {
+        return match Key::decode(bytes) {
+            Ok(Key::Population) => "population",
+            Ok(Key::Root(_) | Key::Node(_)) => "native_business_root",
+            Ok(Key::Record(_)) => "record",
+            Ok(Key::Role(_) | Key::Reserved(_)) => "output_identity",
+            Ok(Key::Meta) => "model_metadata",
+            _ => "reference_or_dependency",
+        };
+    }
+    match table {
+        "operations" | "receipt_slots" => "receipt",
+        "runtime" | "local_runtime" | "effect_runtime" => "runtime",
+        _ => "authority_or_index",
+    }
+}
+fn contention_overlap(a: &Written, b: &Written) -> Vec<Value> {
+    a.intersection(b)
+        .map(|(table, key)| {
+            json!({"table":table,
+        "key":native_codec::hex(key),"class":contention_class(table,key)})
+        })
+        .collect()
+}
+fn equipment_inventory(
+    store: &Store<crate::models::equipment::Equipment>,
+    active: &[u128],
+    retired: &[u128],
+) -> Result<Value> {
+    use crate::{models::equipment::Input, native_codec::Address};
+    let snapshot = crate::integrity::Snapshot::load(store)?;
+    let mut outputs = BTreeSet::new();
+    for &producer in active.iter().chain(retired) {
+        let live = active.contains(&producer);
+        require(
+            snapshot.records.contains_key(&id(producer)) == live,
+            "C3 source survival",
+        )?;
+        if live {
+            let source = &snapshot.records[&id(producer)];
+            require(
+                source.reader == id(if producer < 200 { 3 } else { 4 })
+                    && source.derived.as_ref().is_some_and(|d| d.allocated == 2),
+                "C3 allocation/reader",
+            )?;
+        }
+        for (role, at, quantity) in [(11, 10, -2), (29, 20, 2)] {
+            let address = Address::new(id(producer), role);
+            let Some(StoredValue::Role(binding)) = snapshot.all.get(&Key::Role(address)) else {
+                return Err(failure("C3 missing role"));
+            };
+            require(
+                binding.retired != live && outputs.insert(binding.output),
+                "C3 role retirement/identity",
+            )?;
+            require(
+                matches!(snapshot.all.get(&Key::Reserved(binding.output)),
+                Some(StoredValue::Reserved(owner)) if *owner == address),
+                "C3 retained reservation",
+            )?;
+            if live {
+                let output = snapshot
+                    .records
+                    .get(&binding.output)
+                    .ok_or_else(|| failure("C3 missing output"))?;
+                require(
+                    output.input
+                        == (Input::Output {
+                            producer: id(producer),
+                            role,
+                            pool: id(if producer < 200 { 100 } else { 200 }),
+                            at,
+                            quantity,
+                        }),
+                    "C3 exact output",
+                )?;
+            } else {
+                require(
+                    !snapshot.records.contains_key(&binding.output),
+                    "C3 retired output survives",
+                )?;
+            }
+        }
+    }
+    let roles = snapshot
+        .all
+        .keys()
+        .filter(|k| matches!(k, Key::Role(_)))
+        .count();
+    let reservations = snapshot
+        .all
+        .keys()
+        .filter(|k| matches!(k, Key::Reserved(_)))
+        .count();
+    require(
+        roles == outputs.len()
+            && reservations == outputs.len()
+            && snapshot.records.len() == 4 + active.len() * 3,
+        "C3 complete source/output/identity inventory",
+    )?;
+    let report = json!({"active_sources":active,"retired_sources":retired,
+        "records":snapshot.records.len(),"roles":roles,"retained_reservations":reservations});
+    drop(snapshot);
+    store.check_integrity()?;
+    Ok(report)
+}
+fn contention_baseline(
+    factory: &impl Fn(&str) -> Result<Database>,
+    concurrent: bool,
+    cases: &mut Vec<&'static str>,
+) -> Result<Value> {
+    use crate::models::equipment::Equipment;
+    let captures = Captures::default();
+    let store = create::<Equipment>(Database::new(Recording {
+        db: factory("c30-output-contention-baseline")?,
+        captures: captures.clone(),
+    }))?;
+    graph(&store, &[101, 205, 410])?;
+    let left = store.session(id(3), 0)?;
+    let right = store.session(id(4), 0)?;
+    for (session, base) in [(&left, 100), (&right, 200)] {
+        session.mutate(&request(session,id(50000+base),json!([
+            {"op":"create","id":id(base),"contract":101,"fields":{"unit":1}},
+            {"op":"create","id":id(base+1),"contract":205,"fields":{"pool":id(base),"at":"0","quantity":"10"}}
+        ]))?)?;
+    }
+    let mut reports = Vec::new();
+    for deleting in [false, true] {
+        let a_op = operation(&left, if deleting { 53000 } else { 51000 }, None)?;
+        let b_op = operation(
+            &right,
+            if deleting { 54000 } else { 52000 },
+            Some(&left.receipt_key(a_op)),
+        )?;
+        let command = |session: &Store<Equipment>, base| -> Result<Value> {
+            if deleting {
+                let version = session
+                    .get(session.model().identity(), id(base + 2))?
+                    .ok_or_else(|| failure("C3 delete source missing"))?
+                    .version;
+                Ok(json!({"op":"delete","id":id(base+2),"if_version":version.to_string()}))
+            } else {
+                Ok(json!({"op":"create","id":id(base+2),"contract":410,
+                "fields":{"pool":id(base),"starts":"10","ends":"20","requested":"2","active":true}}))
+            }
+        };
+        let a = request(&left, a_op, json!([command(&left, 100)?]))?;
+        let b = request(&right, b_op, json!([command(&right, 200)?]))?;
+        capture(&captures)?.traces.clear();
+        label(
+            &captures,
+            if deleting {
+                "c30-delete-loser"
+            } else {
+                "c30-create-loser"
+            },
+        )?;
+        let mut barriers = 0;
+        if concurrent {
+            let mut accepted = Value::Null;
+            let error = left
+                .mutate_controlled(
+                    &a,
+                    &mut || Ok(Uuid::new_v4()),
+                    None,
+                    &mut || {
+                        barriers += 1;
+                        label(&captures, "c30-winner")?;
+                        right.mutate_controlled(
+                            &b,
+                            &mut || Ok(Uuid::new_v4()),
+                            None,
+                            &mut || Ok(()),
+                            false,
+                        )?;
+                        accepted = image(&store)?;
+                        Ok(())
+                    },
+                    false,
+                )
+                .expect_err("C3 current Population path must conflict");
+            require(
+                error.code == "transaction_conflict" && barriers == 1 && image(&store)? == accepted,
+                "C3 conflict/retry/complete loser rollback",
+            )?;
+            receipt(&left, &a, false)?;
+        } else {
+            label(&captures, "c30-right-sequential")?;
+            right.mutate_controlled(&b, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
+            label(&captures, "c30-left-sequential")?;
+            left.mutate_controlled(&a, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
+        }
+        receipt(&right, &b, true)?;
+        let traces = capture(&captures)?.traces.clone();
+        require(traces.len() == 2, "C3 two original plans")?;
+        let population = (local::KV.name().to_string(), Key::Population.encode());
+        require(
+            traces
+                .iter()
+                .all(|t| t.reads.contains(&population) && t.writes.contains(&population)),
+            "C3 exact Population protection",
+        )?;
+        let scoped = |t: &Trace| -> Written {
+            t.writes
+                .iter()
+                .filter(|(table, key)| {
+                    matches!(
+                        contention_class(table, key),
+                        "reader_contract_epoch" | "native_business_root"
+                    )
+                })
+                .cloned()
+                .collect()
+        };
+        require(
+            scoped(&traces[0]).is_disjoint(&scoped(&traces[1])),
+            "C3 independent scopes overlap",
+        )?;
+        let common_writes: Written = traces[0]
+            .writes
+            .intersection(&traces[1].writes)
+            .cloned()
+            .collect();
+        require(
+            common_writes == BTreeSet::from([population.clone()]),
+            "C3 shared writes must isolate Population",
+        )?;
+        let inventory = if deleting {
+            equipment_inventory(
+                &store,
+                if concurrent { &[102] } else { &[] },
+                if concurrent { &[202] } else { &[102, 202] },
+            )?
+        } else {
+            equipment_inventory(&store, if concurrent { &[202] } else { &[102, 202] }, &[])?
+        };
+        reports.push(json!({"case":if deleting {"c3.0-output-retiring-delete-population"}else{"c3.0-output-producing-create-population"},
+            "concurrent":concurrent,"automatic_retries":false,"barriers":barriers,"inventory":inventory,
+            "attempt_roles":if concurrent {vec!["left_original_conflicted","right_original_committed"]} else {vec!["right_sequential_committed","left_sequential_committed"]},
+            "attempts":traces.iter().map(trace_value).collect::<Vec<_>>(),
+            "common_writes":contention_overlap(&traces[0].writes,&traces[1].writes),
+            "attempt_0_point_reads_overlapping_attempt_1_writes":contention_overlap(&traces[0].reads,&traces[1].writes),
+            "attempt_1_point_reads_overlapping_attempt_0_writes":contention_overlap(&traces[1].reads,&traces[0].writes)}));
+        if concurrent {
+            // A separately revalidated request establishes the next case's fixture;
+            // it is never counted as success of the original conflicting attempt.
+            label(&captures, "c30-separate-revalidation-cleanup")?;
+            left.mutate_controlled(&a, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
+        }
+        equipment_inventory(
+            &store,
+            if deleting { &[] } else { &[102, 202] },
+            if deleting { &[102, 202] } else { &[] },
+        )?;
+        cases.push(if deleting {
+            "c3.0-output-retiring-delete-population-baseline"
+        } else {
+            "c3.0-output-producing-create-population-baseline"
+        });
+    }
+    Ok(json!({"schedules":reports,"point_reads_only":true,
+        "range_evidence":"scanned table names only; no exact range conflict attribution",
+        "scope":"Current accounting baseline; shared Population protection is observed, not exclusive attribution of adapter abort key. Sequential redb controls are not concurrency evidence. Not a throughput metric."}))
+}
+
+fn contention_epoch_control(
+    factory: &impl Fn(&str) -> Result<Database>,
+    concurrent: bool,
+    cases: &mut Vec<&'static str>,
+) -> Result<Value> {
+    let captures = Captures::default();
+    let store = create::<Quantity>(Database::new(Recording {
+        db: factory("c30-scoped-epoch-control")?,
+        captures: captures.clone(),
+    }))?;
+    graph(&store, &[quantity::SOURCE])?;
+    let session = store.session(id(3), 0)?;
+    session.mutate(&request(
+        &session,
+        id(60000),
+        json!([
+            {"op":"create","id":id(61000),"contract":quantity::SOURCE,"fields":{"value":"12"}},
+            {"op":"create","id":id(62000),"contract":quantity::SOURCE,"fields":{"value":"6"}}
+        ]),
+    )?)?;
+    let a_op = operation(&session, 63000, None)?;
+    let b_op = operation(&session, 64000, Some(&session.receipt_key(a_op)))?;
+    let a = request(
+        &session,
+        a_op,
+        json!([update(&session, id(61000), json!({"value":"18"}))?]),
+    )?;
+    let b = request(
+        &session,
+        b_op,
+        json!([update(&session, id(62000), json!({"value":"9"}))?]),
+    )?;
+    capture(&captures)?.traces.clear();
+    label(&captures, "c30-same-partition-loser")?;
+    if concurrent {
+        let mut accepted = Value::Null;
+        let mut calls = 0;
+        let error = session
+            .mutate_controlled(
+                &a,
+                &mut || Ok(Uuid::new_v4()),
+                None,
+                &mut || {
+                    calls += 1;
+                    label(&captures, "c30-same-partition-winner")?;
+                    session.mutate_controlled(
+                        &b,
+                        &mut || Ok(Uuid::new_v4()),
+                        None,
+                        &mut || Ok(()),
+                        false,
+                    )?;
+                    accepted = image(&store)?;
+                    Ok(())
+                },
+                false,
+            )
+            .expect_err("same-partition epoch must coordinate");
+        require(
+            error.code == "transaction_conflict" && calls == 1 && image(&store)? == accepted,
+            "C3 epoch control conflict/rollback",
+        )?;
+        receipt(&session, &a, false)?;
+    } else {
+        label(&captures, "c30-epoch-first-sequential")?;
+        session.mutate_controlled(&b, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
+        label(&captures, "c30-epoch-second-sequential")?;
+        session.mutate_controlled(&a, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
+    }
+    receipt(&session, &b, true)?;
+    let traces = capture(&captures)?.traces.clone();
+    require(traces.len() == 2, "C3 epoch control attempt count")?;
+    for trace in &traces {
+        no_global_writes(&trace.writes)?;
+    }
+    let common: Written = traces[0]
+        .writes
+        .intersection(&traces[1].writes)
+        .cloned()
+        .collect();
+    require(
+        common.len() == 1 && common.iter().all(|(table, _)| table == "query_epochs"),
+        "C3 epoch control has other shared writes",
+    )?;
+    store.check_integrity()?;
+    cases.push("c3.0-same-reader-contract-existing-source-epoch-control");
+    Ok(json!({"concurrent":concurrent,"automatic_retries":false,
+        "common_writes":contention_overlap(&traces[0].writes,&traces[1].writes),
+        "attempt_0_point_reads_overlapping_attempt_1_writes":contention_overlap(&traces[0].reads,&traces[1].writes),
+        "attempts":traces.iter().map(trace_value).collect::<Vec<_>>(),
+        "scope":"No Population write or business roots; exact shared epoch write observed. Adapter hash guards may conservatively conflict too. Sequential controls are not concurrency evidence."}))
 }

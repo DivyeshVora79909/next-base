@@ -118,6 +118,11 @@ Reuse [`src/mutation.rs`](../src/mutation.rs), [`src/dependency.rs`](../src/depe
 
 ## C3 — Explicit global and domain indexes
 
+C3.0 records the current real-adapter contention baseline in the existing suite:
+[evidence](checkpoints/c3-contention-baseline.json). It does not implement untracked
+accounting. C3.1's source-audited [implementation handoff](c3-accounting-handoff.md)
+is the next prerequisite, before access/order streams or generalized cuts.
+
 First measure current Population-key, reader/contract-epoch and AVL-root contention separately.
 Existing independent-tree writes are not automatically independent transactions. Refine only
 operational coordination that can be split without weakening exact business invariants.

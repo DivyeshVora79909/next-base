@@ -1,5 +1,28 @@
 # Current checkpoint
 
+## C3.0 — Executable contention baseline and C3.1 handoff
+
+The existing coordination suite now records controlled output-producing creates
+and output-retiring deletes in distinct reader partitions and business roots.
+On real local FoundationDB, one original attempt conflicts in each schedule;
+Population is their sole common observed point write. Exact loser rollback,
+receipts, managed outputs, retired roles and retained reservations are checked.
+Cleanup revalidation is reported separately and is not original-attempt success.
+
+A separate same-reader/contract existing-source control has a shared query epoch
+write with no Population write or business roots. Existing shared-business-root
+controls remain linked without claiming exclusive abort-key attribution.
+Read/write point overlaps and scanned table names are reported; exact range
+conflicts, multi-host performance and throughput are not established. redb runs
+sequential controls. Accounting behavior and production model identities are unchanged.
+
+See docs/checkpoints/c3-contention-baseline.json. Next agent: implement only C3.1
+using docs/c3-accounting-handoff.md, preserving the C2 repeated-Attempt graph/claim
+baselines, identity reservations, required query epochs and independent inventories.
+The next acceptance gate is both original uncapped output-create/delete attempts
+committing in separate scopes, with real bounded-cap races still rejecting excess.
+Access/order streams and generic non-time cuts remain later C3 work.
+
 ## C2.A — Engine-owned reverse-reference indexes
 
 The shared mutation path derives Incoming indexes directly from typed references;
@@ -21,7 +44,7 @@ noncommand ordinary deletion is explicitly rejected before publication.
 Reference-policy identity changes; physical codec stays kv-10. See
 docs/checkpoints/c2-automatic-incoming.json and docs/relationships.md.
 
-Next: the C3 accounting prerequisite. Limits-derived immutable tracked/untracked
+The C3 accounting prerequisite follows its C3.0 baseline. Limits-derived immutable tracked/untracked
 capacity accounting must remove uncapped Population writes without fake/stale
 totals, preserve bounded caps/identity reservations and required query epochs,
 derive inventory/reopen totals from source, and prove real FoundationDB concurrency.

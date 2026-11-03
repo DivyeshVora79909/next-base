@@ -113,6 +113,11 @@ Existing write contention also needs measurement: settlement reads the store-wid
 key and writes it when counts/reservations change; public edits update reader/contract epochs.
 These can couple independent AVL trees. C3 must distinguish these guards from tree-root work
 and preserve required business constraints while evaluating finer operational coordination.
+C3.0 now provides the controlled pre-change [contention baseline](checkpoints/c3-contention-baseline.json):
+separate output-producing creates/deletes share Population, while the scoped-epoch
+negative control coordinates without Population writes. This is point-key and
+correctness evidence, not exclusive native abort-key attribution or a throughput
+benchmark. [C3.1 accounting](c3-accounting-handoff.md) remains unimplemented.
 Generic ordered reads already exist, but public root ranges and reverse subscriber
 routes still use TimeRange/TimeBound. Generic non-time range reactivity is a C3
 contract/implementation gap, not automatically supplied by Key: Ord.

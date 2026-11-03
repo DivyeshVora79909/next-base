@@ -1,0 +1,337 @@
+{
+  "format": "next-base-contention-baseline-1",
+  "checkpoint": "C3.0",
+  "status": "accepted bounded pre-change contention measurement; accounting optimization remains unimplemented",
+  "parentCommit": "964aaf257bf3220b3be2c91f4d3455606ff7d60a",
+  "inputs": [
+    {
+      "path": "src/storage/coordination_checks.rs",
+      "sha256": "19ff8f2fcfa6816d9650610bc92dd392f9709e7ac37499bcf35f8982d562bffc"
+    },
+    {
+      "path": "src/storage.rs",
+      "sha256": "6771fa8c6c9b4925da19292eb5d5764a07b1c8cd0ed20064fbb83580cd005011"
+    },
+    {
+      "path": "src/storage/foundationdb.rs",
+      "sha256": "bc5636f9757d1ebc3484ec9cc72297be4c10a46497f0df7299be003e1b8d331a"
+    },
+    {
+      "path": "src/binding.rs",
+      "sha256": "6dc2e5050ba5f643daea2d55759064545ffb56a33ce98f17e8a114ad05e696eb"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "82ae1613c5ed8a3c4139d19bb18d83e297bbad153f8542cbbe0c45aff215bc8f"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "c52e7d307fc0c88822549bf59a1a9c0468cd237925bae97354bdff1008a9a6a8"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "55814d7ab682e37591a7d3bad2b005a75d872909b991181ab2a32ecf5c174719"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "038bdf242bd28fc2f1ddc6a539e91eaee475309bdb105b4fff784d6df6c089aa"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "64c02e390490a6259fd990c14ebd6c1437cf49c501416eef6c5979e6fd365077"
+    },
+    {
+      "path": "examples/g7_coordination.rs",
+      "sha256": "9f402b64662c1e1b0efedd3c1d7a2c05f17fd653f0b57b9e0402ad48dafe3536"
+    },
+    {
+      "path": "tools/node/infra.mjs",
+      "sha256": "f0fb67bfcb1cfac042094bc0b242c743f7a06771146de8ae235748e19c93eecd"
+    }
+  ],
+  "fixture": {
+    "model": "Equipment",
+    "declaredLimits": {
+      "public_records": null,
+      "outputs": null,
+      "reservations": null,
+      "per_contract": {}
+    },
+    "scopes": "peer users3/4, separate pools100/200 and distinct reader/contract partitions and receipt slots",
+    "sources": "Reservations102/202 produce two signed allocation outputs each; deleting producers retires roles but retains reserved identities",
+    "cleanup": "separately revalidated known-conflicted request establishes next fixture; never counted as original-attempt success"
+  },
+  "results": {
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "coordinationCases": 18,
+      "schedules": [
+        {
+          "case": "c3.0-output-producing-create-population",
+          "concurrent": true,
+          "automaticRetries": false,
+          "barriers": 1,
+          "attemptRoles": [
+            "left_original_conflicted",
+            "right_original_committed"
+          ],
+          "outcomes": [
+            "transaction_conflict",
+            "committed"
+          ],
+          "commonWrites": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads0OverlappingWrites1": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads1OverlappingWrites0": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "inventory": {
+            "active_sources": [
+              202
+            ],
+            "records": 7,
+            "retained_reservations": 2,
+            "retired_sources": [],
+            "roles": 2
+          }
+        },
+        {
+          "case": "c3.0-output-retiring-delete-population",
+          "concurrent": true,
+          "automaticRetries": false,
+          "barriers": 1,
+          "attemptRoles": [
+            "left_original_conflicted",
+            "right_original_committed"
+          ],
+          "outcomes": [
+            "transaction_conflict",
+            "committed"
+          ],
+          "commonWrites": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads0OverlappingWrites1": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads1OverlappingWrites0": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "inventory": {
+            "active_sources": [
+              102
+            ],
+            "records": 7,
+            "retained_reservations": 4,
+            "retired_sources": [
+              202
+            ],
+            "roles": 4
+          }
+        }
+      ],
+      "epochControl": {
+        "concurrent": true,
+        "commonWrites": [
+          {
+            "class": "reader_contract_epoch",
+            "key": "000000000000000000000000000000030065",
+            "table": "query_epochs"
+          }
+        ],
+        "outcomes": [
+          "transaction_conflict",
+          "committed"
+        ]
+      },
+      "businessRootControl": {
+        "concurrent": true,
+        "evidence": "same_root_attempts",
+        "exclusive_abort_key_attribution": false,
+        "population_written": false,
+        "shared_root": "02000000000000000000000000000000640002"
+      },
+      "lifecycleCases": 14,
+      "rawResultSha256": "acb9ae14e72d118b5dc710157a03f9e919d61479bbe610151a10d0a20f12427f"
+    },
+    "redb": {
+      "topology": "local redb; sequential writer controls",
+      "coordinationCases": 15,
+      "schedules": [
+        {
+          "case": "c3.0-output-producing-create-population",
+          "concurrent": false,
+          "automaticRetries": false,
+          "barriers": 0,
+          "attemptRoles": [
+            "right_sequential_committed",
+            "left_sequential_committed"
+          ],
+          "outcomes": [
+            "committed",
+            "committed"
+          ],
+          "commonWrites": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads0OverlappingWrites1": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads1OverlappingWrites0": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "inventory": {
+            "active_sources": [
+              102,
+              202
+            ],
+            "records": 10,
+            "retained_reservations": 4,
+            "retired_sources": [],
+            "roles": 4
+          }
+        },
+        {
+          "case": "c3.0-output-retiring-delete-population",
+          "concurrent": false,
+          "automaticRetries": false,
+          "barriers": 0,
+          "attemptRoles": [
+            "right_sequential_committed",
+            "left_sequential_committed"
+          ],
+          "outcomes": [
+            "committed",
+            "committed"
+          ],
+          "commonWrites": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads0OverlappingWrites1": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "pointReads1OverlappingWrites0": [
+            {
+              "class": "population",
+              "key": "0d",
+              "table": "native_kv"
+            }
+          ],
+          "inventory": {
+            "active_sources": [],
+            "records": 4,
+            "retained_reservations": 4,
+            "retired_sources": [
+              102,
+              202
+            ],
+            "roles": 4
+          }
+        }
+      ],
+      "epochControl": {
+        "concurrent": false,
+        "commonWrites": [
+          {
+            "class": "reader_contract_epoch",
+            "key": "000000000000000000000000000000030065",
+            "table": "query_epochs"
+          }
+        ],
+        "outcomes": [
+          "committed",
+          "committed"
+        ]
+      },
+      "businessRootControl": {
+        "concurrent": false,
+        "evidence": "same_root_attempts",
+        "exclusive_abort_key_attribution": false,
+        "population_written": false,
+        "shared_root": "02000000000000000000000000000000640002"
+      },
+      "lifecycleCases": 10,
+      "rawResultSha256": "5acb01fb5d7ffa06cd17c54c8fe5b8907fe900b9bb8e7952c3990a5007738916"
+    }
+  },
+  "verification": {
+    "clippy": {
+      "allTargets": true,
+      "feature": "foundationdb",
+      "warningsDenied": true,
+      "logSha256": "835485b08099ca5abf13de556a5348cc1d8ca6861a3d925c21747531b720528e"
+    },
+    "format": "cargo fmt --all --check; git diff --check",
+    "actualAdapters": "examples/g7_coordination foundationdb <owned local cluster>; redb <fresh owned directory>",
+    "scope": "measurement-only additions; engine behavior unchanged. Existing coordination/lifecycle campaigns rerun. Full native/Node regression suites were not rerun for this isolated conformance addition."
+  },
+  "invariants": [
+    "both original controlled plans protected and wrote Population; sole common observed point write was native_kv/0d",
+    "reader/contract epoch and native root/node write sets are disjoint in both capacity schedules",
+    "exact all-application-table losing state equals committed winner state; loser receipt absent",
+    "literal live/retired producer, output, role and reserved-identity inventories plus complete native integrity",
+    "same-reader/contract epoch control conflicts with no Population write and no business roots",
+    "existing same-business-root control remains required without exclusive abort-key attribution"
+  ],
+  "limits": [
+    "real FoundationDB 7.3.77 process on one host, not multi-host/failover/performance evidence",
+    "redb controls are sequential; both commits do not demonstrate concurrent independence",
+    "exact point overlaps recorded; scanned table names do not establish exact range conflicts",
+    "native abort-key attribution and conservative backend hash guards are not resolved by this point recorder",
+    "SurrealKV-specific campaign was not run",
+    "Population accounting, model identities, codec and query epoch contracts are unchanged"
+  ],
+  "next": {
+    "checkpoint": "C3.1",
+    "packet": "docs/c3-accounting-handoff.md",
+    "goal": "Limits-derived immutable tracked/untracked accounting; omit uncapped Population key without fake totals, retain capped admission/identities/epochs and source-derived inventories",
+    "acceptance": "both original uncapped output-create/delete contenders commit in separate scopes on real FoundationDB; bounded cap races still reject excess; reopen/reset/backup/recovery and C2 composition proofs pass"
+  }
+}
