@@ -53,9 +53,9 @@ describes saved plans and explicit composition.
 
 Source mutations use fresh UUID tokens for changed records and roots, with
 equality-only CAS. There is no global domain revision write. Immutable identity
-is separate from exact population/reservation counters; ordinary updates write
-those counters only if the population or reservations change. Creates and new
-output reservations can therefore require shared capacity coordination.
+is separate from source-derived read-only inventory statistics. No stored capacity
+counter or binding population-cap API remains. Identity reservations still protect
+collisions; business roots and required query epochs may coordinate writes.
 
 Public query epochs are scoped to `(reader, contract)`. Changes in one such
 partition coordinate even when their business roots differ. Cursors digest the
@@ -110,7 +110,7 @@ An oversized operation rejects atomically; no automatic transaction splitting
 is provided. FoundationDB protects the entire requested read range even when
 only its first page is returned. Embedded adapters advertise no finite native
 transaction limits through the common `Limits` structure; this is not a resource
-capacity guarantee. The engine's declared work and population bounds still apply.
+capacity guarantee. The engine's declared work budgets and domain invariants still apply.
 
 ## Recovery and verification
 

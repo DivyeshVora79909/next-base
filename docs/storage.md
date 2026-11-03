@@ -160,11 +160,10 @@ Shared semantic changes require bumping every affected binding. Structural/schem
 change the resolved model identity. Evidence independently fingerprints the
 executed sources. Do not confuse a build fingerprint with data compatibility.
 
-Current source separates immutable model/store identity, exact u64
-population/reservation counts and the numeric authority administration
-revision. Compiled models may configure optional population ceilings; the
-current models configure none. Population is written only when its counts
-change. Domain writes have no global mutation sequence.
+Current source separates immutable model/store identity and the numeric authority
+administration revision. There is no binding population-cap API or persisted capacity
+counter. `Population` statistics are source-derived and read-only at open/checking;
+normal mutations do not scan inventory. Domain writes have no global mutation sequence.
 
 | Field | Meaning in API 4 |
 | --- | --- |

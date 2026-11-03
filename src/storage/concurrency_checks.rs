@@ -625,9 +625,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             && accepted["tables"]["query_epochs"] == json!([])
             && accepted["tables"]["native_kv"]
                 .as_array()
-                .is_some_and(|rows| {
-                    rows.len() == 2 && rows[0]["key"] == "00" && rows[1]["key"] == "0d"
-                })
+                .is_some_and(|rows| rows.len() == 1 && rows[0]["key"] == "00")
             && accepted["tables"]["authority"]
                 .as_array()
                 .is_some_and(|rows| rows.len() == 4),
@@ -644,7 +642,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "table_inventory":local::table_names(true),
         "limitations":[
             "The wrapper delegates actual adapter transactions; it injects no synthetic conflict result.",
-            "Creating/deleting attempts can still coordinate on exact Population capacity; G7.5's existing-record reference controls isolate dependency guards without that masking.",
+            "Persistent population accounting is removed; independent create/delete acceptance and dependency guards are covered by the scoped coordination schedules.",
             "Concurrent controls use deterministic overlapping transactions; redb runs the sequential controls only.",
             "Persistent reopen is in-process evidence, not process restart or distributed failover."]}),
     )

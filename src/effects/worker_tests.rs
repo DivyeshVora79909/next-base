@@ -160,7 +160,9 @@ fn requester(store: &Store<EffectDemo>) -> (Store<EffectDemo>, Graph) {
     graph.principals.push(Principal {
         id: id(3),
         kind: PrincipalKind::User,
-        parents: vec![id(1)],
+        // Fixture observations and balance edits use the store actor's ordinary
+        // session, so grant real ancestor scope rather than relying on admin.
+        parents: vec![id(2)],
         active: true,
         credential_epoch: 0,
         grants: Grants {

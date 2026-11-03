@@ -7,7 +7,7 @@ use crate::{
     local::{KV, Mutation, Store},
     model::{self, Contract, InputField, Prepared, Reference, Visibility},
     native_codec::{self, Address, Key, StoredValue},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, Result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -92,7 +92,6 @@ impl Binding for References {
         _: &Prepared<Self>,
         _: Context,
         changes: &[ModelChange<Self>],
-        _: &mut Population,
         _: Uuid,
         _: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {

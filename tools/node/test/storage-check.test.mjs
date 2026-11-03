@@ -83,6 +83,15 @@ test('rejects duplicate JSON keys, invalid checksums and incomplete snapshots', 
   assert.throws(() => checkBackupStructure(JSON.stringify(incomplete)), /complete/i);
 });
 
+test('rejects obsolete persisted Population rows while accepting the metadata row', () => {
+  const obsolete = backupWith([
+    { key: '0d', value: hex(JSON.stringify({ type: 'population', data: { count: 0 } })) },
+  ]);
+  assert.throws(() => checkBackupStructure(JSON.stringify(obsolete)), /native point key/i);
+  const metadata = backupWith([{ key: '00', value: hex(JSON.stringify({ type: 'meta', data: {} })) }]);
+  assert.equal(checkBackupStructure(JSON.stringify(metadata)).nativeKvRows, 1);
+});
+
 test('preflights supported input lengths before copying and rejects non-byte views', () => {
   const oversizedBytes = new Uint8Array(9);
   const oversizedUtf8 = 'é'.repeat(5);

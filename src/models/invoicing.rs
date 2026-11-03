@@ -14,7 +14,7 @@ use crate::{
         PublicationSlot, PublishedField, QueryDeclaration, Reference, RootDeclaration, Visibility,
     },
     native_codec::{Address, Key, StoredValue, decimal, uuid_text},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, ModelRecord, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, ModelRecord, Result},
     routes,
     time_range::TimeRange,
     tree,
@@ -835,7 +835,6 @@ impl Binding for Invoicing {
         model: &Prepared<Self>,
         context: Context,
         changes: &[ModelChange<Self>],
-        population: &mut Population,
         revision: Uuid,
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
@@ -929,7 +928,7 @@ impl Binding for Invoicing {
                 )?;
             }
         }
-        crate::causal::settle(ws, model, context, changes, population, revision, allocate)?;
+        crate::causal::settle(ws, model, context, changes, revision, allocate)?;
         // Only an authored assessment timestamp can introduce a duplicate.
         // Its final managed node's neighbours decide uniqueness in bounded work.
         for change in changes {

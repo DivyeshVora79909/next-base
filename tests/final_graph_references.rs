@@ -283,8 +283,7 @@ fn stale_version_does_not_disclose_or_override_missing_write_authority() {
     let owner = fixture.admin.session(id(3), 0).unwrap();
     let peer = fixture.admin.session(id(4), 0).unwrap();
     mutate(&owner, json!([source(50)])).unwrap();
-    let record = fixture
-        .admin
+    let record = owner
         .get(fixture.model.identity(), id(50))
         .unwrap()
         .unwrap();
@@ -295,8 +294,7 @@ fn stale_version_does_not_disclose_or_override_missing_write_authority() {
     );
     assert_eq!(result.unwrap_err().code, "forbidden");
     assert_eq!(
-        fixture
-            .admin
+        owner
             .get(fixture.model.identity(), id(50))
             .unwrap()
             .unwrap()

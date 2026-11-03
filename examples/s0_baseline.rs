@@ -6,9 +6,7 @@ use rebase_semantic_proof::{
     local::{Mutation, Store},
     model::Prepared,
     native_codec::{self, Address, Key, Stored},
-    native_slice::{
-        Attempt, Command, Context, Error, Meta, Model, Population, Result, Work, settle_with_ids,
-    },
+    native_slice::{Attempt, Command, Context, Error, Meta, Model, Result, Work, settle_with_ids},
     storage::{self, Database, ReadableTable, TableDefinition},
     time_range::{TimeBound, TimeRange},
     tree,
@@ -328,26 +326,14 @@ fn initialize(db: &Database, model: &Model, context: Context) -> Result<()> {
     }
     {
         let mut table = write.open_table(KV)?;
-        for (key, value) in [
-            (
-                Key::Meta,
-                Stored::Meta(Meta {
-                    model: model.identity.clone(),
-                    codec: model.codec.clone(),
-                    tenant: context.tenant,
-                    actor: context.actor,
-                }),
-            ),
-            (
-                Key::Population,
-                Stored::Population(Population {
-                    counts: (1..=12).map(|c| (c, 0)).collect(),
-                    reserved: 0,
-                }),
-            ),
-        ] {
-            table.insert(key.encode(), native_codec::encode(&key, &value)?.as_slice())?;
-        }
+        let key = Key::Meta;
+        let value = Stored::Meta(Meta {
+            model: model.identity.clone(),
+            codec: model.codec.clone(),
+            tenant: context.tenant,
+            actor: context.actor,
+        });
+        table.insert(key.encode(), native_codec::encode(&key, &value)?.as_slice())?;
     }
     write.commit()
 }
@@ -756,7 +742,7 @@ fn sample(
     };
     if !read_only {
         trace.seed_invocation(&Key::Meta.encode());
-        trace.seed_invocation(&Key::Population.encode());
+        trace.seed_invocation(&Key::Meta.encode());
         for command in commands.as_array().expect("commands") {
             trace.seed_invocation(
                 &Key::Record(

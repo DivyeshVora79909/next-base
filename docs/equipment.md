@@ -58,8 +58,7 @@ The [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) sho
 
 One process owns a live redb file. Backup and restore destinations must be new.
 The equipment `demo` command is unsupported; its fixture and the ordinary client
-provide the workflow. The model has no configured fixed population ceiling, and
-population counters are u64. Every active reservation requires two outputs,
+provide the workflow. There is no binding population-cap API or persisted capacity counter. Every active reservation requires two outputs,
 including when allocation is zero. Shared limits remain: a 262,144-row
 observation budget for full inventory and check operations, 64 commands, 32
 returning IDs, 200,000 charged engine work units, 128

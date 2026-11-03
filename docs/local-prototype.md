@@ -221,8 +221,8 @@ private record identities. Record-list filtering does not redefine a root sum.
 
 ## Bounds and validation
 
-Current compiled models configure no fixed public-record, output or reservation
-ceilings; population counters are u64. Shared limits remain: a 262,144-row
+There is no binding population-cap API or stored capacity counter. Inventory
+statistics are source-derived and read-only. Shared limits remain: a 262,144-row
 observation budget for full inventory and check operations, 64 commands, 32
 returning IDs or page rows, 128 query visits, 1,024
 receipts, 200,000 mutation work units and 64 MiB backups. Equipment quantities

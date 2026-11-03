@@ -5,7 +5,7 @@ use rebase_semantic_proof::{
     local::{Mutation, Store},
     model::{self, Contract, InputField, Prepared, Reference, Visibility},
     native_codec::{self, Key, StoredValue},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, Result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -121,7 +121,6 @@ impl Binding for Schedule {
         _: &Prepared<Self>,
         _: Context,
         _changes: &[ModelChange<Self>],
-        _: &mut Population,
         _: Uuid,
         _: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
@@ -497,16 +496,11 @@ fn foundationdb_parent_child_write_skew_conflicts_in_both_commit_orders() {
         let child_command: Command =
             serde_json::from_value(update(&store, 200, json!({"amount":5}))).unwrap();
         let raw = storage::foundationdb::connect(Some(&cluster), namespace.as_bytes()).unwrap();
-        let population_before = {
+        {
             let read = raw.begin_read().unwrap();
             let table = read.open_table(KV).unwrap();
-            table
-                .get(Key::Population.encode())
-                .unwrap()
-                .unwrap()
-                .value()
-                .to_vec()
-        };
+            assert!(table.get([13u8]).unwrap().is_none());
+        }
         let parent_tx = raw.begin_write().unwrap();
         let child_tx = raw.begin_write().unwrap();
         // Both valid old-snapshot plans finish before either commit. Their
@@ -530,13 +524,6 @@ fn foundationdb_parent_child_write_skew_conflicts_in_both_commit_orders() {
         oracle(&store).unwrap();
         let read = raw.begin_read().unwrap();
         let table = read.open_table(KV).unwrap();
-        assert_eq!(
-            table
-                .get(Key::Population.encode())
-                .unwrap()
-                .unwrap()
-                .value(),
-            population_before
-        );
+        assert!(table.get([13u8]).unwrap().is_none());
     }
 }

@@ -1,27 +1,33 @@
 # Current checkpoint
 
-## C3.0 — Executable contention baseline and C3.1 handoff
+## C3.1 — Counter removal accepted
 
-The existing coordination suite now records controlled output-producing creates
-and output-retiring deletes in distinct reader partitions and business roots.
-On real local FoundationDB, one original attempt conflicts in each schedule;
-Population is their sole common observed point write. Exact loser rollback,
-receipts, managed outputs, retired roles and retained reservations are checked.
-Cleanup revalidation is reported separately and is not original-attempt success.
+The stored capacity counter and `Binding::Limits` API are removed entirely; there
+is no tracked/untracked mode. Codec is `native-slice-kv-11`; recreate older stores
+explicitly. `Population` remains source-derived read-only inventory statistics at
+open and independent checking, never stored or scanned by normal mutations.
+Business invariants, work/byte budgets, identity reservations, authority fences,
+receipts and required reader/contract epochs remain.
 
-A separate same-reader/contract existing-source control has a shared query epoch
-write with no Population write or business roots. Existing shared-business-root
-controls remain linked without claiming exclusive abort-key attribution.
-Read/write point overlaps and scanned table names are reported; exact range
-conflicts, multi-host performance and throughput are not established. redb runs
-sequential controls. Accounting behavior and production model identities are unchanged.
+[C3.1 evidence](docs/checkpoints/c3-counter-removal.json) accepts both original
+output-producing creates and deletes in distinct scopes on FoundationDB 7.3.77,
+one local process/host, without automatic retries. No Population reads/writes,
+inventory scans, shared protected point writes or cross-reads occurred in those
+attempts. Same-reader epoch and shared-business-root conflict controls remain.
+After creates: 10 records, 4 roles, 4 reservations; after deletes: 4 records with
+4 retired roles and 4 retained reservations. Validation: 289 default Rust tests, 172 full
+Node tests (none skipped), and default/FDB all-target Clippy with warnings denied.
+Real FDB coordination/lifecycle passed 18/14; application/effects/predicates 19/27/12.
+Redb sequential coordination/lifecycle passed 15/10; application/effects/predicates
+13/27/9. These are local correctness results, not multi-host throughput evidence.
+Historical [C3.0 evidence](docs/checkpoints/c3-contention-baseline.json) remains the
+pre-change contention baseline. Next: scoped access/order streams and general
+non-time reactive cuts; see [continuation](docs/c3-accounting-handoff.md).
 
-See docs/checkpoints/c3-contention-baseline.json. Next agent: implement only C3.1
-using docs/c3-accounting-handoff.md, preserving the C2 repeated-Attempt graph/claim
-baselines, identity reservations, required query epochs and independent inventories.
-The next acceptance gate is both original uncapped output-create/delete attempts
-committing in separate scopes, with real bounded-cap races still rejecting excess.
-Access/order streams and generic non-time cuts remain later C3 work.
+Ordinary graph scope is self, strict descendants and direct group/tenant parents;
+admin grants do not widen ordinary data scope. Operator control-plane administration
+remains separate. [Email/phone authentication](docs/email-phone-authentication.md)
+is planned; current JWT verification is implemented, delivered login proof is not.
 
 ## C2.A — Engine-owned reverse-reference indexes
 
@@ -41,14 +47,8 @@ duplicate identical target/slot pairs collapse, distinct slots stay separate.
 Traversal/sorting inputs and late candidates consume work budget. Ordinary raw
 creation without shared lifecycle and raw managed writes remain unsupported;
 noncommand ordinary deletion is explicitly rejected before publication.
-Reference-policy identity changes; physical codec stays kv-10. See
+Historical C2.A reference-policy identity changed with codec kv-10. See
 docs/checkpoints/c2-automatic-incoming.json and docs/relationships.md.
-
-The C3 accounting prerequisite follows its C3.0 baseline. Limits-derived immutable tracked/untracked
-capacity accounting must remove uncapped Population writes without fake/stale
-totals, preserve bounded caps/identity reservations and required query epochs,
-derive inventory/reopen totals from source, and prove real FoundationDB concurrency.
-Then implement the explicitly declared access/order streams and non-time cuts.
 
 ## C2.P — Declared parent projections and final-graph rules
 
@@ -191,10 +191,9 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
   Today's public index is reader/contract/UUID, not the proposed chronological trees.
 - Non-time keys already work in native ordered reads, but reactive query/subscriber
   cuts remain TimeRange/TimeBound. C3 must generalize types/routing deliberately.
-- Population capacity accounting still coordinates creates/deletes across roots.
-  Removing unnecessary unbounded-model coordination needs explicit mode/identity,
-  source-derived reopen/integrity totals and real concurrency/recovery witnesses.
-  Preserve reservation identities and required reader/contract epochs/business guards.
+- Stored capacity accounting is removed; source-derived inventory remains read-only.
+  C3.1 local real-FDB concurrency/recovery acceptance is complete. Preserve reservation
+  identities and required reader/contract epochs/business guards.
 - C4 adaptive valid population must share the catalog, expose constraints/unsatisfied
   rules and preserve deterministic seeds/receipts. Optional solver hooks cannot make
   arbitrary global validity free. C5 resumable live invalidations remain optional.

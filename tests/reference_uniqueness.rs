@@ -5,7 +5,7 @@ use rebase_semantic_proof::{
     local::{Mutation, Store},
     model::{self, Contract, InputField, Prepared, Reference, Unique, Visibility},
     native_codec::{self, Key, StoredValue},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, Result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -91,7 +91,6 @@ impl Binding for Relations {
         _: &Prepared<Self>,
         _: Context,
         changes: &[ModelChange<Self>],
-        _: &mut Population,
         revision: Uuid,
         _: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {

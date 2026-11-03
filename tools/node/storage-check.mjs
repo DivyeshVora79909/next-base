@@ -291,7 +291,6 @@ function unsupportedKind(kind) { throw new TypeError(`unsupported native index k
 
 function decodeKey(bytes) {
   if (bytes.length === 1 && bytes[0] === 0) return { type: 'meta' };
-  if (bytes.length === 1 && bytes[0] === 13) return { type: 'population' };
   const tag = bytes[0];
   if (tag === 14) {
     requireThat(bytes.length >= 7, 'invalid native uniqueness key');

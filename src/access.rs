@@ -20,6 +20,8 @@ pub const MAX_PARENTS: usize = 8;
 pub const MAX_READER_STREAMS: usize = 1280;
 /// Shared persisted-reader meaning, included in every prepared model identity.
 pub const READER_POLICY: &str = "source-owner-first-minimal-preorder-1";
+/// Ordinary resource scope is independent of administrative action grants.
+pub const SCOPE_POLICY: &str = "self-descendants-direct-group-tenant-parents-1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -242,9 +244,6 @@ impl Graph {
                         grants.extend(&node.grants);
                     }
                 }
-            }
-            if grants.admin {
-                accessible.extend(nodes.keys());
             }
             scopes.insert(
                 p.id,

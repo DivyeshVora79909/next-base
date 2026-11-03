@@ -31,7 +31,7 @@ const catalog = {
       { field: 'maybe', targets: [101], optional: true },
     ] },
   ],
-  capabilities: { limits: { public_records: 12, commands: 64, per_contract: { '101': 5 } } },
+  capabilities: { limits: { commands: 64 } },
 };
 const model = {
   catalog,
@@ -111,12 +111,14 @@ test('binding validates complete plans and rejects mutation and reordered receip
   assert.equal(clean.pending.proposal, rows);
 });
 
-test('native catalog quotas, command bounds, and serialized proposal bytes fail before binding', async () => {
-  assert.throws(() => preparePopulation(model, { Base: 13 }, { seed: 1 }), /public_records/);
+test('uncapped quotas and existing pools are admitted while command and serialized proposal bounds remain', async () => {
+  const existing = Array.from({ length: 5 }, (_, i) => ({
+    id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, contract: 'Base', fields: { value: '1' },
+  }));
+  const admitted = preparePopulation(model, { Base: 13 }, { seed: 1, existing: { Base: existing } });
+  assert.equal(admitted.quotas.Base, 13);
+  assert.equal(admitted.poolIds.Base.length, 5);
   assert.throws(() => preparePopulation(model, { Base: 1 }, { seed: 1, batchSize: 65 }), /batchSize/);
-  assert.throws(() => preparePopulation(model, { Base: 6 }, {
-    seed: 1, existing: { Base: Array.from({ length: 5 }, (_, i) => ({ id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, contract: 'Base', fields: { value: '1' } })) },
-  }), /per-contract/);
 
   const oversized = preparePopulation(model, { Base: 1 }, {
     seed: 1, strategies: { Base: () => ({ value: '1'.repeat(65_536) }) },
@@ -126,10 +128,7 @@ test('native catalog quotas, command bounds, and serialized proposal bytes fail 
   assert.equal(oversized.cursor, 0);
 });
 
- test('null population ceiling accepts quotas beyond the former u16 bound', () => {
-  const uncapped = structuredClone(catalog);
-  uncapped.capabilities.limits.public_records = null;
-  uncapped.capabilities.limits.per_contract = {};
-  const prepared = preparePopulation({ ...model, catalog: uncapped }, { Base: 65536 }, { seed: 1 });
+test('population accepts safe-integer quotas without global or per-contract catalog caps', () => {
+  const prepared = preparePopulation(model, { Base: 65536 }, { seed: 1 });
   assert.equal(prepared.quotas.Base, 65536);
 });

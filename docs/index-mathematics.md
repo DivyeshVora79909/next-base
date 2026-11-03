@@ -77,8 +77,9 @@ not a substitute when disclosure follows a different reader. A tenant-only order
 index is optional for a measured workload, not a default second global tree. It may
 still help when enumerating many streams costs more than filtering one scan.
 Tenant-wide roots share write ancestors; resource/reader partitions reduce some
-contention. Measure current Population/epoch guards as well as the additional trees
-before claiming independent writers. Domain integrity roots remain independently
+contention. Stored capacity counters are removed; measure remaining epoch guards and
+additional trees before claiming independent writers. Source-derived inventory statistics
+are read-only and do not add mutation coordination. Domain integrity roots remain independently
 declared; these access paths do not replace their validators.
 
 Use one stream when one root already has the requested order. K-way merge is for

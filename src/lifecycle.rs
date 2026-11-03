@@ -5,7 +5,7 @@ use crate::{
     local::{self, HEADER, KV, PUBLIC, RECEIPTS, RUNTIME, RuntimeHeader, Store},
     model::Prepared,
     native_codec::{self, Key, StoredValue},
-    native_slice::{Error, Meta, Population, Result},
+    native_slice::{Error, Meta, Result},
     security::{AUTHORITY, READERS},
 };
 use serde::{Deserialize, Serialize};
@@ -239,22 +239,6 @@ impl<B: Binding> Store<B> {
             .insert(
                 Key::Meta.encode().as_slice(),
                 native_codec::encode_for::<B>(&Key::Meta, &StoredValue::Meta(meta))?.as_slice(),
-            )
-            .map_err(local::storage)?;
-        let population = Population {
-            counts: self.model.contracts().map(|c| (c.code, 0)).collect(),
-            reserved: 0,
-        };
-        write
-            .open_table(KV)
-            .map_err(local::storage)?
-            .insert(
-                Key::Population.encode().as_slice(),
-                native_codec::encode_for::<B>(
-                    &Key::Population,
-                    &StoredValue::Population(population),
-                )?
-                .as_slice(),
             )
             .map_err(local::storage)?;
         let fresh = RuntimeHeader::fresh();

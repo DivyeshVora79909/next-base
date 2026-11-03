@@ -259,7 +259,7 @@ mod tests {
         model::Contract,
         models::quantity::{Input, JOIN, Quantity, SOURCE},
         native_codec::{self},
-        native_slice::{Context, Model, ModelChange, Population},
+        native_slice::{Context, Model, ModelChange},
     };
     use serde_json::json;
     use std::{collections::BTreeMap, sync::Arc};
@@ -321,7 +321,6 @@ mod tests {
             _: &Prepared<Self>,
             _: Context,
             _changes: &[ModelChange<Self>],
-            _: &mut Population,
             _: Uuid,
             _: &mut dyn FnMut() -> Result<Uuid>,
         ) -> Result<()> {
@@ -501,7 +500,6 @@ mod tests {
             _: &Prepared<Self>,
             _: Context,
             _: &[ModelChange<Self>],
-            _: &mut Population,
             _: Uuid,
             _: &mut dyn FnMut() -> Result<Uuid>,
         ) -> Result<()> {

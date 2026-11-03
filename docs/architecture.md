@@ -16,7 +16,9 @@ not an owner supplied by an untrusted claim. JWT verification does not grant a c
 [`access.rs`](../src/access.rs) prepares the tenant principal DAG and separates record owner
 from reader: contract action plus owner accessibility controls writes; Read plus reader
 accessibility controls disclosure. Current DAG grants have specific bounded semantics,
-not arbitrary transitive ACL intersection. C2.R selects the first minimal owner
+not arbitrary transitive ACL intersection. Ordinary accessibility is self, strict descendants
+and direct group/tenant parents; admin grants do not widen ordinary data scope. Operator
+control-plane administration remains separate. C2.R selects the first minimal owner
 from the resource and its reader-marked source hierarchy, in stable catalog order.
 Mutation/admin repair and independent checking follow the same declared meaning;
 managed outputs inherit their producer. The shared reader-policy revision is bound
@@ -109,15 +111,18 @@ avoid hot ancestors. Raw count/rank does not prove authorized filtered count/ran
 Avoid a universal hot counter. Optional live invalidations would publish through a durable outbox
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
-Existing write contention also needs measurement: settlement reads the store-wide Population
-key and writes it when counts/reservations change; public edits update reader/contract epochs.
-These can couple independent AVL trees. C3 must distinguish these guards from tree-root work
-and preserve required business constraints while evaluating finer operational coordination.
-C3.0 now provides the controlled pre-change [contention baseline](checkpoints/c3-contention-baseline.json):
-separate output-producing creates/deletes share Population, while the scoped-epoch
-negative control coordinates without Population writes. This is point-key and
-correctness evidence, not exclusive native abort-key attribution or a throughput
-benchmark. [C3.1 accounting](c3-accounting-handoff.md) remains unimplemented.
+Stored capacity counters and `Binding::Limits` are removed, with no accounting mode
+fallback. Codec is `native-slice-kv-11`; `Population` is source-derived read-only inventory
+at open/checking, never persisted or scanned by normal mutations. Business validators,
+work/byte budgets, identity reservations and required reader/contract epochs remain.
+Historical [C3.0 evidence](checkpoints/c3-contention-baseline.json) records pre-change
+Population coupling. [C3.1 evidence](checkpoints/c3-counter-removal.json) accepts
+separate-scope original creates/deletes committing without automatic retries on
+FoundationDB 7.3.77, one local process/host. Required epoch and shared-business-root
+conflict controls remain. See [results and continuation](c3-accounting-handoff.md);
+these results do not establish multi-host performance or throughput.
+[Email/phone login](email-phone-authentication.md) is planned; current JWT verification
+and operator graph replacement do not implement identity proof or ordinary principal CRUD.
 Generic ordered reads already exist, but public root ranges and reverse subscriber
 routes still use TimeRange/TimeBound. Generic non-time range reactivity is a C3
 contract/implementation gap, not automatically supplied by Key: Ord.

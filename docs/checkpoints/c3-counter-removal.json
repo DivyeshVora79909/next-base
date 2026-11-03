@@ -1,0 +1,633 @@
+{
+  "format": "next-base-counter-removal-1",
+  "checkpoint": "C3.1",
+  "status": "accepted bounded removal and scope regression",
+  "parentCommit": "36d8b731d3322ff7299c564c1f0b19ef7281baa9",
+  "codec": "native-slice-kv-11",
+  "decision": {
+    "persistentPopulationKey": "removed; tag 13 rejected",
+    "bindingCapacityAPI": "removed entirely; no accounting mode",
+    "normalMutationInventoryScans": false,
+    "inventoryStatistics": "read-only source-derived counts at reopen and independent checking",
+    "retainedGuards": [
+      "business/tree invariants",
+      "Record/Role/Reserved identity and ABA protection",
+      "protected existence and absence reads",
+      "receipt identity and uncertain-outcome recovery",
+      "authority fences",
+      "scoped reader/contract query epochs",
+      "transaction work and byte budgets"
+    ]
+  },
+  "inputs": [
+    {
+      "path": "examples/native_slice.rs",
+      "sha256": "5713cbfab4fa26bb18adc8c7d7634bd543207d00717b65ce6e87154a8ce05ee9"
+    },
+    {
+      "path": "examples/s0_baseline.rs",
+      "sha256": "396326d179d776be4c89e6029b93981fa83c30a20dc21c40a49c1a9ad6b9c9c0"
+    },
+    {
+      "path": "src/access.rs",
+      "sha256": "2edcfd357595c3ea065d4c202b5c26be58d9e1e53dffd441f53925467492eaf4"
+    },
+    {
+      "path": "src/binding.rs",
+      "sha256": "cd09cf1a905b218bb673bdc76baf108f2b3868527a1d0de288c4aa537f25ce18"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "969400756e790161c0058dcc5b1a31ad60c62f4b3298a856075f1b43da4ea26e"
+    },
+    {
+      "path": "src/effect_tests.rs",
+      "sha256": "26534cc37616fa4de72bd25e13cc7577f6235f432880b88bc0382d727ccb3345"
+    },
+    {
+      "path": "src/effects/worker_tests.rs",
+      "sha256": "4c9ae5b400f38a423fbc4bfe6869ab7cf4d9f972f1fda5ec0fdae79f14e92a7c"
+    },
+    {
+      "path": "src/index_tests.rs",
+      "sha256": "68f420f3c786175ba652961fb76022f0b3dedc0428360870cb4278f1567e8fb5"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "5b15b5192aa8691d243951ebb5a482e00660b15fbc980467c29dc1191f928abb"
+    },
+    {
+      "path": "src/lifecycle.rs",
+      "sha256": "de5dd5a51a76a25910d807110cd33e7011831e21ac7e59e75d5a8f7e9d198778"
+    },
+    {
+      "path": "src/local.rs",
+      "sha256": "b97d939e4b23b371b1c72ddb06651731a7891b9d471248d59e582ec628bcf7e1"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "d34d114ae1ed6d158e2c8a0b970833da233856de59258c228f51683f74302530"
+    },
+    {
+      "path": "src/models/calculation.rs",
+      "sha256": "543f07521e81c43fb243a1699129ee6bf8e5fd5821243a0bd22823d43eb2e702"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "6ec977adcb41c98505c8708de6969be5034607dfbc4c7b32b8bfbd4dafdce5c2"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "0bdf12429678555fdaaf4d832aa9c68a91598cd775e704f4b4fa4240b80b861d"
+    },
+    {
+      "path": "src/models/invoicing.rs",
+      "sha256": "f41ed9a2d402ae25c6d58825da699ed7c753ac681dd910ae2244f1fffc012ba3"
+    },
+    {
+      "path": "src/models/measurement.rs",
+      "sha256": "6f1c95c539ca244ef745f1c9a8582628057428c11833b9d07b81f4f4df0b891e"
+    },
+    {
+      "path": "src/models/quantity.rs",
+      "sha256": "6a4073c8e83885fa63005e55a1a7617862e26d865111c414e1dcf56f5c06046c"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "654c639d95f7a6136b262c04d43d7b7905ce16537b95fab10933126d25b8a7a9"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "d8e48a615e9041a01583c1afb2e4c638e22161ea8545034ce8b1bb273a06e2f3"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "ba78553704e1ac94aa914561318eabc34445607630894718ef6d8cbf77ed861a"
+    },
+    {
+      "path": "src/parameter_tests.rs",
+      "sha256": "b616c2e05630884d5b0c3d7de4721df452ee6942a5e5cc75910768d22af715f7"
+    },
+    {
+      "path": "src/publication_tests.rs",
+      "sha256": "bf95712f62d278c5cd0e9b8fd25ea78aafa50c8d4e650d64191e58c79375d210"
+    },
+    {
+      "path": "src/reference_tests.rs",
+      "sha256": "aa64dfa8d37be4d6c11c6f4db8ecdbc00ea121b5ca31446077e4c0fed254aa56"
+    },
+    {
+      "path": "src/relationships.rs",
+      "sha256": "5e2419854fa9be29abc34458828c6b4c0f63d99979b56f4c5b5eacfc48938919"
+    },
+    {
+      "path": "src/storage/concurrency_checks.rs",
+      "sha256": "bb2202649cb0a5efe6aa5236a68ef128af51bbbb1f2848f249f0d31bea71d928"
+    },
+    {
+      "path": "src/storage/coordination_checks.rs",
+      "sha256": "6cf271e4e6d99e80eb07e1e0ecdee0e8072c5f85f7249f1efb9763aadaa1f93f"
+    },
+    {
+      "path": "src/uniqueness.rs",
+      "sha256": "5a0416f53f40e2e9c272a03eafd3b8886b42fbabeff87ebc75463ddeed996150"
+    },
+    {
+      "path": "src/window_tests.rs",
+      "sha256": "1348af5673fe3e43f796ecde7f26a50610902f46dab0c115d7314f86ce667c9b"
+    },
+    {
+      "path": "tests/authority_scope.rs",
+      "sha256": "451fbfc2fde628131d93f45a8e9a05eaabbda4ad93f128eed5e197b1d961a413"
+    },
+    {
+      "path": "tests/exact_values.rs",
+      "sha256": "d4f582ca71796dde7ddfa4d7fa4c002e2554055697ac6144ec94c0c1bfd52a58"
+    },
+    {
+      "path": "tests/final_graph_references.rs",
+      "sha256": "c383442d37f2b022fbecd0cc081bbbfe99d33dad9514510d128225cc4d388ff0"
+    },
+    {
+      "path": "tests/rank_read.rs",
+      "sha256": "d31059cb99a5e51b2f62677b9031e65409d2db82e55775afafc6d52a46e434df"
+    },
+    {
+      "path": "tests/reference_uniqueness.rs",
+      "sha256": "f25d1630513faa51ea669145978194e6f1c83b023cd86bbeea19ab9693ca3ef0"
+    },
+    {
+      "path": "tests/relationship_predicates.rs",
+      "sha256": "73b0778a4eebfd67dfe2b72d6b9228c1a96d91b7ff041f6dcfe81216074fa3e9"
+    },
+    {
+      "path": "tests/root_pages.rs",
+      "sha256": "9c192430cecaf7f0c2f95018ee833a945cc296bdd40a623885312da56104cfd5"
+    },
+    {
+      "path": "tools/node/population.mjs",
+      "sha256": "f620e3603360478a1cd7057e5e764aeb026f7cb1405d59d5028dada64e782dc8"
+    },
+    {
+      "path": "tools/node/storage-check.mjs",
+      "sha256": "a9380715dc199dc09fcb8c047a8faf4d3f9da29c79c7adfc7791ba45fabf4956"
+    },
+    {
+      "path": "tools/node/test/population-contract.test.mjs",
+      "sha256": "5afecdf773e84333659cc48a25e776ff9c66e6947ffe6d9bd88a725fc670d391"
+    },
+    {
+      "path": "tools/node/test/population-semantics.test.mjs",
+      "sha256": "ec5d67637ff7d2790512f773f8c2ff60423f69ff6980703f24d563deae50a190"
+    },
+    {
+      "path": "tools/node/test/storage-check.test.mjs",
+      "sha256": "58ddd2d0c98615505ef4383aef78f9345f1ffcae45e3be436dbced1ba0fb6f06"
+    }
+  ],
+  "validation": {
+    "rust": {
+      "command": "cargo test --locked --offline --all-targets --no-fail-fast",
+      "passed": 289,
+      "failed": 0,
+      "ignored": 0
+    },
+    "node": {
+      "command": "Node 24.22.1 --test test/*.test.mjs with all six native binary paths bound to freshly built default host",
+      "passed": 172,
+      "failed": 0,
+      "skipped": 0
+    },
+    "lint": [
+      "cargo fmt --all -- --check",
+      "cargo clippy --locked --offline --all-targets -- -D warnings",
+      "cargo clippy --locked --offline --all-targets --features foundationdb -- -D warnings",
+      "git diff --check"
+    ],
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "coordinationCases": 18,
+      "cases": [
+        "independent-populated-business-roots-distinct-readers-and-slots",
+        "complete-independent-write-sets-no-meta-population-or-header-write",
+        "original-id-replay-preserves-all-application-tables",
+        "scoped-cursor-survives-other-reader-other-contract-and-genuine-noop",
+        "same-reader-contract-change-invalidates-only-affected-cursor",
+        "same-root-existing-record-invariant-race-and-complete-rollback",
+        "genuine-noop-tracked-read-versus-edit-commit-barrier",
+        "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+        "scoped-tokens-slots-and-business-state-persist-on-reopen",
+        "c3.0-post-removal-output-producing-create-accounting-acceptance",
+        "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+        "c3.0-same-reader-contract-existing-source-epoch-control",
+        "derived-only-publication-invalidates-reader-contract-cursor",
+        "reader-move-invalidates-old-and-new-partition-cursors",
+        "rejected-derived-change-preserves-cursors-and-complete-tables",
+        "authority-administration-invalidates-snapshot-cursors",
+        "existing-source-discovery-versus-existing-reference-retarget-no-common-writes",
+        "existing-reference-parent-read-versus-source-change-no-common-writes"
+      ],
+      "originalSchedules": [
+        {
+          "case": "c3.0-post-removal-output-producing-create",
+          "concurrent": true,
+          "automaticRetries": false,
+          "barriers": 1,
+          "attemptRoles": [
+            "left_original_committed",
+            "right_original_committed"
+          ],
+          "attempts": [
+            {
+              "attempt": "c30-create-left-original",
+              "outcome": "committed",
+              "applicationReadCount": 36,
+              "applicationWriteCount": 28,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "eaa3b097716806507c0b5328585383c405654b67b9aad843cf93f5ff350f9d8f"
+            },
+            {
+              "attempt": "c30-right-original",
+              "outcome": "committed",
+              "applicationReadCount": 36,
+              "applicationWriteCount": 28,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "360f05b14c82be98a17ad79cda475a90d84f7d9d7e969880d4fb5ca48fe2ac7b"
+            }
+          ],
+          "inventory": {
+            "active_sources": [
+              102,
+              202
+            ],
+            "records": 10,
+            "retained_reservations": 4,
+            "retired_sources": [],
+            "roles": 4,
+            "source_count": 10
+          },
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ]
+        },
+        {
+          "case": "c3.0-post-removal-output-retiring-delete",
+          "concurrent": true,
+          "automaticRetries": false,
+          "barriers": 1,
+          "attemptRoles": [
+            "left_original_committed",
+            "right_original_committed"
+          ],
+          "attempts": [
+            {
+              "attempt": "c30-delete-left-original",
+              "outcome": "committed",
+              "applicationReadCount": 30,
+              "applicationWriteCount": 26,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "c1a0d2fea4fa7a6efc4c5526acf8b35d3ce72f046df3089533d67add4a9f8f2f"
+            },
+            {
+              "attempt": "c30-right-original",
+              "outcome": "committed",
+              "applicationReadCount": 30,
+              "applicationWriteCount": 26,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "10765eac4530cb54fba47def607e0790bb375c59748a791a67280de7032dd8e1"
+            }
+          ],
+          "inventory": {
+            "active_sources": [],
+            "records": 4,
+            "retained_reservations": 4,
+            "retired_sources": [
+              102,
+              202
+            ],
+            "roles": 4,
+            "source_count": 4
+          },
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ]
+        }
+      ],
+      "sameReaderEpochControl": {
+        "concurrent": true,
+        "attempts": [
+          {
+            "attempt": "c30-same-partition-loser",
+            "outcome": "transaction_conflict",
+            "applicationReadCount": 8,
+            "applicationWriteCount": 5,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "53e0c95c16db8d05e05d5b1d17d019870dab2f14972c79fa0877cec3d692c671"
+          },
+          {
+            "attempt": "c30-same-partition-winner",
+            "outcome": "committed",
+            "applicationReadCount": 8,
+            "applicationWriteCount": 5,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "7cbbaaee903d32497ecd42cf33b3f5d59d38b0cdec083dbfd0fa3e0e9c44fdda"
+          }
+        ],
+        "commonWrites": [
+          {
+            "class": "reader_contract_epoch",
+            "key": "000000000000000000000000000000030065",
+            "table": "query_epochs"
+          }
+        ]
+      },
+      "sameBusinessRootControl": {
+        "concurrent": true,
+        "evidence": "same_root_attempts",
+        "exclusive_abort_key_attribution": false,
+        "population_written": false,
+        "shared_root": "02000000000000000000000000000000640002",
+        "attempts": [
+          {
+            "attempt": "same-root-loser",
+            "outcome": "transaction_conflict",
+            "applicationReadCount": 14,
+            "applicationWriteCount": 7,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "939c8a12e4202e285fc87ed7c5d87fb84c898bec20763b5b2e1bec7bda98e36d"
+          },
+          {
+            "attempt": "same-root-winner",
+            "outcome": "committed",
+            "applicationReadCount": 14,
+            "applicationWriteCount": 8,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "25b6d87901233a072312d65e1283616c292a3e24fd70dc657cbd09d8263beed5"
+          }
+        ]
+      },
+      "lifecycle": {
+        "status": "passed",
+        "cases": 14
+      },
+      "application": {
+        "application": {
+          "status": "passed",
+          "cases": 19
+        },
+        "effects": {
+          "status": "passed",
+          "cases": 27
+        },
+        "predicates": {
+          "status": "passed",
+          "cases": 12
+        }
+      }
+    },
+    "redb": {
+      "topology": "one embedded redb; sequential writer controls are not concurrency evidence",
+      "coordinationCases": 15,
+      "cases": [
+        "independent-populated-business-roots-distinct-readers-and-slots",
+        "complete-independent-write-sets-no-meta-population-or-header-write",
+        "original-id-replay-preserves-all-application-tables",
+        "scoped-cursor-survives-other-reader-other-contract-and-genuine-noop",
+        "same-reader-contract-change-invalidates-only-affected-cursor",
+        "same-root-existing-record-invariant-race-and-complete-rollback",
+        "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+        "scoped-tokens-slots-and-business-state-persist-on-reopen",
+        "c3.0-post-removal-output-producing-create-accounting-acceptance",
+        "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+        "c3.0-same-reader-contract-existing-source-epoch-control",
+        "derived-only-publication-invalidates-reader-contract-cursor",
+        "reader-move-invalidates-old-and-new-partition-cursors",
+        "rejected-derived-change-preserves-cursors-and-complete-tables",
+        "authority-administration-invalidates-snapshot-cursors"
+      ],
+      "originalSchedules": [
+        {
+          "case": "c3.0-post-removal-output-producing-create",
+          "concurrent": false,
+          "automaticRetries": false,
+          "barriers": 0,
+          "attemptRoles": [
+            "right_sequential_committed",
+            "left_sequential_committed"
+          ],
+          "attempts": [
+            {
+              "attempt": "c30-right-sequential",
+              "outcome": "committed",
+              "applicationReadCount": 36,
+              "applicationWriteCount": 28,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "d546598f082ba707fb2986f89e785ce5a9447889cfe75be3bc8f76fa74b0c956"
+            },
+            {
+              "attempt": "c30-left-sequential",
+              "outcome": "committed",
+              "applicationReadCount": 36,
+              "applicationWriteCount": 28,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "5adc4cd6e9d48dd209a10f4fd5e863d76ffb168bc9998ab2e129db06aa894e90"
+            }
+          ],
+          "inventory": {
+            "active_sources": [
+              102,
+              202
+            ],
+            "records": 10,
+            "retained_reservations": 4,
+            "retired_sources": [],
+            "roles": 4,
+            "source_count": 10
+          },
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ]
+        },
+        {
+          "case": "c3.0-post-removal-output-retiring-delete",
+          "concurrent": false,
+          "automaticRetries": false,
+          "barriers": 0,
+          "attemptRoles": [
+            "right_sequential_committed",
+            "left_sequential_committed"
+          ],
+          "attempts": [
+            {
+              "attempt": "c30-right-sequential",
+              "outcome": "committed",
+              "applicationReadCount": 30,
+              "applicationWriteCount": 26,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "e9dd1af085a0d4631bbe8544432a52d0d1a28b35d4587a48171cc39194e2c2a9"
+            },
+            {
+              "attempt": "c30-left-sequential",
+              "outcome": "committed",
+              "applicationReadCount": 30,
+              "applicationWriteCount": 26,
+              "scannedTables": [],
+              "retiredCounterAccess": [],
+              "pointTraceSha256": "95364599fac1d9f025747a4a4aaf57b29df5ef2bc85e44fa20a0537330ed493e"
+            }
+          ],
+          "inventory": {
+            "active_sources": [],
+            "records": 4,
+            "retained_reservations": 4,
+            "retired_sources": [
+              102,
+              202
+            ],
+            "roles": 4,
+            "source_count": 4
+          },
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ]
+        }
+      ],
+      "sameReaderEpochControl": {
+        "concurrent": false,
+        "attempts": [
+          {
+            "attempt": "c30-epoch-first-sequential",
+            "outcome": "committed",
+            "applicationReadCount": 8,
+            "applicationWriteCount": 5,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "5c23b5b06958d1ad1d71035bfda0725dd33ca71e3693279bad54a3d6e6b66a9d"
+          },
+          {
+            "attempt": "c30-epoch-second-sequential",
+            "outcome": "committed",
+            "applicationReadCount": 8,
+            "applicationWriteCount": 5,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "e9a1b5860b1692ad758ccd52059736ce4e469c72a4799f1f5f25e7eead3e91e8"
+          }
+        ],
+        "commonWrites": [
+          {
+            "class": "reader_contract_epoch",
+            "key": "000000000000000000000000000000030065",
+            "table": "query_epochs"
+          }
+        ]
+      },
+      "sameBusinessRootControl": {
+        "concurrent": false,
+        "evidence": "same_root_attempts",
+        "exclusive_abort_key_attribution": false,
+        "population_written": false,
+        "shared_root": "02000000000000000000000000000000640002",
+        "attempts": [
+          {
+            "attempt": "genuine-noop",
+            "outcome": "committed",
+            "applicationReadCount": 14,
+            "applicationWriteCount": 8,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "d090162bc6deb48317b0935ff7a0b0bda1ede252e8ca6785d328f09e7d73ac47"
+          },
+          {
+            "attempt": "genuine-noop",
+            "outcome": "not_committed",
+            "applicationReadCount": 12,
+            "applicationWriteCount": 0,
+            "scannedTables": [],
+            "retiredCounterAccess": [],
+            "pointTraceSha256": "084f58b9d96d609198e81bc2359ffc8a26a602a79cf2abf58c68281d86aff69e"
+          }
+        ]
+      },
+      "lifecycle": {
+        "status": "passed",
+        "cases": 10
+      },
+      "application": {
+        "application": {
+          "status": "passed",
+          "cases": 13
+        },
+        "effects": {
+          "status": "passed",
+          "cases": 27
+        },
+        "predicates": {
+          "status": "passed",
+          "cases": 9
+        }
+      }
+    },
+    "evidenceHashes": [
+      {
+        "file": "no-population-rust-final.log",
+        "sha256": "a17da3683c68a55cb6d36aca8853eb1a08cface37b4894074b5e3e0828b991b6"
+      },
+      {
+        "file": "no-population-node.log",
+        "sha256": "10139628753a2b2f323333d432264bb45d971b236c83b7869ffefb419179cb2f"
+      },
+      {
+        "file": "no-population-fdb-live.json",
+        "sha256": "d274f73846b459948a3a9197e1667c5e2801142d13af49e957d4dc5a210818bd"
+      },
+      {
+        "file": "no-population-fdb-application.json",
+        "sha256": "cbecd5fa652af36aa1f8b9bed7cbe8fe25e1778a99b49f16789d026ab1bc5ce0"
+      },
+      {
+        "file": "no-population-redb-live.json",
+        "sha256": "1510cf8a46dfcf1f9fa3ba97b16fb13c4a43932e02dd0a4a323ab2d8188d738a"
+      }
+    ]
+  },
+  "accessScope": {
+    "implementation": "owner-based mutation; reader-based disclosure; same tenant, active state and action grants required",
+    "graphScope": "self, strict descendants, direct group/tenant parents; direct user parents do not supply inherited grants",
+    "ordinaryAdminBypass": "removed; scope policy joins prepared model identity",
+    "witness": "tests/authority_scope.rs (five tests)",
+    "controlPlane": "bulk graph replacement remains operator API; ordinary per-principal management parity is not implemented"
+  },
+  "remaining": [
+    "C3 explicit resource/tenant/reader-or-owner/declared-order access streams",
+    "C3 generic non-time reactive query/subscriber cuts",
+    "A0-A2 email/phone login; only JWT verification implemented today"
+  ],
+  "limitations": [
+    "No tracked/untracked fallback and no global population ceiling are retained. Business constraints must be modeled explicitly.",
+    "Reopening/checking derives bounded source inventory; this is not constant-time startup or unlimited checker acceptance.",
+    "Local FoundationDB campaigns establish controlled commit behavior, not multi-host performance, replicated-node failover or throughput.",
+    "Retained shared reader epochs and business roots still coordinate semantically conflicting mutations.",
+    "Standalone SurrealKV was not separately rerun in this checkpoint.",
+    "Legacy reference repositories and historical evidence are unchanged. Email/phone tenant-local uniqueness and delivered proof are planned, not runtime authentication claims."
+  ]
+}

@@ -36,44 +36,6 @@ pub(crate) fn require(condition: bool, what: &str) -> Result<()> {
         Err(Error::new("corrupt_state", what))
     }
 }
-// Independently enforce the model's bounded population contract; the codec
-// only knows the outer runtime envelope, not this binding's declarations.
-fn check_populations<B: Binding>(
-    model: &crate::model::Prepared<B>,
-    counts: &BTreeMap<u16, u64>,
-    reservations: u64,
-) -> Result<()> {
-    let limits = B::limits();
-    let mut public = 0u64;
-    let mut private = 0u64;
-    for (&code, &count) in counts {
-        let declaration = model.contract(code)?;
-        if declaration.visibility == Visibility::Engine {
-            private = private
-                .checked_add(count)
-                .ok_or_else(|| local::corrupt("population overflow"))?;
-        } else {
-            public = public
-                .checked_add(count)
-                .ok_or_else(|| local::corrupt("population overflow"))?;
-        }
-        require(
-            limits
-                .per_contract
-                .get(&code)
-                .is_none_or(|limit| count <= *limit),
-            "declared contract population limit",
-        )?;
-    }
-    require(
-        limits.public_records.is_none_or(|limit| public <= limit)
-            && limits.outputs.is_none_or(|limit| private <= limit)
-            && limits
-                .reservations
-                .is_none_or(|limit| reservations <= limit),
-        "declared model population limits",
-    )
-}
 fn sum(values: impl IntoIterator<Item = i128>) -> Result<i128> {
     values.into_iter().try_fold(0i128, |a, b| {
         a.checked_add(b)
@@ -394,10 +356,6 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 native_codec::decode_for::<B>(&key, value.value())?,
             );
         }
-        let population = match all.get(&Key::Population) {
-            Some(StoredValue::Population(population)) => population.clone(),
-            _ => return Err(local::corrupt("missing population")),
-        };
         let records: BTreeMap<_, _> = all
             .iter()
             .filter_map(|(k, v)| match (k, v) {
@@ -466,7 +424,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
         let mut counts: BTreeMap<_, u64> = store.model().contracts().map(|c| (c.code, 0)).collect();
         let mut public = BTreeMap::new();
         let mut readers = BTreeMap::new();
-        let mut expected_keys = BTreeSet::from([Key::Meta, Key::Population]);
+        let mut expected_keys = BTreeSet::from([Key::Meta]);
         let mut routes = BTreeMap::<Key, BTreeSet<Address>>::new();
         for (&id, r) in &records {
             require(
@@ -597,6 +555,11 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 _ => None,
             })
             .collect();
+        let population = Population {
+            counts: counts.clone(),
+            reserved: u64::try_from(reserved.len())
+                .map_err(|_| local::corrupt("reservation count overflow"))?,
+        };
         require(
             bindings.len() == reserved.len()
                 && bindings.len()
@@ -729,7 +692,6 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             "complete unique claim inventory",
         )?;
         require(counts == population.counts, "record population")?;
-        check_populations(store.model(), &counts, population.reserved)?;
         Ok(Self {
             store,
             read,
@@ -1544,7 +1506,7 @@ mod tests {
             ("query_epochs", unknown_reader, Some(epoch_token.clone())),
             ("query_epochs", unknown_contract, Some(epoch_token)),
             ("authority", crate::security::REVISION.to_vec(), None),
-            ("native_kv", Key::Population.encode(), None),
+            ("native_kv", vec![13], Some(vec![0])),
         ];
         for row in baseline["tables"]["native_kv"].as_array().unwrap() {
             let key = local::unhex(row["key"].as_str().unwrap()).unwrap();
@@ -1740,17 +1702,6 @@ mod tests {
         assert_eq!(error.code, "corrupt_state");
         assert_eq!(error.detail, "tree path depth");
         assert_eq!(walk.seen.len(), 64);
-    }
-    #[test]
-    fn populations_exceed_old_source_and_u16_ceilings() {
-        use crate::{model::Prepared, models::equipment::Equipment};
-        let equipment = Prepared::<Equipment>::load().unwrap();
-        for count in [4097, 65536, u64::MAX] {
-            assert!(check_populations(&equipment, &BTreeMap::from([(101, count)]), count).is_ok());
-        }
-        assert!(
-            check_populations(&equipment, &BTreeMap::from([(101, u64::MAX), (205, 1)]), 0).is_err()
-        );
     }
     #[test]
     fn selector_checker_rejects_wrong_order_imbalance_and_disconnected_nodes() {
@@ -2092,10 +2043,6 @@ mod tests {
                         *amount += 1;
                     }
                     changes.push((key.clone(), Some(Stored::Record(r))));
-                }
-                Stored::Population(mut population) => {
-                    *population.counts.entry(1).or_default() += 1;
-                    changes.push((key.clone(), Some(Stored::Population(population))));
                 }
                 _ => {}
             }

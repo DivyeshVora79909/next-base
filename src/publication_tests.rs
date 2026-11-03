@@ -14,9 +14,7 @@ use crate::{
         PublicationSlot, PublishedField, QueryDeclaration, Reference, RootDeclaration, Visibility,
     },
     native_codec::{Address, Key, StoredValue, decimal, uuid_text},
-    native_slice::{
-        Attempt, Context, Error, Model, ModelChange, ModelRecord, Population, Query, Result,
-    },
+    native_slice::{Attempt, Context, Error, Model, ModelChange, ModelRecord, Query, Result},
     routes,
     time_range::TimeRange,
 };
@@ -419,7 +417,6 @@ impl<const MODE: u8> Binding for Fixture<MODE> {
         model: &Prepared<Self>,
         context: Context,
         changes: &[ModelChange<Self>],
-        population: &mut Population,
         revision: Uuid,
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
@@ -439,7 +436,7 @@ impl<const MODE: u8> Binding for Fixture<MODE> {
                 entry_member(change.new.as_ref().map(|r| &r.input)),
             )?;
         }
-        crate::causal::settle(ws, model, context, changes, population, revision, allocate)
+        crate::causal::settle(ws, model, context, changes, revision, allocate)
     }
     fn check(store: &Store<Self>) -> Result<Value> {
         check(store)

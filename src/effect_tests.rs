@@ -418,7 +418,13 @@ fn current_account_authority_controls_creation_cancel_status_and_receipt_disclos
         graph.principals.push(Principal {
             id: id(n),
             kind: PrincipalKind::User,
-            parents: vec![id(if n == 4 { 3 } else { 1 })],
+            // The store actor may cancel through actual ownership ancestry.
+            // Principal 5 remains outside that branch for the denial witness.
+            parents: vec![id(match n {
+                3 => 2,
+                4 => 3,
+                _ => 1,
+            })],
             active: true,
             credential_epoch: 0,
             grants: Grants {

@@ -57,7 +57,9 @@ fn fixture() -> Fixture {
         Principal {
             id: id(3),
             kind: PrincipalKind::User,
-            parents: vec![id(1)],
+            // Store-session page checks require actual ancestor scope. User 4
+            // remains on a separate branch for hidden-peer denial checks.
+            parents: vec![id(2)],
             active: true,
             credential_epoch: 0,
             grants: grants.clone(),

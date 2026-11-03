@@ -51,8 +51,7 @@ pub struct Meta {
     pub actor: Uuid,
 }
 
-/// Exact capacity accounting. Existing-record edits read this state but only
-/// population or reservation changes write it; identity remains immutable.
+/// Source-derived inventory totals; these are never stored or updated by mutation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Population {
@@ -1047,7 +1046,6 @@ pub(crate) fn settle_calculation_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8
     model: &crate::model::PreparedModel,
     context: Context,
     changes: &[Change],
-    population: &mut Population,
     revision: Uuid,
     allocate: &mut dyn FnMut() -> Result<Uuid>,
 ) -> Result<()> {
@@ -1221,7 +1219,7 @@ pub(crate) fn settle_calculation_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8
         }
     }
 
-    crate::causal::settle(ws, model, context, changes, population, revision, allocate)?;
+    crate::causal::settle(ws, model, context, changes, revision, allocate)?;
     for id in ws.changed_roots() {
         if id.slot == 2
             && let Some(Stored::Root(root)) = ws.get(&Key::Root(id))?
@@ -1528,7 +1526,7 @@ mod diagnostic_tests {
     #[test]
     fn diagnostic_load_failure_retains_normal_work_and_outcome() {
         let trace = recorder();
-        trace.seed_invocation(&Key::Population.encode());
+        trace.seed_invocation(&Key::Meta.encode());
         let mut normal = Workspace::new(
             |_: &[u8]| Err(Error::new("outcome_unknown", "control")),
             100,
@@ -1539,8 +1537,8 @@ mod diagnostic_tests {
             trace.clone(),
         );
         assert_eq!(
-            normal.get(&Key::Population).unwrap_err().code,
-            measured.get(&Key::Population).unwrap_err().code
+            normal.get(&Key::Meta).unwrap_err().code,
+            measured.get(&Key::Meta).unwrap_err().code
         );
         assert_eq!(
             serde_json::to_value(&normal.work).unwrap(),
@@ -1553,14 +1551,14 @@ mod diagnostic_tests {
     #[test]
     fn diagnostic_failed_decode_counts_received_bytes_without_disclosing_keys() {
         let trace = recorder();
-        trace.seed_invocation(&Key::Population.encode());
+        trace.seed_invocation(&Key::Meta.encode());
         let bytes = b"invalid-codec".to_vec();
         let mut normal = Workspace::new(|_: &[u8]| Ok(Some(bytes.clone())), 100);
         let mut measured =
             Workspace::new_diagnostic(|_: &[u8]| Ok(Some(bytes.clone())), 100, trace.clone());
         assert_eq!(
-            normal.get(&Key::Population).unwrap_err().code,
-            measured.get(&Key::Population).unwrap_err().code
+            normal.get(&Key::Meta).unwrap_err().code,
+            measured.get(&Key::Meta).unwrap_err().code
         );
         assert_eq!(
             serde_json::to_value(&normal.work).unwrap(),

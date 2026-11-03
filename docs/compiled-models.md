@@ -107,12 +107,11 @@ root/source tokens, reader indexes, query epochs, receipt allocations and receip
 atomically over the selected storage backend.
 
 The native `Meta` contains immutable model/codec/tenant/bootstrap identity.
-`Population` separately holds exact per-contract counts and retained reservation
-counts. Settlement receives `&mut Population` and one fresh UUID mutation token;
-it writes the population row only when counts actually change. Changed records
-and roots receive the token, while unchanged state retains its prior token.
-Declared roots still guard their shared invariants. New capacity reservations
-and shared reader/contract query partitions can coordinate otherwise separate
+`Population` holds source-derived read-only inventory statistics at open/checking;
+it is not persisted or passed to settlement. Settlement uses a fresh UUID mutation
+token. Changed records and roots receive the token, while unchanged state retains
+its prior token. Declared roots still guard their shared invariants. Identity
+reservations and shared reader/contract query partitions can coordinate separate
 updates; model hooks must not invent a global mutation sequence or a backend-
 specific calculation path. [Storage contracts](storage.md#data-identity-and-upgrades)
 distinguish these tokens from administration/execution counters.
@@ -164,9 +163,8 @@ two-bound financial sum windows. This is not a facility for arbitrary monoids,
 arbitrary query predicates or automatically discovered dependencies. Adding a
 new aggregate or result type needs an explicit engine contract.
 
-Current compiled models configure no fixed public-record, output or reservation
-ceilings. Population and reservation counters are u64, and configured limits
-participate in computed model identity. Shared limits remain: full inventory
+There is no binding population-cap API or stored capacity counter. Source-derived
+inventory statistics remain read-only. Shared limits remain: full inventory
 and check operations have a 262,144-row observation budget; mutations have
 64-command and 200,000 charged work-unit limits; returns
 and pages at 32 rows; query visits at 128; receipts at 1,024; and backups at 64

@@ -18,7 +18,7 @@ const catalog = {
     { name: 'Parent', code: 101, visibility: 'public', schema: { type: 'object', required: ['value'], properties: { value: decimalSchema }, additionalProperties: false }, references: [] },
     { name: 'Child', code: 201, visibility: 'public', schema: { type: 'object', required: ['parent', 'value'], properties: { parent: uuidSchema, value: decimalSchema }, additionalProperties: false }, references: [{ field: 'parent', targets: [101], optional: false }] },
   ],
-  capabilities: { limits: { public_records: 16, commands: 64, per_contract: {} } },
+  capabilities: { limits: { commands: 64 } },
 };
 const model = {
   catalog,

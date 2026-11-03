@@ -86,6 +86,10 @@ impl ReadView for RecordingWrite {
         self.inner.table_exists(t)
     }
     fn get(&self, t: &TableSpec, k: &[u8]) -> Result<Option<Vec<u8>>> {
+        require(
+            t.name != local::KV.name() || k != [13],
+            "forbidden historical population key access",
+        )?;
         let result = self.inner.get(t, k)?;
         capture(&self.captures)?.traces[self.index]
             .reads
@@ -119,6 +123,10 @@ impl WriteView for RecordingWrite {
         self.inner.delete_table(t)
     }
     fn put(&mut self, t: &TableSpec, k: &[u8], v: &[u8]) -> Result<Option<Vec<u8>>> {
+        require(
+            t.name != local::KV.name() || k != [13],
+            "forbidden historical population key access",
+        )?;
         let old = self.inner.put(t, k, v)?;
         capture(&self.captures)?.traces[self.index]
             .writes
@@ -126,6 +134,10 @@ impl WriteView for RecordingWrite {
         Ok(old)
     }
     fn remove(&mut self, t: &TableSpec, k: &[u8]) -> Result<Option<Vec<u8>>> {
+        require(
+            t.name != local::KV.name() || k != [13],
+            "forbidden historical population key access",
+        )?;
         let old = self.inner.remove(t, k)?;
         if old.is_some() {
             capture(&self.captures)?.traces[self.index]
@@ -339,9 +351,9 @@ fn guard_buckets(writes: &Written) -> BTreeSet<(String, u8)> {
         .collect()
 }
 fn no_global_writes(writes: &Written) -> Result<()> {
-    for key in [Key::Meta, Key::Population] {
+    for key in [Key::Meta.encode(), vec![13]] {
         require(
-            !writes.contains(&(local::KV.name().into(), key.encode())),
+            !writes.contains(&(local::KV.name().into(), key)),
             "existing-record attempt rewrote global native coordination",
         )?;
     }
@@ -688,7 +700,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     cases.push("scoped-tokens-slots-and-business-state-persist-on-reopen");
     drop(reopened);
 
-    let contention_baseline = contention_baseline(&factory, concurrent, &mut cases)?;
+    let accounting_acceptance = accounting_acceptance(&factory, concurrent, &mut cases)?;
     let epoch_control = contention_epoch_control(&factory, concurrent, &mut cases)?;
     scoped_derived(&factory, &mut cases)?;
     let references = if concurrent {
@@ -702,13 +714,13 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "independent_attempts":independent.iter().map(trace_value).collect::<Vec<_>>(),
         "same_root_attempts":same_root.iter().map(trace_value).collect::<Vec<_>>(),
         "tracked_noop_attempts":noop_race.iter().map(trace_value).collect::<Vec<_>>(),
-        "reference_schedules":references,"c3_0_contention_baseline":contention_baseline,
+        "reference_schedules":references,"c3_0_accounting_acceptance":accounting_acceptance,
         "c3_0_scoped_epoch_control":epoch_control,
         "c3_0_business_root_control":{"evidence":"same_root_attempts","population_written":false,"concurrent":concurrent,"shared_root":native_codec::hex(&Key::Root(crate::native_codec::Address::new(id(100),2)).encode()),"exclusive_abort_key_attribution":false},
         "independent_balances":balances,"common_application_write_keys":[],"common_surreal_guard_buckets":shared_buckets,
         "receipt_hash_starts":[crate::receipts::start_slot(&[id(3).as_bytes().as_slice(),first_op.as_bytes()].concat()),crate::receipts::start_slot(&[id(4).as_bytes().as_slice(),second_op.as_bytes()].concat())],
         "genuine_noop":trace_value(&noop_trace),"table_inventory":local::table_names(true),
-        "limitations":["The independent witness changes existing members of two invariant roots in different reader partitions; creates and new output reservations still coordinate on exact population capacity.","The write recorder delegates actual adapter transactions. SurrealKV adds its documented per-table hash guard keys; this witness selects disjoint buckets, while collisions and ranges can still cause conservative conflicts.","redb runs sequential controls because it serializes native writers. In-process reopen is not process or replicated-node failover.","One scoped reader/contract epoch still coordinates changes in that query partition. No throughput or general capacity claim is made."]}),
+        "limitations":["Independent output-producing creates and output-retiring deletes commit in different reader partitions and business roots without global accounting coordination.","The write recorder delegates actual adapter transactions. SurrealKV adds its documented per-table hash guard keys; this witness selects disjoint buckets, while collisions and ranges can still cause conservative conflicts.","redb runs sequential controls because it serializes native writers. In-process reopen is not process or replicated-node failover.","One scoped reader/contract epoch still coordinates changes in that query partition. No throughput or general capacity claim is made."]}),
     )
 }
 
@@ -834,14 +846,7 @@ fn reference_schedules(
             {"op":"create","id":id(20),"contract":quantity::SOURCE,"fields":{"value":"18"}},
             {"op":"create","id":id(30),"contract":quantity::SCALE,"fields":{"parent":id(10),"factor":{"numerator":"1","denominator":"2"},"rounding":"exact"}}
         ]))?)?;
-        let population = store
-            .db
-            .begin_read()?
-            .open_table(local::KV)?
-            .get(Key::Population.encode())?
-            .ok_or_else(|| failure("missing population"))?
-            .value()
-            .to_vec();
+        let population = crate::integrity::Snapshot::load(&store)?.population;
         let source_id = operation(&store, 41001, None)?;
         let retarget_id = operation(&store, 42001, Some(&store.receipt_key(source_id)))?;
         let source = request(
@@ -931,17 +936,11 @@ fn reference_schedules(
             traces[0].reads.contains(&protected) && traces[1].writes.contains(&protected),
             "reference witness did not observe and invalidate the required exact predicate",
         )?;
-        let after_population = store
-            .db
-            .begin_read()?
-            .open_table(local::KV)?
-            .get(Key::Population.encode())?
-            .ok_or_else(|| failure("missing population after reference race"))?
-            .value()
-            .to_vec();
+        let after_population = crate::integrity::Snapshot::load(&store)?.population;
         require(
-            population == after_population,
-            "reference race changed exact population counters",
+            population.counts == after_population.counts
+                && population.reserved == after_population.reserved,
+            "reference race changed source-derived totals",
         )?;
         let source = store
             .get(store.model().identity(), id(20))?
@@ -972,21 +971,23 @@ fn reference_schedules(
         });
         evidence.push(json!({"family":family,"expected_source":expected_source,
             "expected_scale":expected_scale,"expected_parent":expected_parent,
-            "protected_key":native_codec::hex(&protected.1),"population_unchanged":true,
+            "protected_key":native_codec::hex(&protected.1),"source_derived_totals_unchanged":true,
             "common_application_writes":[],"common_surreal_guard_buckets":[],
             "attempts":traces.iter().map(trace_value).collect::<Vec<_>>() }));
     }
     Ok(evidence)
 }
 
-// C3.0 measures the current exact-accounting path. No accounting policy changes.
+// Post-removal acceptance uses original attempts over independent business scopes.
 fn contention_class(table: &str, bytes: &[u8]) -> &'static str {
     if table == "query_epochs" {
         return "reader_contract_epoch";
     }
     if table == local::KV.name() {
+        if bytes == [13] {
+            return "forbidden_historical_population";
+        }
         return match Key::decode(bytes) {
-            Ok(Key::Population) => "population",
             Ok(Key::Root(_) | Key::Node(_)) => "native_business_root",
             Ok(Key::Record(_)) => "record",
             Ok(Key::Role(_) | Key::Reserved(_)) => "output_identity",
@@ -1085,12 +1086,12 @@ fn equipment_inventory(
         "C3 complete source/output/identity inventory",
     )?;
     let report = json!({"active_sources":active,"retired_sources":retired,
-        "records":snapshot.records.len(),"roles":roles,"retained_reservations":reservations});
+        "records":snapshot.records.len(),"source_count":snapshot.records.len(),"roles":roles,"retained_reservations":reservations});
     drop(snapshot);
     store.check_integrity()?;
     Ok(report)
 }
-fn contention_baseline(
+fn accounting_acceptance(
     factory: &impl Fn(&str) -> Result<Database>,
     concurrent: bool,
     cases: &mut Vec<&'static str>,
@@ -1098,7 +1099,7 @@ fn contention_baseline(
     use crate::models::equipment::Equipment;
     let captures = Captures::default();
     let store = create::<Equipment>(Database::new(Recording {
-        db: factory("c30-output-contention-baseline")?,
+        db: factory("c30-output-accounting-acceptance")?,
         captures: captures.clone(),
     }))?;
     graph(&store, &[101, 205, 410])?;
@@ -1136,56 +1137,51 @@ fn contention_baseline(
         label(
             &captures,
             if deleting {
-                "c30-delete-loser"
+                "c30-delete-left-original"
             } else {
-                "c30-create-loser"
+                "c30-create-left-original"
             },
         )?;
         let mut barriers = 0;
         if concurrent {
-            let mut accepted = Value::Null;
-            let error = left
-                .mutate_controlled(
-                    &a,
-                    &mut || Ok(Uuid::new_v4()),
-                    None,
-                    &mut || {
-                        barriers += 1;
-                        label(&captures, "c30-winner")?;
-                        right.mutate_controlled(
-                            &b,
-                            &mut || Ok(Uuid::new_v4()),
-                            None,
-                            &mut || Ok(()),
-                            false,
-                        )?;
-                        accepted = image(&store)?;
-                        Ok(())
-                    },
-                    false,
-                )
-                .expect_err("C3 current Population path must conflict");
-            require(
-                error.code == "transaction_conflict" && barriers == 1 && image(&store)? == accepted,
-                "C3 conflict/retry/complete loser rollback",
+            left.mutate_controlled(
+                &a,
+                &mut || Ok(Uuid::new_v4()),
+                None,
+                &mut || {
+                    barriers += 1;
+                    label(&captures, "c30-right-original")?;
+                    right.mutate_controlled(
+                        &b,
+                        &mut || Ok(Uuid::new_v4()),
+                        None,
+                        &mut || Ok(()),
+                        false,
+                    )?;
+                    Ok(())
+                },
+                false,
             )?;
-            receipt(&left, &a, false)?;
+            require(barriers == 1, "C3 original attempt was retried")?;
         } else {
             label(&captures, "c30-right-sequential")?;
             right.mutate_controlled(&b, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
             label(&captures, "c30-left-sequential")?;
             left.mutate_controlled(&a, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
         }
+        receipt(&left, &a, true)?;
         receipt(&right, &b, true)?;
         let traces = capture(&captures)?.traces.clone();
         require(traces.len() == 2, "C3 two original plans")?;
-        let population = (local::KV.name().to_string(), Key::Population.encode());
-        require(
-            traces
-                .iter()
-                .all(|t| t.reads.contains(&population) && t.writes.contains(&population)),
-            "C3 exact Population protection",
-        )?;
+        for trace in &traces {
+            no_global_writes(&trace.writes)?;
+            require(
+                trace.outcome == "committed"
+                    && !trace.reads.contains(&(local::KV.name().into(), vec![13]))
+                    && trace.scanned_tables.is_empty(),
+                "C3 original attempt must commit without population access or range guards",
+            )?;
+        }
         let scoped = |t: &Trace| -> Written {
             t.writes
                 .iter()
@@ -1208,45 +1204,32 @@ fn contention_baseline(
             .cloned()
             .collect();
         require(
-            common_writes == BTreeSet::from([population.clone()]),
-            "C3 shared writes must isolate Population",
+            common_writes.is_empty()
+                && traces[0].reads.is_disjoint(&traces[1].writes)
+                && traces[1].reads.is_disjoint(&traces[0].writes),
+            "C3 independent original attempts share protected point keys",
         )?;
         let inventory = if deleting {
-            equipment_inventory(
-                &store,
-                if concurrent { &[102] } else { &[] },
-                if concurrent { &[202] } else { &[102, 202] },
-            )?
+            equipment_inventory(&store, &[], &[102, 202])?
         } else {
-            equipment_inventory(&store, if concurrent { &[202] } else { &[102, 202] }, &[])?
+            equipment_inventory(&store, &[102, 202], &[])?
         };
-        reports.push(json!({"case":if deleting {"c3.0-output-retiring-delete-population"}else{"c3.0-output-producing-create-population"},
+        reports.push(json!({"case":if deleting {"c3.0-post-removal-output-retiring-delete"}else{"c3.0-post-removal-output-producing-create"},
             "concurrent":concurrent,"automatic_retries":false,"barriers":barriers,"inventory":inventory,
-            "attempt_roles":if concurrent {vec!["left_original_conflicted","right_original_committed"]} else {vec!["right_sequential_committed","left_sequential_committed"]},
+            "attempt_roles":if concurrent {vec!["left_original_committed","right_original_committed"]} else {vec!["right_sequential_committed","left_sequential_committed"]},
             "attempts":traces.iter().map(trace_value).collect::<Vec<_>>(),
             "common_writes":contention_overlap(&traces[0].writes,&traces[1].writes),
             "attempt_0_point_reads_overlapping_attempt_1_writes":contention_overlap(&traces[0].reads,&traces[1].writes),
             "attempt_1_point_reads_overlapping_attempt_0_writes":contention_overlap(&traces[1].reads,&traces[0].writes)}));
-        if concurrent {
-            // A separately revalidated request establishes the next case's fixture;
-            // it is never counted as success of the original conflicting attempt.
-            label(&captures, "c30-separate-revalidation-cleanup")?;
-            left.mutate_controlled(&a, &mut || Ok(Uuid::new_v4()), None, &mut || Ok(()), false)?;
-        }
-        equipment_inventory(
-            &store,
-            if deleting { &[] } else { &[102, 202] },
-            if deleting { &[102, 202] } else { &[] },
-        )?;
         cases.push(if deleting {
-            "c3.0-output-retiring-delete-population-baseline"
+            "c3.0-post-removal-output-retiring-delete-accounting-acceptance"
         } else {
-            "c3.0-output-producing-create-population-baseline"
+            "c3.0-post-removal-output-producing-create-accounting-acceptance"
         });
     }
     Ok(json!({"schedules":reports,"point_reads_only":true,
         "range_evidence":"scanned table names only; no exact range conflict attribution",
-        "scope":"Current accounting baseline; shared Population protection is observed, not exclusive attribution of adapter abort key. Sequential redb controls are not concurrency evidence. Not a throughput metric."}))
+        "scope":"Post-removal acceptance: both original attempts commit with disjoint protected point keys and no global accounting access. Sequential redb controls are not concurrency evidence. Not a throughput metric."}))
 }
 
 fn contention_epoch_control(

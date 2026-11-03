@@ -307,14 +307,6 @@ impl<B: Binding> Prepared<B> {
             }
         }
 
-        let limits = B::limits();
-        if limits
-            .per_contract
-            .keys()
-            .any(|code| !declarations.iter().any(|c| c.code == *code))
-        {
-            return Err(model_error("model limits name an unknown contract"));
-        }
         let mut names = BTreeSet::new();
         let mut validators = BTreeMap::new();
         let mut field_validators = BTreeMap::new();
@@ -654,8 +646,8 @@ impl<B: Binding> Prepared<B> {
             map.remove("schema_source");
             map.remove("behavior_source");
         }
-        let semantic = serde_json::to_value((semantic, &indexes, &limits))
-            .map_err(|e| model_error(e.to_string()))?;
+        let semantic =
+            serde_json::to_value((semantic, &indexes)).map_err(|e| model_error(e.to_string()))?;
         let bytes = serde_json::to_vec(&semantic).map_err(|e| model_error(e.to_string()))?;
         let mut hash = Sha256::new();
         hash.update(b"rebase-next-local-model-v1\0");
@@ -663,8 +655,10 @@ impl<B: Binding> Prepared<B> {
             B::NAME.as_bytes(),
             B::BEHAVIOR.as_bytes(),
             crate::access::READER_POLICY.as_bytes(),
+            crate::access::SCOPE_POLICY.as_bytes(),
             crate::relationships::POLICY.as_bytes(),
             crate::mutation::REFERENCE_POLICY.as_bytes(),
+            b"source-inventory-no-shared-population-v1",
             core_identity.as_bytes(),
             bytes.as_slice(),
         ] {
@@ -829,7 +823,6 @@ pub fn capabilities() -> Value {
 }
 
 fn model_capabilities<B: Binding>() -> Value {
-    let limits = B::limits();
     let mut methods = vec![
         "model.describe",
         "records.get",
@@ -849,7 +842,7 @@ fn model_capabilities<B: Binding>() -> Value {
     let mut catalog = json!({"methods":methods,
         "transport":"JSON-RPC 2.0 over stdio or authenticated HTTP /rpc; string request IDs; no batches/notifications",
         "path":{"name":"records.by_id","order":"UUID ascending","filter":"optional public contract and one declared scalar authored-field equality"},
-        "limits":{"commands":64,"public_records":limits.public_records,"outputs":limits.outputs,"reservations":limits.reservations,"per_contract":limits.per_contract,
+        "limits":{"commands":64,
             "returning":32,"page_limit":32,"visit_budget":128,"receipts":1024,"request_bytes":65536},
         "cursor":"HMAC-SHA256; bound store/model/actor/query and scoped reader/contract epochs plus authority revision; unchanged scopes and true no-ops preserve cursors",
         "versions":"record/root/mutation revisions are opaque UUID tokens, never ordered; access revision is an administration-only counter; pages return a scoped digest",

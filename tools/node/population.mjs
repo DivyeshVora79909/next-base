@@ -17,8 +17,8 @@ export function preparePopulation(model, counts, options = {}) {
   }
   const catalog = cloneJson(model.catalog, 'model catalog');
   const limits = catalog.capabilities?.limits;
-  if (!isRecord(limits) || !(limits.public_records === null || (Number.isSafeInteger(limits.public_records) && limits.public_records >= 0))) {
-    throw new TypeError('native catalog must publish public_records limits');
+  if (!isRecord(limits) || !Number.isSafeInteger(limits.commands) || limits.commands < 1 || limits.commands > 64) {
+    throw new TypeError('native catalog must publish a valid command limit');
   }
   if (!isRecord(counts)) throw new TypeError('counts must be an object keyed by public contract name');
   const contracts = new Map();
@@ -39,17 +39,9 @@ export function preparePopulation(model, counts, options = {}) {
     if (!contracts.has(name)) throw new TypeError(`unknown or private contract in counts: ${name}`);
     nonnegativeInteger(value, `count for ${name}`);
   }
-  if (limits.public_records !== null && Object.values(quotas).reduce((a, b) => a + b, 0) > limits.public_records) {
-    throw new TypeError('requested quotas exceed native public_records limit');
-  }
-  const perContract = limits.per_contract ?? {};
-  for (const [name, quota] of Object.entries(quotas)) {
-    const cap = perContract[String(contracts.get(name).code)] ?? perContract[name];
-    if (cap !== undefined && quota > cap) throw new TypeError(`requested quota exceeds ${name} per-contract limit`);
-  }
-  const batchSize = options.batchSize ?? Math.min(1, limits.commands ?? 64);
+  const batchSize = options.batchSize ?? 1;
   nonnegativeInteger(batchSize, 'batchSize');
-  if (batchSize < 1 || batchSize > Math.min(limits.commands ?? 64, 64)) throw new TypeError('batchSize exceeds native command limit');
+  if (batchSize < 1 || batchSize > limits.commands) throw new TypeError('batchSize exceeds native command limit');
   const seed = options.seed;
   if (!(typeof seed === 'string' || Number.isSafeInteger(seed))) throw new TypeError('seed must be a string or safe integer');
   for (const key of ['strategies', 'rules', 'priorities']) {
@@ -81,13 +73,6 @@ export function preparePopulation(model, counts, options = {}) {
       poolIds[name].push(row.id);
       identities.add(row.id);
     }
-  }
-  if (limits.public_records !== null && identities.size + Object.values(quotas).reduce((a, b) => a + b, 0) > limits.public_records) {
-    throw new TypeError('existing IDs plus requested quotas exceed native public_records lower-bound limit');
-  }
-  for (const [name, quota] of Object.entries(quotas)) {
-    const cap = perContract[String(contracts.get(name).code)] ?? perContract[name];
-    if (cap !== undefined && poolIds[name].length + quota > cap) throw new TypeError(`existing IDs plus quota exceed ${name} per-contract limit`);
   }
   const usage = validateInitialUsage(options.referenceUsage ?? {}, contracts);
   return {

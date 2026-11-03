@@ -5,11 +5,11 @@ use crate::{
     local::Store,
     model::{Contract, Prepared},
     native_codec::{Key, StoredValue},
-    native_slice::{Attempt, Context, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Model, ModelChange, Result},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use std::{collections::BTreeMap, fmt::Debug};
+use std::fmt::Debug;
 use uuid::Uuid;
 
 // Full inventory operations retain an independent work budget.
@@ -29,14 +29,6 @@ pub trait NativeInput:
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct Limits {
-    /// None means no configured population ceiling; work and storage limits still apply.
-    pub public_records: Option<u64>,
-    pub outputs: Option<u64>,
-    pub reservations: Option<u64>,
-    pub per_contract: BTreeMap<u16, u64>,
-}
 pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
     type Index: crate::index::NativeIndex;
     type Input: NativeInput;
@@ -46,9 +38,6 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
     const BEHAVIOR: &'static str;
     fn declarations() -> Result<Vec<Contract>>;
     fn engine() -> Result<Model>;
-    fn limits() -> Limits {
-        Limits::default()
-    }
     fn valid_derived(input: &Self::Input, derived: Option<&Self::Derived>) -> bool;
     fn published_shape(code: u16) -> Value;
     /// Pure, deterministic final-graph validation over authored input and declared
@@ -69,7 +58,6 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
         model: &Prepared<Self>,
         context: Context,
         changes: &[ModelChange<Self>],
-        population: &mut Population,
         revision: Uuid,
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()>;

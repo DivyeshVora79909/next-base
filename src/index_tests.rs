@@ -17,7 +17,7 @@ use crate::{
     local::Store,
     model::{Contract, Prepared},
     native_codec::{self, Address, Key, StoredValue},
-    native_slice::{Attempt, Context, Error, Input, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Error, Input, Model, ModelChange, Result},
     time_range::TimeRange,
     tree::{self, FullKey, Node, Root, Span},
 };
@@ -311,7 +311,6 @@ impl Binding for WordBinding {
         _model: &Prepared<Self>,
         _context: Context,
         _changes: &[ModelChange<Self>],
-        _population: &mut Population,
         _revision: Uuid,
         _allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {

@@ -288,18 +288,6 @@ impl<B: Binding> Store<B> {
             table
                 .insert(Key::Meta.encode().as_slice(), bytes.as_slice())
                 .map_err(storage)?;
-            let population = Population {
-                counts: model.contracts().map(|c| (c.code, 0)).collect(),
-                reserved: 0,
-            };
-            table.insert(
-                Key::Population.encode().as_slice(),
-                native_codec::encode_for::<B>(
-                    &Key::Population,
-                    &StoredValue::Population(population),
-                )?
-                .as_slice(),
-            )?;
             write.open_table(PUBLIC).map_err(storage)?;
             write.open_table(RECEIPTS).map_err(storage)?;
             write.open_table(crate::receipts::SLOTS)?;
@@ -352,7 +340,8 @@ impl<B: Binding> Store<B> {
         read_header(&read)?;
         check_tables(&read)?;
         let meta = read_meta(&read)?;
-        let population = read_population(&read)?;
+        check_model_identity(&meta, model.identity())?;
+        let population = read_inventory(&read, &model, meta.tenant)?;
         let context = Context {
             tenant: meta.tenant,
             actor: meta.actor,
@@ -1027,15 +1016,60 @@ pub(crate) fn read_meta(read: &ReadTransaction) -> Result<Meta> {
     }
 }
 
-pub(crate) fn read_population(read: &ReadTransaction) -> Result<Population> {
+/// Read-only source inventory; never used by the mutation path.
+/// Prefix scans and the public-index length check share the caller's snapshot.
+pub(crate) fn read_inventory<B: Binding>(
+    read: &ReadTransaction,
+    model: &Prepared<B>,
+    tenant: Uuid,
+) -> Result<Population> {
     let table = read.open_table(KV)?;
-    let value = table
-        .get(Key::Population.encode())?
-        .ok_or_else(|| corrupt("missing population"))?;
-    match native_codec::decode(&Key::Population, value.value())? {
-        native_codec::Stored::Population(population) => Ok(population),
-        _ => Err(corrupt("population type")),
+    let mut population = Population {
+        counts: model
+            .contracts()
+            .map(|contract| (contract.code, 0))
+            .collect(),
+        reserved: 0,
+    };
+    let mut rows = 0usize;
+    for tag in [1u8, 9] {
+        for row in table.range([tag].as_slice()..[tag + 1].as_slice())? {
+            if rows >= crate::binding::MAX_INVENTORY_ROWS {
+                return Err(Error::new("work_limit", "source inventory is incomplete"));
+            }
+            rows += 1;
+            let (key, value) = row?;
+            let key = Key::decode(key.value())?;
+            match (&key, native_codec::decode_for::<B>(&key, value.value())?) {
+                (Key::Record(_), StoredValue::Record(record)) => {
+                    model.contract(record.contract)?;
+                    if record.tenant != tenant || record.contract != record.input.contract() {
+                        return Err(corrupt("source inventory record header"));
+                    }
+                    let count = population
+                        .counts
+                        .get_mut(&record.contract)
+                        .ok_or_else(|| corrupt("source inventory contract"))?;
+                    *count = count
+                        .checked_add(1)
+                        .ok_or_else(|| corrupt("population overflow"))?;
+                }
+                (Key::Reserved(_), StoredValue::Reserved(_)) => {
+                    population.reserved = population
+                        .reserved
+                        .checked_add(1)
+                        .ok_or_else(|| corrupt("reservation count overflow"))?;
+                }
+                _ => return Err(corrupt("source inventory key/value")),
+            }
+        }
     }
+    // Explicitly reject the retired physical counter tag without decoding it.
+    if let Some(row) = table.range([13u8].as_slice()..[14u8].as_slice())?.next() {
+        row?;
+        return Err(corrupt("retired population key"));
+    }
+    Ok(population)
 }
 
 pub(crate) fn validate_header(header: &RuntimeHeader) -> Result<()> {
@@ -1118,6 +1152,88 @@ mod tests {
     impl Drop for Directory {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn opening_uses_source_inventory_and_rejects_missing_or_extra_public_rows() {
+        for extra in [false, true] {
+            let dir = Directory::new();
+            let model = Arc::new(PreparedModel::load().unwrap());
+            let store = LocalStore::create(
+                dir.file(),
+                model.clone(),
+                Context {
+                    tenant: Uuid::from_u128(1),
+                    actor: Uuid::from_u128(2),
+                },
+            )
+            .unwrap();
+            let id = Uuid::from_u128(4);
+            let request: Mutation = serde_json::from_value(json!({
+                "model": model.identity(),
+                "context": store.operation_context(model.identity()).unwrap(),
+                "operation_id": Uuid::from_u128(3),
+                "commands": [{"op":"create", "id":id, "contract":7,
+                    "fields":{"at":"12"}}], "returning":[]
+            }))
+            .unwrap();
+            store.mutate(&request).unwrap();
+            let read = store.db.begin_read().unwrap();
+            let inventory = read_inventory(&read, &model, store.context.tenant).unwrap();
+            assert_eq!(inventory.counts.get(&7), Some(&1));
+            assert_eq!(inventory.reserved, 0);
+            assert!(
+                read.open_table(KV)
+                    .unwrap()
+                    .get([13u8].as_slice())
+                    .unwrap()
+                    .is_none()
+            );
+            drop(read);
+            drop(store);
+            let store = LocalStore::open(dir.file(), model.clone()).unwrap();
+            let write = store.db.begin_write().unwrap();
+            {
+                let mut table = write.open_table(PUBLIC).unwrap();
+                if extra {
+                    table
+                        .insert(Uuid::from_u128(5).as_bytes().as_slice(), 7)
+                        .unwrap();
+                } else {
+                    table.remove(id.as_bytes().as_slice()).unwrap();
+                }
+            }
+            write.commit().unwrap();
+            drop(store);
+            assert!(matches!(LocalStore::open(dir.file(), model),
+                Err(error) if error.code == "corrupt_state" && error.detail == "public index population"));
+        }
+    }
+
+    #[test]
+    fn opening_rejects_retired_counter_and_malformed_source_prefix_keys() {
+        for key in [vec![13], vec![1], vec![9]] {
+            let dir = Directory::new();
+            let model = Arc::new(PreparedModel::load().unwrap());
+            let store = LocalStore::create(
+                dir.file(),
+                model.clone(),
+                Context {
+                    tenant: Uuid::from_u128(1),
+                    actor: Uuid::from_u128(2),
+                },
+            )
+            .unwrap();
+            let write = store.db.begin_write().unwrap();
+            write
+                .open_table(KV)
+                .unwrap()
+                .insert(key.as_slice(), [0u8].as_slice())
+                .unwrap();
+            write.commit().unwrap();
+            drop(store);
+            assert!(LocalStore::open(dir.file(), model).is_err());
         }
     }
 

@@ -10,7 +10,7 @@ use crate::{
         QueryDeclaration, Reference, RootDeclaration, Visibility,
     },
     native_codec::{Address, Key, StoredValue, decimal, uuid_text},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, ModelRecord, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, ModelRecord, Result},
     tree,
 };
 use serde::{Deserialize, Serialize};
@@ -332,7 +332,6 @@ impl Binding for Equipment {
         model: &Prepared<Self>,
         context: Context,
         changes: &[ModelChange<Self>],
-        population: &mut Population,
         revision: Uuid,
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
@@ -344,7 +343,7 @@ impl Binding for Equipment {
                 delivery(change.new.as_ref().map(|r| &r.input)),
             )?;
         }
-        crate::causal::settle(ws, model, context, changes, population, revision, allocate)?;
+        crate::causal::settle(ws, model, context, changes, revision, allocate)?;
         for address in ws.changed_roots() {
             if address.slot == 7 {
                 let root = tree::root(ws, address)?;

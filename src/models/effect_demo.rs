@@ -6,7 +6,7 @@ use crate::{
     local::Store,
     model::{self, Contract, InputField, Prepared, Reference, Visibility},
     native_codec::{decimal, optional_decimal, uuid_text},
-    native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
+    native_slice::{Attempt, Context, Error, Model, ModelChange, Result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -150,7 +150,6 @@ impl Binding for EffectDemo {
         _model: &Prepared<Self>,
         _context: Context,
         changes: &[ModelChange<Self>],
-        _population: &mut Population,
         _revision: Uuid,
         _allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {

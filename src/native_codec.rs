@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    native_slice::{Error, Meta, ModelRecord, Population, Query, Result},
+    native_slice::{Error, Meta, ModelRecord, Query, Result},
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-10";
+pub const CODEC: &str = "native-slice-kv-11";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -193,7 +193,6 @@ pub enum Key {
         targets: Vec<Uuid>,
     },
     Meta,
-    Population,
     Record(Uuid),
     Root(Address),
     Node(Address),
@@ -227,7 +226,6 @@ impl Key {
                 return bytes;
             }
             Self::Meta => return vec![0],
-            Self::Population => return vec![13],
             Self::Record(id) => (1, *id, None),
             Self::Root(a) => (2, a.id, Some(a.slot)),
             Self::Node(a) => (3, a.id, Some(a.slot)),
@@ -253,9 +251,6 @@ impl Key {
         let bad = || Error::new("corrupt_state", "invalid point key");
         if bytes == [0] {
             return Ok(Self::Meta);
-        }
-        if bytes == [13] {
-            return Ok(Self::Population);
         }
         let tag = *bytes.first().ok_or_else(bad)?;
         if tag == 14 {
@@ -328,7 +323,6 @@ impl Key {
 pub enum StoredValue<B: Binding> {
     Unique(#[serde(with = "uuid_text")] Uuid),
     Meta(Meta),
-    Population(Population),
     Record(ModelRecord<B>),
     Root(Root<B::Index>),
     Node(Node<B::Index>),
@@ -388,9 +382,6 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                 && targets.len() <= u16::MAX as usize
         }
         (Key::Meta, StoredValue::Meta(meta)) => !meta.codec.is_empty() && !meta.model.is_empty(),
-        (Key::Population, StoredValue::Population(population)) => {
-            population.counts.keys().all(|code| *code > 0)
-        }
         (Key::Record(_), StoredValue::Record(r)) => {
             r.contract > 0
                 && !r.version.is_nil()
@@ -501,4 +492,16 @@ pub fn hex(bytes: &[u8]) -> String {
             ]
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn removed_population_tag_is_unknown() {
+        for bytes in [vec![13], vec![13; 17], vec![13; 19]] {
+            assert_eq!(Key::decode(&bytes).unwrap_err().code, "corrupt_state");
+        }
+    }
 }

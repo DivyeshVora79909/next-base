@@ -5,9 +5,7 @@ use crate::{
     index::NativeIndex,
     model::{Prepared, Visibility},
     native_codec::{Address, Key, StoredValue},
-    native_slice::{
-        Attempt, Command, Context, Error, ModelChange, ModelRecord, Population, Result, Settled,
-    },
+    native_slice::{Attempt, Command, Context, Error, ModelChange, ModelRecord, Result, Settled},
     tree,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -15,47 +13,6 @@ use uuid::Uuid;
 
 /// Bound into prepared identity when reference authorization or routing semantics change.
 pub const REFERENCE_POLICY: &str = "final-graph-reference-policy-v2-engine-incoming";
-
-pub fn check_counts<B: Binding>(model: &Prepared<B>, population: &Population) -> Result<()> {
-    check_counts_with_limits(model, population, &B::limits())
-}
-
-fn check_counts_with_limits<B: Binding>(
-    model: &Prepared<B>,
-    population: &Population,
-    limits: &binding::Limits,
-) -> Result<()> {
-    let mut public = 0u64;
-    let mut private = 0u64;
-    for (&code, &count) in &population.counts {
-        let declaration = model.contract(code)?;
-        if declaration.visibility == Visibility::Engine {
-            private = private
-                .checked_add(count)
-                .ok_or_else(|| Error::new("state_limit", "population overflow"))?
-        } else {
-            public = public
-                .checked_add(count)
-                .ok_or_else(|| Error::new("state_limit", "population overflow"))?
-        }
-        if limits
-            .per_contract
-            .get(&code)
-            .is_some_and(|limit| count > *limit)
-        {
-            return Err(Error::new("state_limit", "contract population"));
-        }
-    }
-    if limits.public_records.is_some_and(|limit| public > limit)
-        || limits.outputs.is_some_and(|limit| private > limit)
-        || limits
-            .reservations
-            .is_some_and(|limit| population.reserved > limit)
-    {
-        return Err(Error::new("state_limit", "bounded model population"));
-    }
-    Ok(())
-}
 
 pub fn validate_references<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
@@ -198,9 +155,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             "one command per UUID; 1..64 commands",
         ));
     }
-    let Some(StoredValue::Population(original_population)) = ws.get(&Key::Population)? else {
-        return Err(Error::new("corrupt_state", "missing population counters"));
-    };
     // A caller may settle several command chunks in one Attempt. Capture the
     // already-staged source facts so late reconciliation starts at this call's
     // entry graph rather than reapplying earlier calls from database originals.
@@ -209,7 +163,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         ws.charge("dependency", 1)?;
         entry_records.insert(id, ws.record(id)?);
     }
-    let mut population = original_population.clone();
     // A token identifies the state produced by this attempt. It is never an
     // ordered store sequence, and cannot repeat after delete/recreate.
     let revision = Uuid::new_v4();
@@ -254,10 +207,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                     }
                 }
                 let input = model.validate(*contract, fields)?;
-                let count = population.counts.entry(*contract).or_default();
-                *count = count
-                    .checked_add(1)
-                    .ok_or_else(|| Error::new("state_limit", "source count"))?;
                 Some(ModelRecord {
                     contract: *contract,
                     tenant: context.tenant,
@@ -300,13 +249,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                     next.input = model.validate(previous.contract, &value)?;
                     Some(next)
                 } else {
-                    let count = population
-                        .counts
-                        .get_mut(&previous.contract)
-                        .ok_or_else(|| Error::new("corrupt_state", "missing source count"))?;
-                    *count = count
-                        .checked_sub(1)
-                        .ok_or_else(|| Error::new("corrupt_state", "source count underflow"))?;
                     None
                 }
             }
@@ -314,7 +256,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         ws.put(Key::Record(id), new.clone().map(StoredValue::Record))?;
         changes.push(ModelChange { id, old, new });
     }
-    check_counts(model, &population)?;
     for change in &changes {
         if let (None, Some(new)) = (&change.old, &change.new) {
             for (key, value) in binding::headers(model, change.id, &new.input, revision)? {
@@ -342,15 +283,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             change.new.as_ref().map(|r| &r.input),
         )?;
     }
-    B::settle_changes(
-        ws,
-        model,
-        context,
-        &changes,
-        &mut population,
-        revision,
-        allocate,
-    )?;
+    B::settle_changes(ws, model, context, &changes, revision, allocate)?;
     // Settlement may edit ordinary records beyond the explicit commands. Explicit
     // IDs remain candidates even if settlement restores their original contents.
     // Managed outputs reconcile each transition inside the causal writer instead.
@@ -407,7 +340,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             current.as_ref().map(|r| &r.input),
         )?;
     }
-    check_counts(model, &population)?;
     for change in &changes {
         if let Some(new) = ws.record(change.id)? {
             validate_references(ws, model, &new.input, context)?;
@@ -471,9 +403,6 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             ws.put(Key::Record(id), Some(StoredValue::Record(current)))?;
         }
     }
-    if population != original_population {
-        ws.put(Key::Population, Some(StoredValue::Population(population)))?;
-    }
     Ok(Settled { revision })
 }
 
@@ -491,69 +420,6 @@ mod tests {
     type Image = BTreeMap<Vec<u8>, Vec<u8>>;
     type Applied = (Uuid, Batch, BTreeSet<Vec<u8>>);
 
-    #[test]
-    fn population_codec_and_checks_support_wide_counts_and_reject_sum_overflow() {
-        let model = Prepared::<Quantity>::load().unwrap();
-        let population = Population {
-            counts: BTreeMap::from([(SOURCE, 65536)]),
-            reserved: 65536,
-        };
-        check_counts(&model, &population).unwrap();
-        let key = Key::Population;
-        let bytes = native_codec::encode_for::<Quantity>(
-            &key,
-            &StoredValue::Population(population.clone()),
-        )
-        .unwrap();
-        match native_codec::decode_for::<Quantity>(&key, &bytes).unwrap() {
-            StoredValue::Population(decoded) => assert_eq!(decoded, population),
-            _ => panic!("expected population"),
-        }
-        let overflow = Population {
-            counts: BTreeMap::from([(SOURCE, u64::MAX), (205, 1)]),
-            reserved: 0,
-        };
-        assert_eq!(
-            check_counts(&model, &overflow).unwrap_err().code,
-            "state_limit"
-        );
-    }
-
-    #[test]
-    fn configured_population_caps_accept_boundaries_and_reject_excess() {
-        use crate::{binding::Limits, models::equipment::Equipment};
-        let model = Prepared::<Equipment>::load().unwrap();
-        let limits = Limits {
-            public_records: Some(4),
-            outputs: Some(3),
-            reservations: Some(5),
-            per_contract: BTreeMap::from([(101, 2)]),
-        };
-        let population = Population {
-            counts: BTreeMap::from([(101, 2), (205, 2), (900, 3)]),
-            reserved: 5,
-        };
-        check_counts_with_limits(&model, &population, &limits).unwrap();
-        for (code, count) in [(101, 3), (205, 3), (900, 4)] {
-            let mut excess = population.clone();
-            excess.counts.insert(code, count);
-            assert_eq!(
-                check_counts_with_limits(&model, &excess, &limits)
-                    .unwrap_err()
-                    .code,
-                "state_limit"
-            );
-        }
-        let mut excess = population;
-        excess.reserved = 6;
-        assert_eq!(
-            check_counts_with_limits(&model, &excess, &limits)
-                .unwrap_err()
-                .code,
-            "state_limit"
-        );
-    }
-
     // This native control checks state and read/write sets. The storage
     // conformance schedules independently establish real commit conflicts.
     #[test]
@@ -563,32 +429,19 @@ mod tests {
             tenant: Uuid::from_u128(1),
             actor: Uuid::from_u128(2),
         };
-        let mut rows = BTreeMap::from([
-            (
-                Key::Meta.encode(),
-                native_codec::encode_for::<Quantity>(
-                    &Key::Meta,
-                    &StoredValue::Meta(Meta {
-                        model: model.identity().into(),
-                        codec: native_codec::CODEC.into(),
-                        tenant: context.tenant,
-                        actor: context.actor,
-                    }),
-                )
-                .unwrap(),
-            ),
-            (
-                Key::Population.encode(),
-                native_codec::encode_for::<Quantity>(
-                    &Key::Population,
-                    &StoredValue::Population(Population {
-                        counts: model.contracts().map(|c| (c.code, 0)).collect(),
-                        reserved: 0,
-                    }),
-                )
-                .unwrap(),
-            ),
-        ]);
+        let mut rows = BTreeMap::from([(
+            Key::Meta.encode(),
+            native_codec::encode_for::<Quantity>(
+                &Key::Meta,
+                &StoredValue::Meta(Meta {
+                    model: model.identity().into(),
+                    codec: native_codec::CODEC.into(),
+                    tenant: context.tenant,
+                    actor: context.actor,
+                }),
+            )
+            .unwrap(),
+        )]);
         let run = |rows: &mut Image, command: Command| -> Result<Applied> {
             let mut reads = BTreeSet::new();
             let mut ws = Attempt::<_, Quantity>::new(
@@ -636,7 +489,6 @@ mod tests {
         };
         let (created, batch, _) = run(&mut rows, create()).unwrap();
         assert!(!created.is_nil());
-        assert!(batch.contains_key(&Key::Population.encode()));
         assert!(!batch.contains_key(&Key::Meta.encode()));
 
         let before = rows.clone();
@@ -649,7 +501,6 @@ mod tests {
         let (changed, batch, _) = run(&mut rows, update(created, "2")).unwrap();
         assert_ne!(changed, created);
         assert!(!batch.contains_key(&Key::Meta.encode()));
-        assert!(!batch.contains_key(&Key::Population.encode()));
         let StoredValue::Record(record) = native_codec::decode_for::<Quantity>(
             &Key::Record(id),
             &rows[&Key::Record(id).encode()],

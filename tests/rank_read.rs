@@ -288,7 +288,6 @@ impl rebase_semantic_proof::binding::Binding for Counts {
         _: &rebase_semantic_proof::model::Prepared<Self>,
         _: rebase_semantic_proof::native_slice::Context,
         _: &[rebase_semantic_proof::native_slice::ModelChange<Self>],
-        _: &mut rebase_semantic_proof::native_slice::Population,
         _: Uuid,
         _: &mut dyn FnMut() -> rebase_semantic_proof::native_slice::Result<Uuid>,
     ) -> rebase_semantic_proof::native_slice::Result<()> {

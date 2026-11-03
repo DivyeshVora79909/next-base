@@ -4,9 +4,7 @@ use crate::{
     binding::{Binding, NativeInput},
     local::Store,
     model::{Contract, Prepared},
-    native_slice::{
-        Attempt, Calculated, Context, Derived, Input, Model, ModelChange, Population, Result,
-    },
+    native_slice::{Attempt, Calculated, Context, Derived, Input, Model, ModelChange, Result},
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -76,12 +74,11 @@ impl Binding for Calculation {
         model: &Prepared<Self>,
         context: Context,
         changes: &[ModelChange<Self>],
-        population: &mut Population,
         revision: Uuid,
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
         crate::native_slice::settle_calculation_changes(
-            ws, model, context, changes, population, revision, allocate,
+            ws, model, context, changes, revision, allocate,
         )
     }
     fn check(store: &Store<Self>) -> Result<Value> {

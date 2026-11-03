@@ -4,9 +4,9 @@ use crate::{
     index::{IndexCode, NativeIndex},
     indexes::standard::FINANCIAL,
     model::{Contract, Prepared, PublicationSlot, Visibility},
-    mutation::{check_counts, reconcile_member},
+    mutation::reconcile_member,
     native_codec::{Address, Key, Role, StoredValue},
-    native_slice::{Attempt, Context, Error, ModelChange, ModelRecord, Population, Query, Result},
+    native_slice::{Attempt, Context, Error, ModelChange, ModelRecord, Query, Result},
     routes::{self, Endpoint, Route},
     time_range::{TimeBound, TimeRange},
     tree,
@@ -356,7 +356,6 @@ fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     id: Uuid,
     old: Option<&ModelRecord<B>>,
     new: Option<ModelRecord<B>>,
-    population: &mut Population,
     revision: Uuid,
 ) -> Result<()> {
     if old.is_none() && new.is_none() {
@@ -370,10 +369,6 @@ fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             }
             ws.put(k, Some(v))?;
         }
-        let n = population.counts.entry(r.contract).or_default();
-        *n = n
-            .checked_add(1)
-            .ok_or_else(|| Error::new("state_limit", "output count"))?;
     }
     crate::mutation::reconcile_incoming(
         ws,
@@ -389,12 +384,7 @@ fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             ));
         }
         ws.put(Key::Incoming(id), None)?;
-        let n = population.counts.entry(old.unwrap().contract).or_default();
-        *n = n
-            .checked_sub(1)
-            .ok_or_else(|| Error::new("corrupt_state", "output count"))?;
     }
-    check_counts(model, population)?;
     ws.put(Key::Record(id), new.map(StoredValue::Record))
 }
 fn read_query<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
@@ -453,7 +443,6 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
     model: &Prepared<B>,
     context: Context,
     changes: &[ModelChange<B>],
-    population: &mut Population,
     revision: Uuid,
     allocate: &mut dyn FnMut() -> Result<Uuid>,
 ) -> Result<()> {
@@ -644,11 +633,6 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             let id = chosen.ok_or_else(|| {
                 Error::new("allocation_collision", "output allocation retry limit")
             })?;
-            population.reserved = population
-                .reserved
-                .checked_add(1)
-                .ok_or_else(|| Error::new("state_limit", "reservation count"))?;
-            check_counts(model, population)?;
             let a = Address::new(*producer, e.role);
             ws.put(
                 Key::Role(a),
@@ -674,7 +658,7 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             )?;
             ws.work.detached_outputs += 1;
             if !p.shape.emits.iter().any(|e| e.role == *role) {
-                write_output(ws, model, *id, Some(old), None, population, revision)?;
+                write_output(ws, model, *id, Some(old), None, revision)?;
             }
         }
         let mut slots = BTreeSet::new();
@@ -818,7 +802,6 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                 output,
                 p.old_outputs.get(&e.role).map(|(_, r)| r),
                 Some(new.clone()),
-                population,
                 revision,
             )?;
             reconcile_member(
@@ -1039,25 +1022,10 @@ mod tests {
             tenant: Uuid::from_u128(1),
             actor: Uuid::from_u128(2),
         };
-        let population = Population {
-            counts: model.contracts().map(|c| (c.code, 0)).collect(),
-            reserved: 0,
-        };
-        let mut bytes = BTreeMap::from([
-            (
-                Key::Meta.encode(),
-                native_codec::encode_for::<Equipment>(&Key::Meta, &StoredValue::Meta(meta))
-                    .unwrap(),
-            ),
-            (
-                Key::Population.encode(),
-                native_codec::encode_for::<Equipment>(
-                    &Key::Population,
-                    &StoredValue::Population(population),
-                )
-                .unwrap(),
-            ),
-        ]);
+        let mut bytes = BTreeMap::from([(
+            Key::Meta.encode(),
+            native_codec::encode_for::<Equipment>(&Key::Meta, &StoredValue::Meta(meta)).unwrap(),
+        )]);
         let mut sources = BTreeMap::new();
         for (id, pool) in [(100, 100), (101, 101)] {
             sources.insert(Uuid::from_u128(id), EquipmentInput::Pool { unit: 1 });

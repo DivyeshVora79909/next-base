@@ -118,25 +118,19 @@ Reuse [`src/mutation.rs`](../src/mutation.rs), [`src/dependency.rs`](../src/depe
 
 ## C3 — Explicit global and domain indexes
 
-C3.0 records the current real-adapter contention baseline in the existing suite:
-[evidence](checkpoints/c3-contention-baseline.json). It does not implement untracked
-accounting. C3.1's source-audited [implementation handoff](c3-accounting-handoff.md)
-is the next prerequisite, before access/order streams or generalized cuts.
+C3.0 preserves the historical pre-change real-adapter [contention baseline](checkpoints/c3-contention-baseline.json).
+C3.1 removes the stored capacity counter and `Binding::Limits` entirely, with no
+tracked/untracked mode. Codec is `native-slice-kv-11`; source-derived `Population`
+statistics remain read-only at open/checking, never stored or scanned by normal mutations.
+Business invariants, work/byte budgets, reservation identities, receipts and required
+reader/contract epochs remain. [C3.1 is accepted](checkpoints/c3-counter-removal.json)
+on FoundationDB 7.3.77, one local process/host: both original separate-scope creates
+and deletes commit without automatic retries; same-reader epoch and shared-business-root
+conflict controls remain. See [results and continuation](c3-accounting-handoff.md).
+Next C3 work is scoped access/order streams and general non-time reactive cuts.
+Measure remaining epoch and AVL-root coordination independently; do not remove required
+guards to manufacture success or infer unrestricted capacity from counter removal.
 
-First measure current Population-key, reader/contract-epoch and AVL-root contention separately.
-Existing independent-tree writes are not automatically independent transactions. Refine only
-operational coordination that can be split without weakening exact business invariants.
-Preserve query-change detection and authority fences when evaluating epoch alternatives.
-Population is a capacity cache, not the output identity allocator. For bindings with
-no configured ceilings, evaluate an explicit immutable untracked accounting mode;
-retain the exact protected-counter path when any ceiling is configured. A skipped
-write leaving stale totals or fake zero counts is invalid. Update accounting helpers,
-codec identity, source-derived reopen/integrity totals, backup/reset and checkers
-together. Preserve original/current Record/Reserved/Role collision guards and receipt
-recovery. Prove otherwise-disjoint output-producing creates/deletes can both commit
-on real FoundationDB in different reader partitions, and a bounded cap-1 race still
-rejects one contender. Reader/contract epochs remain separate coordination under
-the current strong cursor-change contract. Do not remove them to manufacture success.
 Implement resource/tenant/reader-or-owner/declared-order access definitions with explicit
 per-resource opt-in, stable ties, root scope and created metadata. Prefer scoped streams and
 authorized k-way merge; tenant-only ordered indexes are optional for measured workloads.

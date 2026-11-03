@@ -9,8 +9,8 @@ The complete [N3 example](../tools/node/examples/n3-population.mjs) shows one
 composition. N6 bootstrap and release acceptance are accepted within their
 documented bounds; this does not claim unrestricted production capacity.
 
-Population state uses u64 counters. Current compiled models configure no fixed
-population ceiling; mutation work, query and receipt limits still apply. Full
+Inventory statistics are source-derived and read-only; no persisted capacity counter
+or binding population-cap API remains. Mutation work, query and receipt limits still apply. Full
 inventory and check operations have a 262,144-row observation budget; this is
 not a population admission ceiling. Preparation validates the public
 contract schemas, builds reproducible generators from a seed and keeps explicit
