@@ -11,7 +11,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-15";
+pub const CODEC: &str = "native-slice-kv-16";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -207,6 +207,8 @@ pub enum Key {
     AccessRoot(Address),
     AccessNode(Address),
     CredentialSecret(Uuid, u64),
+    IdentityClaim(crate::authentication::types::Kind, String),
+    AuthenticationRevision(Uuid),
     Query(Address),
     Incoming(Uuid),
     Direct(Uuid),
@@ -236,6 +238,12 @@ impl Key {
                 }
                 return bytes;
             }
+            Self::IdentityClaim(kind, value) => {
+                let mut bytes = vec![18, kind.tag()];
+                bytes.extend_from_slice(value.as_bytes());
+                return bytes;
+            }
+            Self::AuthenticationRevision(id) => (19, *id, None),
             Self::Meta => return vec![0],
             Self::Record(id) => (1, *id, None),
             Self::Root(a) => (2, a.id, Some(a.slot)),
@@ -272,6 +280,20 @@ impl Key {
             return Ok(Self::Meta);
         }
         let tag = *bytes.first().ok_or_else(bad)?;
+        if tag == 18 {
+            if bytes.len() < 3 {
+                return Err(bad());
+            }
+            let kind = crate::authentication::types::Kind::from_tag(bytes[1]).map_err(|_| bad())?;
+            let value = String::from_utf8(bytes[2..].to_vec()).map_err(|_| bad())?;
+            crate::authentication::types::Input {
+                kind,
+                value: value.clone(),
+            }
+            .validate()
+            .map_err(|_| bad())?;
+            return Ok(Self::IdentityClaim(kind, value));
+        }
         if tag == 14 {
             if bytes.len() < 7 {
                 return Err(bad());
@@ -293,7 +315,7 @@ impl Key {
             });
         }
         let length = match tag {
-            1 | 5 | 6 | 9 => 17,
+            1 | 5 | 6 | 9 | 19 => 17,
             17 => 25,
             2..=4 | 7 | 8 | 10..=12 | 15 | 16 => 19,
             _ => return Err(bad()),
@@ -312,6 +334,7 @@ impl Key {
         }
         let a = Address::new(id, slot);
         Ok(match tag {
+            19 => Self::AuthenticationRevision(id),
             1 => Self::Record(id),
             2 => Self::Root(a),
             3 => Self::Node(a),
@@ -358,6 +381,8 @@ pub enum StoredValue<B: Binding> {
     AccessRoot(Root<AccessOrder>),
     AccessNode(Node<AccessOrder>),
     CredentialSecret(crate::credentials::crypto::SecretEnvelope),
+    IdentityClaim(crate::authentication::types::Claim),
+    AuthenticationRevision(crate::authentication::types::AuthenticationRevision),
     Query(Query<B::Index>),
     Incoming(crate::routes::Header),
     Direct(crate::routes::Header),
@@ -460,6 +485,19 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                 && *constraint > 0
                 && !targets.is_empty()
                 && targets.len() <= u16::MAX as usize
+        }
+        (Key::IdentityClaim(kind, value), StoredValue::IdentityClaim(claim)) => {
+            B::identity_enabled()
+                && crate::authentication::types::Input {
+                    kind: *kind,
+                    value: value.clone(),
+                }
+                .validate()
+                .is_ok()
+                && claim.validate().is_ok()
+        }
+        (Key::AuthenticationRevision(owner), StoredValue::AuthenticationRevision(revision)) => {
+            B::identity_enabled() && !owner.is_nil() && revision.validate().is_ok()
         }
         (Key::Meta, StoredValue::Meta(meta)) => !meta.codec.is_empty() && !meta.model.is_empty(),
         (Key::Record(_), StoredValue::Record(r)) => {

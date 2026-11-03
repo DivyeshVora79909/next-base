@@ -6,6 +6,7 @@ use super::{
 };
 use crate::{
     access::{Action, Grants, Graph, Principal, PrincipalKind},
+    binding::Binding,
     credentials::{
         crypto::{
             Crypto, INGRESS_FORMAT, INGRESS_INFO, IngressContext, IngressEnvelope, Metadata,
@@ -134,9 +135,10 @@ fn envelope(
 ) -> Result<crate::credentials::crypto::SecretEnvelope> {
     let read = store.db.begin_read()?;
     let table = read.open_table(local::KV)?;
-    let revision = record(store, id)?
-        .derived
-        .and_then(|state| state.secret_revision)
+    let source = record(store, id)?;
+    let revision = Services::credential_values(&source)?
+        .1
+        .secret_revision
         .ok_or_else(|| fail("missing secret revision"))?;
     let bytes = table
         .get(Key::CredentialSecret(id, revision).encode())?
@@ -243,10 +245,7 @@ fn value(
     incarnation: Uuid,
 ) -> Result<()> {
     let record = record(store, id)?;
-    let state = record
-        .derived
-        .as_ref()
-        .ok_or_else(|| fail("missing credential derived"))?;
+    let state = Services::credential_values(&record)?.1;
     require(
         state.secret_revision == Some(revision)
             && state.use_epoch == 0
@@ -433,11 +432,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
                 id(100),
                 b"public-conformance-beta",
                 2,
-                original_left
-                    .derived
-                    .as_ref()
-                    .ok_or_else(|| fail("source state"))?
-                    .incarnation,
+                Services::credential_values(&original_left)?.1.incarnation,
             )?;
         }
         value(
@@ -446,11 +441,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             target,
             b"public-conformance-gamma",
             2,
-            original_right
-                .derived
-                .as_ref()
-                .ok_or_else(|| fail("source state"))?
-                .incarnation,
+            Services::credential_values(&original_right)?.1.incarnation,
         )?;
         store.check_integrity()?;
         let accepted = store.observe_for_verification()?;
@@ -569,11 +560,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             id(100),
             b"public-conformance-alpha",
             1,
-            original
-                .derived
-                .as_ref()
-                .ok_or_else(|| fail("source state"))?
-                .incarnation,
+            Services::credential_values(&original)?.1.incarnation,
         )?;
         let traces = capture(&captures)?.traces.clone();
         require(

@@ -563,7 +563,11 @@ pub(crate) fn load_pinned_secret<B: Binding>(
 mod tests {
     use super::*;
     use crate::credentials::crypto::Metadata;
-    use crate::{access::Grants, models::services::Derived, native_slice::Context};
+    use crate::{
+        access::Grants,
+        models::services::{Derived, System},
+        native_slice::Context,
+    };
     fn scope() -> Scope {
         let mut scope = Scope::local(Context {
             tenant: Uuid::from_u128(1),
@@ -589,12 +593,12 @@ mod tests {
                 enabled: true,
                 scopes: vec!["email.send".into()],
             }),
-            derived: Some(Derived {
+            derived: Some(System::Credential(Derived {
                 incarnation: Uuid::from_u128(3),
                 has_secret: true,
                 secret_revision: Some(1),
                 use_epoch: 0,
-            }),
+            })),
         }
     }
     fn platform() -> PlatformBinding {
@@ -657,7 +661,11 @@ mod tests {
             },
         };
         assert!(validate_pinned_record(&scope, &row, &binding, true).is_ok());
-        row.derived.as_mut().unwrap().secret_revision = Some(2);
+        row.derived
+            .as_mut()
+            .unwrap()
+            .credential_mut()
+            .secret_revision = Some(2);
         assert!(validate_pinned_record(&scope, &row, &binding, false).is_ok());
         assert!(validate_pinned_record(&scope, &row, &binding, true).is_err());
         for mutation in 0..7 {
@@ -665,8 +673,15 @@ mod tests {
             match mutation {
                 0 => changed.input.credential_mut().enabled = false,
                 1 => changed.input.credential_mut().scopes.clear(),
-                2 => changed.derived.as_mut().unwrap().use_epoch += 1,
-                3 => changed.derived.as_mut().unwrap().incarnation = Uuid::from_u128(99),
+                2 => changed.derived.as_mut().unwrap().credential_mut().use_epoch += 1,
+                3 => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .incarnation = Uuid::from_u128(99)
+                }
                 4 => changed.input.credential_mut().account = "other".into(),
                 5 => changed.input.credential_mut().provider = Provider::Brevo,
                 _ => changed.owner = Uuid::from_u128(88),
@@ -732,8 +747,22 @@ mod tests {
             match state {
                 0 => changed.input.credential_mut().enabled = false,
                 1 => changed.input.credential_mut().scopes.clear(),
-                2 => changed.derived.as_mut().unwrap().has_secret = false,
-                _ => changed.derived.as_mut().unwrap().secret_revision = None,
+                2 => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .has_secret = false
+                }
+                _ => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .secret_revision = None
+                }
             };
             assert!(check_current(&scope, &changed, None).is_err());
         }
@@ -1083,7 +1112,10 @@ mod tests {
             ttl_seconds: 60,
         };
         let first_record = f::record(&caller, f::id(100));
-        let first_incarnation = first_record.derived.as_ref().unwrap().incarnation;
+        let first_incarnation = Services::credential_values(&first_record)
+            .unwrap()
+            .1
+            .incarnation;
         let old = caller.authorize_email_at(&runtime, &request, now).unwrap();
         let mut deletion = f::edit(&caller, f::id(100), None, json!({}));
         deletion.commands = vec![Command::Delete {
@@ -1106,7 +1138,7 @@ mod tests {
             )
             .unwrap();
         let recreated = f::record(&caller, f::id(100));
-        let state = recreated.derived.as_ref().unwrap();
+        let state = Services::credential_values(&recreated).unwrap().1;
         assert_eq!(state.secret_revision, Some(1));
         assert_eq!(state.use_epoch, 0);
         assert_ne!(state.incarnation, first_incarnation);

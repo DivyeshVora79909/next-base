@@ -20,7 +20,7 @@ use crate::{
 
 pub(crate) const AUTHORITY: TableDefinition<&[u8], &[u8]> = TableDefinition::new("authority");
 pub(crate) const OWNERS: TableDefinition<&[u8], u16> = TableDefinition::new("owner_records");
-const GRAPH: &[u8] = b"graph";
+pub(crate) const GRAPH: &[u8] = b"graph";
 pub(crate) const REVISION: &[u8] = b"revision";
 
 /// Administration-only CAS counter; domain mutations never rewrite it.
@@ -118,6 +118,16 @@ fn load_scope(
     decode(bytes.value())
 }
 
+pub(crate) fn read_graph(read: &crate::storage::ReadTransaction) -> Result<PreparedGraph> {
+    let table = read.open_table(AUTHORITY)?;
+    let bytes = table
+        .get(GRAPH)?
+        .ok_or_else(|| corrupt("missing principal graph"))?;
+    let graph: Graph = decode(bytes.value())?;
+    graph
+        .prepare()
+        .map_err(|_| corrupt("invalid principal graph"))
+}
 pub(crate) fn write_graph(write: &WriteTransaction) -> Result<PreparedGraph> {
     let table = write.open_table(AUTHORITY).map_err(storage)?;
     let bytes = table
@@ -216,6 +226,7 @@ impl<B: Binding> Store<B> {
             bootstrap_actor: self.bootstrap_actor,
             secured: true,
             credential_epoch: Some(credential_epoch),
+            issued_at: None,
             expected_store: self.expected_store,
             credentials: self.credentials.clone(),
         })

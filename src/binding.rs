@@ -85,6 +85,23 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
             "model has no credential operations",
         ))
     }
+    fn identity_enabled() -> bool {
+        false
+    }
+    fn identity_input(_input: &Self::Input) -> Option<&crate::authentication::types::Input> {
+        None
+    }
+    fn identity_values(
+        _record: &crate::native_slice::ModelRecord<Self>,
+    ) -> Result<(
+        &crate::authentication::types::Input,
+        &crate::authentication::types::State,
+    )> {
+        Err(crate::native_slice::Error::new(
+            "invalid_input",
+            "identity source required",
+        ))
+    }
     fn email_input(_input: &Self::Input) -> Option<&crate::email::SendInput> {
         None
     }

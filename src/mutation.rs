@@ -410,13 +410,23 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
     }
     for id in ws.changed_records() {
         if let Some(mut current) = ws.record(id)? {
+            // A later settlement may leave an earlier chunk's result unchanged.
+            // Preserve that entry token, while a full return to the database
+            // original still eliminates the source write.
+            let entry_version = entry_records.get(&id).and_then(|entry| {
+                entry.as_ref().and_then(|entry| {
+                    let mut comparable = current.clone();
+                    comparable.version = entry.version;
+                    (comparable == *entry).then_some(entry.version)
+                })
+            });
             if let Some(StoredValue::Record(old)) = ws.original(&Key::Record(id))? {
                 current.version = old.version;
                 if current != old {
-                    current.version = revision;
+                    current.version = entry_version.unwrap_or(revision);
                 }
             } else {
-                current.version = revision;
+                current.version = entry_version.unwrap_or(revision);
             }
             ws.put(Key::Record(id), Some(StoredValue::Record(current)))?;
         }
@@ -437,6 +447,191 @@ mod tests {
     use std::collections::BTreeMap;
     type Image = BTreeMap<Vec<u8>, Vec<u8>>;
     type Applied = (Uuid, Batch, BTreeSet<Vec<u8>>);
+
+    fn quantity_chunk<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+        ws: &mut Attempt<L, Quantity>,
+        model: &Prepared<Quantity>,
+        context: Context,
+        commands: &[Command],
+    ) -> Settled {
+        settle_authorized(
+            ws,
+            model,
+            context,
+            commands,
+            &mut || Err(Error::new("unexpected_allocation", "source has no outputs")),
+            false,
+            &mut |_, _, _, _| Ok(()),
+            &mut |_, _| Ok(()),
+        )
+        .unwrap()
+    }
+    fn quantity_create(id: u128, value: &str) -> Command {
+        Command::Create {
+            owner: None,
+            id: Uuid::from_u128(id),
+            contract: SOURCE,
+            fields: json!({"value":value}),
+        }
+    }
+    fn quantity_update(id: u128, if_version: Uuid, value: &str) -> Command {
+        Command::Update {
+            owner: None,
+            id: Uuid::from_u128(id),
+            if_version,
+            set: BTreeMap::from([("value".into(), json!(value))]),
+            unset: vec![],
+        }
+    }
+    fn quantity_image(populated: bool) -> (Prepared<Quantity>, Context, Image) {
+        let model = Prepared::<Quantity>::load().unwrap();
+        let context = Context {
+            tenant: Uuid::from_u128(1),
+            actor: Uuid::from_u128(2),
+        };
+        let mut rows = BTreeMap::from([(
+            Key::Meta.encode(),
+            native_codec::encode_for::<Quantity>(
+                &Key::Meta,
+                &StoredValue::Meta(Meta {
+                    model: model.identity().into(),
+                    codec: native_codec::CODEC.into(),
+                    tenant: context.tenant,
+                    actor: context.actor,
+                }),
+            )
+            .unwrap(),
+        )]);
+        if populated {
+            let mut ws =
+                Attempt::<_, Quantity>::new(|key: &[u8]| Ok(rows.get(key).cloned()), 200_000);
+            quantity_chunk(
+                &mut ws,
+                &model,
+                context,
+                &[quantity_create(3, "1"), quantity_create(4, "10")],
+            );
+            let batch = ws.finish().unwrap();
+            drop(ws);
+            for (key, value) in batch {
+                if let Some(value) = value {
+                    rows.insert(key, value);
+                } else {
+                    rows.remove(&key);
+                }
+            }
+        }
+        (model, context, rows)
+    }
+
+    #[test]
+    fn repeated_chunks_preserve_source_tokens_across_noops_and_unrelated_edits() {
+        for preexisting in [false, true] {
+            let (model, context, rows) = quantity_image(preexisting);
+            let mut ws =
+                Attempt::<_, Quantity>::new(|key: &[u8]| Ok(rows.get(key).cloned()), 200_000);
+            if !preexisting {
+                quantity_chunk(
+                    &mut ws,
+                    &model,
+                    context,
+                    &[quantity_create(3, "1"), quantity_create(4, "10")],
+                );
+            }
+            let original = ws.record(Uuid::from_u128(3)).unwrap().unwrap();
+            quantity_chunk(
+                &mut ws,
+                &model,
+                context,
+                &[quantity_update(3, original.version, "2")],
+            );
+            let first = ws.record(Uuid::from_u128(3)).unwrap().unwrap();
+            assert_ne!(first.version, original.version);
+            assert_eq!(first.derived.unwrap().quantity, 2);
+            let second_version = ws.record(Uuid::from_u128(4)).unwrap().unwrap().version;
+            quantity_chunk(
+                &mut ws,
+                &model,
+                context,
+                &[quantity_update(4, second_version, "20")],
+            );
+            let unrelated = ws.record(Uuid::from_u128(4)).unwrap().unwrap();
+            assert_eq!(ws.record(Uuid::from_u128(3)).unwrap(), Some(first.clone()));
+            let noop = quantity_chunk(
+                &mut ws,
+                &model,
+                context,
+                &[quantity_update(3, first.version, "2")],
+            );
+            assert_ne!(noop.revision, first.version);
+            assert_eq!(ws.record(Uuid::from_u128(3)).unwrap(), Some(first.clone()));
+            assert_eq!(
+                ws.record(Uuid::from_u128(4)).unwrap(),
+                Some(unrelated.clone())
+            );
+            // The saved token from the first actual edit remains a usable CAS
+            // token after both intervening calls.
+            quantity_chunk(
+                &mut ws,
+                &model,
+                context,
+                &[quantity_update(3, first.version, "3")],
+            );
+            assert_eq!(
+                ws.record(Uuid::from_u128(3))
+                    .unwrap()
+                    .unwrap()
+                    .derived
+                    .unwrap()
+                    .quantity,
+                3
+            );
+            assert_eq!(ws.record(Uuid::from_u128(4)).unwrap(), Some(unrelated));
+        }
+    }
+
+    #[test]
+    fn full_source_revert_restores_original_token_and_prunes_write_without_pruning_read_guard() {
+        let (model, context, rows) = quantity_image(true);
+        let mut reads = BTreeSet::new();
+        let mut ws = Attempt::<_, Quantity>::new(
+            |key: &[u8]| {
+                reads.insert(key.to_vec());
+                Ok(rows.get(key).cloned())
+            },
+            200_000,
+        );
+        let original = ws.record(Uuid::from_u128(3)).unwrap().unwrap();
+        quantity_chunk(
+            &mut ws,
+            &model,
+            context,
+            &[quantity_update(3, original.version, "2")],
+        );
+        let edited = ws.record(Uuid::from_u128(3)).unwrap().unwrap();
+        let second_version = ws.record(Uuid::from_u128(4)).unwrap().unwrap().version;
+        quantity_chunk(
+            &mut ws,
+            &model,
+            context,
+            &[quantity_update(4, second_version, "20")],
+        );
+        let unrelated = ws.record(Uuid::from_u128(4)).unwrap().unwrap();
+        quantity_chunk(
+            &mut ws,
+            &model,
+            context,
+            &[quantity_update(3, edited.version, "1")],
+        );
+        assert_eq!(ws.record(Uuid::from_u128(3)).unwrap(), Some(original));
+        assert_eq!(ws.record(Uuid::from_u128(4)).unwrap(), Some(unrelated));
+        let batch = ws.finish().unwrap();
+        drop(ws);
+        assert!(!batch.contains_key(&Key::Record(Uuid::from_u128(3)).encode()));
+        assert!(batch.contains_key(&Key::Record(Uuid::from_u128(4)).encode()));
+        assert!(reads.contains(&Key::Record(Uuid::from_u128(3)).encode()));
+        assert!(reads.contains(&Key::Record(Uuid::from_u128(4)).encode()));
+    }
 
     // This native control checks state and read/write sets. The storage
     // conformance schedules independently establish real commit conflicts.

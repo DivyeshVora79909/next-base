@@ -67,6 +67,25 @@ test('email plans normalize before catalog validation, detach intent and submit 
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test('mixed email enqueue admits normalized Identity creates only through its declared capability', async () => {
+  const client = connect({ endpoint, credential: 'test-token' });
+  const mixed = draft();
+  mixed.commands.push({ op: 'create', id: id(21), contract: 1003, fields: { kind: 'email', value: ' ALICE@EXAMPLE.COM ' } });
+  await assert.rejects(client.prepareEmail(mixed), error => error.code === 'invalid_plan');
+  catalog.capabilities = { identities: { contract: 1003 } };
+  catalog.contracts.push({ code: 1003, name: 'Identity', visibility: 'public', schema: { $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object',
+    required: ['kind', 'value'], additionalProperties: false, properties: { kind: { const: 'email' }, value: { const: 'alice@example.com' } } } });
+  try {
+    const plan = await client.prepareEmail(mixed);
+    assert.deepEqual(plan.request.commands[1].fields, { kind: 'email', value: 'alice@example.com' });
+    assert.equal(mixed.commands[1].fields.value, ' ALICE@EXAMPLE.COM ');
+    await client.enqueueEmail(plan, [{ source: id(20), grant: 'opaque_grant' }]);
+  } finally {
+    delete catalog.capabilities;
+    catalog.contracts.pop();
+  }
+});
+
 test('prepared catalog remains authoritative and malformed email plans never save bearer fields', async () => {
   const client = connect({ endpoint, credential: 'test-token' });
   const longer = draft(); longer.commands[0].fields.email.subject = 'longer-than-catalog';

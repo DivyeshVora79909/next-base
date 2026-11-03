@@ -172,6 +172,8 @@ pub(crate) fn failure(id: Value, kind: &str) -> Value {
         ),
         "method_not_found" => (-32601, "Method not found"),
         "invalid_input" => (-32602, "Invalid operation input"),
+        "invalid_identity" => (-32602, "Invalid email or phone identity"),
+        "identity_duplicate" => (-32000, "Identity is already claimed"),
         "outcome_unknown" => (
             -32001,
             "Commit outcome unknown; retain the operation ID and reconcile after reopening",

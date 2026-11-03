@@ -1,10 +1,23 @@
 # A0 protected email and phone identities
 
-Status: concrete implementation contract, **planned and unaccepted**. This document
-does not claim that identity CRUD, delivered-code proof or login sessions exist.
-Implement A0 after [E2/R0](e2-email.md), followed by A1 proof and A2 sessions from
+Status: protected identity CRUD is **implemented and accepted** within the bounded
+native/Node scope below. Delivered-code proof and login sessions remain unimplemented.
+A0 follows [E2/R0](e2-email.md), followed by A1 proof and A2 sessions from
 [email/phone authentication](email-phone-authentication.md). Preserve the current
 owner-only policy and ordinary both-owner transfers for other resources.
+
+Acceptance on 2026-11-03: 400 Rust all-target tests and 224 Node tests passed, with
+no failures, ignored or skipped tests. Default and FoundationDB all-target Clippy
+with warnings denied and formatting passed. Eleven A0 cases passed on actual local
+FoundationDB 7.3.77 and sequential redb controls, including original duplicate/absence
+and authority races, disjoint-owner claims, ten native write rollback positions,
+post-receipt/final aborts, lost acknowledgement recovery and reopen. Native and Node
+source-derived checks, signed HTTP recency, swaps, overflow, corrupt history,
+private projections, indexes/cursors and repeated Attempt settlements are covered.
+See [A0 evidence](checkpoints/a0-identities.json). Codec16 introduces native keys18/19
+and the Services derived-state union. Recreate earlier stores explicitly. This does
+not accept A1 proof, A2 factor-removal session revocation, live email/SMS or multi-host
+capacity. The next contract is [private proof and sessions](a1-proof-sessions.md).
 
 ## Source and protected state
 

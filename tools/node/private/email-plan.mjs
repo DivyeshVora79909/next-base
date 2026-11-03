@@ -1,25 +1,16 @@
 import { isObject, rpcError } from './client-wire.mjs';
 import { validateCredentialMetadata } from '../credentials.mjs';
+import { normalizeEmailAddress } from './email-address.mjs';
+import { normalizeIdentityFields } from './identity-fields.mjs';
+
+export { normalizeEmailAddress } from './email-address.mjs';
 
 export const EMAIL_CONTRACT = 1002;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const metadataFields = new Set(['label', 'provider', 'account', 'enabled', 'scopes']);
+const metadataFields = new Set(['label', 'provider', 'account', 'enabled', 'scopes', 'kind', 'value']);
 const invalid = () => rpcError('invalid_plan', 'Invalid typed email enqueue intent');
 const keys = (value, expected) => isObject(value) && Object.keys(value).length === expected.length
   && expected.every(key => Object.hasOwn(value, key));
-
-function address(input) {
-  if (typeof input !== 'string' || /[^\x20-\x7e]/u.test(input)) throw invalid();
-  const value = input.replace(/^ +| +$/gu, '');
-  if (!value || value.length > 254) throw invalid();
-  const parts = value.split('@');
-  const [local, domain] = parts;
-  if (parts.length !== 2 || !local || local.length > 64 || local.startsWith('.') || local.endsWith('.')
-    || local.includes('..') || !/^[A-Za-z0-9.!#$%&'*+\-/=?^_`{|}~]+$/u.test(local)
-    || !domain || domain.length > 253 || domain.split('.').some(label => !label || label.length > 63
-      || !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/u.test(label))) throw invalid();
-  return `${local}@${domain.toLowerCase()}`;
-}
 
 /** E1's syntactic normalization; prepared catalog validation and native checks follow. */
 export function normalizeEmailFields(fields, { requireCanonical = false } = {}) {
@@ -29,7 +20,7 @@ export function normalizeEmailFields(fields, { requireCanonical = false } = {}) 
   if (!Array.isArray(email.to) || email.to.length < 1 || email.to.length > 16
     || typeof email.subject !== 'string' || Buffer.byteLength(email.subject) > 512 || /[\x00-\x1f\x7f]/u.test(email.subject)
     || typeof email.text !== 'string' || Buffer.byteLength(email.text) > 16_384) throw invalid();
-  const normalized = { sender: address(email.sender), to: email.to.map(address), subject: email.subject, text: email.text };
+  const normalized = { sender: normalizeEmailAddress(email.sender), to: email.to.map(normalizeEmailAddress), subject: email.subject, text: email.text };
   if (new Set(normalized.to).size !== normalized.to.length
     || (requireCanonical && (normalized.sender !== email.sender || normalized.to.some((value, index) => value !== email.to[index])))) throw invalid();
   if (!(keys(selection, ['kind', 'credential']) && selection.kind === 'byoc' && UUID.test(selection.credential)
@@ -51,6 +42,10 @@ export function emailCommands(commands, options) {
       if (command.contract === EMAIL_CONTRACT) {
         count += 1;
         return { ...command, fields: normalizeEmailFields(command.fields, options) };
+      }
+      if (command.contract === 1003) {
+        try { return { ...command, fields: normalizeIdentityFields(command.fields, options) }; }
+        catch { throw invalid(); }
       }
       if (command.contract !== 1001) throw invalid();
       try { validateCredentialMetadata(command.fields); } catch { throw invalid(); }

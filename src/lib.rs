@@ -3,6 +3,7 @@
 pub mod access;
 pub mod access_index;
 pub mod algebra;
+pub mod authentication;
 pub mod binding;
 pub mod causal;
 pub mod credentials;

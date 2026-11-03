@@ -17,17 +17,19 @@ use uuid::Uuid;
 
 pub const CREDENTIAL: u16 = 1001;
 pub const EMAIL_SEND: u16 = 1002;
+pub const IDENTITY: u16 = 1003;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Input {
     Credential(Metadata),
     EmailSend(crate::email::SendInput),
+    Identity(crate::authentication::types::Input),
 }
 impl Input {
     pub(crate) fn credential(&self) -> Result<&Metadata> {
         match self {
             Self::Credential(metadata) => Ok(metadata),
-            Self::EmailSend(_) => Err(Error::new("invalid_input", "credential source required")),
+            _ => Err(Error::new("invalid_input", "credential source required")),
         }
     }
     #[cfg(test)]
@@ -66,17 +68,44 @@ impl Derived {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum System {
+    Credential(Derived),
+    Identity(crate::authentication::types::State),
+}
+impl System {
+    pub fn credential(&self) -> Result<&Derived> {
+        match self {
+            Self::Credential(state) => Ok(state),
+            Self::Identity(_) => Err(Error::new(
+                "corrupt_state",
+                "credential system state required",
+            )),
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn credential_mut(&mut self) -> &mut Derived {
+        match self {
+            Self::Credential(state) => state,
+            _ => panic!("credential state required"),
+        }
+    }
+}
+
 impl NativeInput for Input {
     fn contract(&self) -> u16 {
         match self {
             Self::Credential(_) => CREDENTIAL,
             Self::EmailSend(_) => EMAIL_SEND,
+            Self::Identity(_) => IDENTITY,
         }
     }
     fn validate(&self) -> Result<()> {
         match self {
             Self::Credential(metadata) => metadata.validate(),
             Self::EmailSend(email) => email.validate(),
+            Self::Identity(identity) => identity.validate(),
         }
     }
     fn bind(code: u16, fields: Value) -> Result<Self> {
@@ -95,6 +124,9 @@ impl NativeInput for Input {
                 Ok(Self::Credential(metadata))
             }
             EMAIL_SEND => Ok(Self::EmailSend(crate::email::SendInput::bind(fields)?)),
+            IDENTITY => Ok(Self::Identity(crate::authentication::types::Input::bind(
+                fields,
+            )?)),
             _ => Err(Error::new("invalid_input", "unknown services contract")),
         }
     }
@@ -106,10 +138,10 @@ impl NativeInput for Input {
 impl Binding for Services {
     type Index = Standard;
     type Input = Input;
-    type Derived = Derived;
+    type Derived = System;
     type Outcome = crate::email::EmailOutcome;
     const NAME: &'static str = "services";
-    const BEHAVIOR: &'static str = "services-email-send-pinned-credential-revisions-2";
+    const BEHAVIOR: &'static str = "services-credential-email-identity-ascii-user-recent-self-3";
     fn engine() -> Result<Model> {
         Ok(Model::from_behavior(Self::NAME, Self::BEHAVIOR))
     }
@@ -202,21 +234,108 @@ impl Binding for Services {
                 schema_source: "src/email.rs",
                 behavior_source: "src/models/services.rs",
             },
+            Contract {
+                code: IDENTITY,
+                name: "Identity",
+                visibility: Visibility::Public,
+                schema: {
+                    let mut schema = crate::authentication::types::Input::schema();
+                    schema["$schema"] = json!(crate::model::SCHEMA_DIALECT);
+                    schema
+                },
+                fields: vec![
+                    InputField {
+                        code: 1,
+                        name: "kind",
+                        mutable: false,
+                    },
+                    InputField {
+                        code: 2,
+                        name: "value",
+                        mutable: true,
+                    },
+                ],
+                published: vec![
+                    PublishedField {
+                        code: 101,
+                        name: "identity_revision",
+                        binding: "u64",
+                    },
+                    PublishedField {
+                        code: 102,
+                        name: "verified_revision",
+                        binding: "option<u64>",
+                    },
+                    PublishedField {
+                        code: 103,
+                        name: "verified_at",
+                        binding: "option<i64>",
+                    },
+                ],
+                access_indexes: vec![Declaration::created(10031)],
+                uniqueness: vec![],
+                publication_inputs: vec![],
+                references: vec![],
+                roots: vec![],
+                memberships: vec![],
+                queries: vec![],
+                outputs: vec![],
+                calculations: vec![],
+                calculation_order: vec![],
+                rules: vec![
+                    crate::authentication::types::POLICY,
+                    "kind and User owner are immutable",
+                    "self management requires current trusted recent authentication",
+                    "normalized identity claims are unique within the tenant store",
+                ],
+                schema_source: "src/authentication/types.rs",
+                behavior_source: "src/authentication/mod.rs",
+            },
         ])
     }
-    fn valid_derived(input: &Input, derived: Option<&Derived>) -> bool {
-        match input {
-            Input::Credential(metadata) => derived.is_some_and(|state| {
+    fn valid_derived(input: &Input, derived: Option<&System>) -> bool {
+        match (input, derived) {
+            (Input::Credential(metadata), Some(System::Credential(state))) => {
                 state.validate().is_ok() && (!metadata.enabled || state.has_secret)
-            }),
-            Input::EmailSend(_) => derived.is_none(),
+            }
+            (Input::EmailSend(_), None) => true,
+            (Input::Identity(_), Some(System::Identity(state))) => state.validate().is_ok(),
+            _ => false,
         }
     }
     fn published_shape(code: u16) -> Value {
-        if code == CREDENTIAL {
-            json!({"has_secret":false,"secret_revision":null,"use_epoch":"0"})
-        } else {
-            json!({})
+        match code {
+            CREDENTIAL => json!({"has_secret":false,"secret_revision":null,"use_epoch":"0"}),
+            IDENTITY => {
+                json!({"identity_revision":"1","verified_revision":null,"verified_at":null})
+            }
+            _ => json!({}),
+        }
+    }
+    fn identity_enabled() -> bool {
+        true
+    }
+    fn identity_input(input: &Input) -> Option<&crate::authentication::types::Input> {
+        match input {
+            Input::Identity(identity) => Some(identity),
+            _ => None,
+        }
+    }
+    fn identity_values(
+        record: &crate::native_slice::ModelRecord<Self>,
+    ) -> Result<(
+        &crate::authentication::types::Input,
+        &crate::authentication::types::State,
+    )> {
+        match (&record.input, record.derived.as_ref()) {
+            (Input::Identity(input), Some(System::Identity(state))) => {
+                state.validate()?;
+                Ok((input, state))
+            }
+            _ => Err(Error::new(
+                "corrupt_state",
+                "identity source and system state required",
+            )),
         }
     }
     fn credential_values(
@@ -226,7 +345,8 @@ impl Binding for Services {
         let state = record
             .derived
             .as_ref()
-            .ok_or_else(|| Error::new("corrupt_state", "credential system metadata missing"))?;
+            .ok_or_else(|| Error::new("corrupt_state", "credential system metadata missing"))?
+            .credential()?;
         state.validate()?;
         Ok((metadata, state))
     }
@@ -324,12 +444,13 @@ impl Binding for Services {
     }
     fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
         ws: &mut Attempt<L, Self>,
-        _model: &Prepared<Self>,
-        _context: Context,
+        model: &Prepared<Self>,
+        context: Context,
         changes: &[ModelChange<Self>],
         revision: Uuid,
         _allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
+        crate::authentication::settle_identities(ws, model, context, changes, revision)?;
         for change in changes {
             if change
                 .old
@@ -455,12 +576,12 @@ impl Binding for Services {
                     "enabled credential requires a secret",
                 ));
             }
-            current.derived = Some(Derived {
+            current.derived = Some(System::Credential(Derived {
                 incarnation,
                 has_secret: secret.is_some(),
                 secret_revision: secret.as_ref().map(|secret| secret.secret_revision),
                 use_epoch: epoch,
-            });
+            }));
             ws.put(Key::Record(change.id), Some(StoredValue::Record(current)))?;
         }
         Ok(())
@@ -499,6 +620,9 @@ impl Binding for Services {
                 if let Some(revision) = state.secret_revision {
                     required.insert((id, revision));
                 }
+            } else if let Input::Identity(_) = &record.input {
+                require(record.contract == IDENTITY, "identity source contract")?;
+                Self::identity_values(record)?;
             } else {
                 require(
                     record.contract == EMAIL_SEND && record.derived.is_none(),
@@ -541,11 +665,92 @@ impl Binding for Services {
                 _ => return Err(Error::new("corrupt_state", "credential private inventory")),
             }
         }
+        if snapshot
+            .records
+            .values()
+            .any(|record| Self::identity_input(&record.input).is_some())
+            || snapshot
+                .all
+                .keys()
+                .any(|key| matches!(key, Key::AuthenticationRevision(_)))
+        {
+            crate::authentication::check(&snapshot, &mut expected)?;
+        }
         snapshot.finish(
             expected,
             BTreeMap::new(),
             snapshot.routes.clone(),
             BTreeMap::new(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::authentication::types::{Kind, State};
+
+    #[test]
+    fn services_system_variants_keep_flat_wire_objects_and_reject_crossed_roles() {
+        let credential=Input::Credential(serde_json::from_value(json!({"label":"Fixture","provider":"resend","account":"fixture","enabled":true,"scopes":["email.send"]})).unwrap());
+        let identity = Input::bind(
+            IDENTITY,
+            json!({"kind":"email","value":" Person@EXAMPLE.COM "}),
+        )
+        .unwrap();
+        assert_eq!(
+            identity,
+            Input::Identity(crate::authentication::types::Input {
+                kind: Kind::Email,
+                value: "person@example.com".into()
+            })
+        );
+        let credential_state = System::Credential(Derived {
+            incarnation: Uuid::from_u128(1),
+            has_secret: true,
+            secret_revision: Some(7),
+            use_epoch: 9,
+        });
+        let identity_state = System::Identity(State::new(Uuid::from_u128(2)).unwrap());
+        assert_eq!(
+            serde_json::to_value(&credential_state).unwrap(),
+            json!({"incarnation":Uuid::from_u128(1),"has_secret":true,"secret_revision":"7","use_epoch":"9"})
+        );
+        assert_eq!(
+            serde_json::to_value(&identity_state).unwrap(),
+            json!({"incarnation":Uuid::from_u128(2),"identity_revision":"1","verified_revision":null,"verified_at":null})
+        );
+        assert!(Services::valid_derived(
+            &credential,
+            Some(&credential_state)
+        ));
+        assert!(Services::valid_derived(&identity, Some(&identity_state)));
+        assert!(!Services::valid_derived(&credential, Some(&identity_state)));
+        assert!(!Services::valid_derived(&identity, Some(&credential_state)));
+        assert!(!Services::valid_derived(&identity, None));
+        for system in [credential_state, identity_state] {
+            let value = serde_json::to_value(&system).unwrap();
+            assert_eq!(
+                serde_json::from_value::<System>(value.clone()).unwrap(),
+                system
+            );
+            let mut hybrid = value;
+            hybrid["unexpected_state"] = json!(true);
+            assert!(serde_json::from_value::<System>(hybrid).is_err());
+        }
+        assert!(
+            Input::bind(
+                CREDENTIAL,
+                json!({"kind":"email","value":"person@example.com"})
+            )
+            .is_err()
+        );
+        assert!(Input::bind(IDENTITY, serde_json::to_value(credential).unwrap()).is_err());
+        let public = Services::published_shape(IDENTITY);
+        assert_eq!(
+            public,
+            json!({"identity_revision":"1","verified_revision":null,"verified_at":null})
+        );
+        assert!(public.get("incarnation").is_none());
     }
 }

@@ -1,6 +1,7 @@
 # Planned email and phone authentication
 
-This is scoped next work, not implemented authentication capability. Next Base currently
+Protected Identity CRUD is accepted as [A0](a0-identity.md). Delivered proof and
+session issuance remain [A1/A2 work](a1-proof-sessions.md). Next Base currently
 verifies signed JWTs through [identity.rs](../src/identity.rs) and resolves current authority
 and credential epochs in transactions through [security.rs](../src/security.rs).
 There are no email/phone login flows to migrate. This plan covers email and phone only.
@@ -64,7 +65,7 @@ versioned method registry. [Server execution](server-execution.md) describes the
 
 ## Acceptance milestones and provenance
 
-- **A0 — records:** protected identity management, tenant/kind normalization and uniqueness;
+- **A0 — records, accepted:** protected identity management, tenant/kind normalization and uniqueness;
   independently test duplicate claims, cross-tenant reuse, immutable ownership and revisions.
 - **A1 — proof:** durable delivery and challenge consumption; test expiry, five-attempt races,
   one-use races, changed identities, revision fencing and secret nondisclosure.

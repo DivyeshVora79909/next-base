@@ -1,5 +1,44 @@
 # Current checkpoint
 
+## A0 — Protected email and phone identities
+
+Implemented and verified. The services catalog declares immutable User-owned Identity
+(1003) with owner/created index 10031, shared ASCII email/phone normalization, a private
+exact claim dictionary and retained principal authentication revision. Self mutations
+require verified JWT issuance within 600 seconds; strict descendant managers retain
+ordinary action checks. Generic mutations, no-ops and final authorization enforce the
+same policy. Original receipts recover before recency checks, with current disclosure.
+Identity incarnation is private; replacement clears verification, delete/recreate starts
+a new lifetime, and last-identity deletion remains legal. Native codec16 keys 18/19 and
+the Services derived-state union require explicit recreation of earlier stores.
+
+Claims release before final acquisitions, supporting swaps in either order. Source,
+private metadata, ordered/owner indexes, epochs and receipts publish atomically.
+Missing/regressed proof history rejects instead of being silently recreated. Repeated
+settlements preserve each call's entry state and unchanged source version; full reverts
+restore the database-original source token without dropping protected reads. E1 managed
+creation metadata, tentative array fanout, both-owner transfers and no population counter
+remain intact. A0 establishes proof fences; factor-removal session revocation is still A2.
+
+Acceptance: 400 Rust all-target tests passed (0 ignored), 224 full Node tests passed
+(0 skipped) using Node 26.12.0 and a freshly built default host. Formatting and default/FDB
+all-target Clippy with warnings denied passed. Actual FoundationDB 7.3.77 on one local
+process/host passed coordination/lifecycle/application/effects/predicates/credentials/
+email/identity at 20/14/19/27/24/6/12/11; sequential redb controls at 17/10/13/27/16/6/12/11.
+A0 covers duplicate/absence and four authority races, independent-owner disjoint writes,
+ten native-write rollback positions plus post-receipt/final abort, lost ACK/original
+receipt recovery, reopen, source-derived native/Node inventories, signed HTTP recency,
+indexes/cursors and backup/restore. An initial Node run used Node 18 for shebang fixtures;
+rerunning with Node 26 on PATH passed all 224. See [A0 evidence](docs/checkpoints/a0-identities.json)
+and [contract](docs/a0-identity.md). This is local correctness, not distributed capacity.
+
+Next: implement [A1/A2 private delivered proof and recoverable sessions](docs/a1-proof-sessions.md).
+The selected bounded profile requires fake email AND phone delivery, five atomic attempts,
+one use, encrypted private intent, original issuance recovery and restored-session fencing.
+These remain unimplemented/unaccepted, followed by E3 objects, E5 full fake-pipeline
+recovery and fresh committed-source release/bootstrap. Optional password mode, C5 live
+invalidations, E4 recurrence, frontend, live providers and TiKV remain deferred.
+
 ## E2/R0 — Durable EmailSend and charged submission admission
 
 Implemented and verified on redb and FoundationDB 7.3.77 on one local process/host.

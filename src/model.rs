@@ -734,6 +734,15 @@ impl<B: Binding> Prepared<B> {
 
     pub fn validate(&self, code: u16, value: &Value) -> Result<B::Input> {
         self.contract(code)?;
+        let normalized;
+        let value = if B::identity_enabled() && code == crate::models::services::IDENTITY {
+            normalized =
+                serde_json::to_value(crate::authentication::types::Input::bind(value.clone())?)
+                    .map_err(crate::local::storage)?;
+            &normalized
+        } else {
+            value
+        };
         if !self.validators[&code].is_valid(value) {
             return Err(Error::new(
                 "invalid_input",
@@ -877,6 +886,9 @@ fn model_capabilities<B: Binding>() -> Value {
             "order":"native key, UUID, membership slot; occurrence ranks are not visible-record ranks"}});
     if let Some(action) = B::effect_action() {
         catalog["effects"] = crate::effects::capabilities::<B>(&action);
+    }
+    if B::identity_enabled() {
+        catalog["identities"] = json!({"contract":1003,"input_schema":crate::authentication::types::Input::schema(),"policy":crate::authentication::types::POLICY,"mutation":"records.mutate; immutable User owner and kind; self requires verified iat within600seconds, otherwise strict descendant management","uniqueness":"private exact kind/canonical value dictionary in fixed tenant store","proof":"A1/A2 not yet implemented"});
     }
     if B::credential_enabled() {
         catalog["email"] = crate::email_operations::capabilities();

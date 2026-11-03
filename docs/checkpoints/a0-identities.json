@@ -1,0 +1,326 @@
+{
+  "checkpoint": "A0 protected email and phone identities",
+  "status": "accepted bounded native and Node scope",
+  "base_commit": "9abfed8cb441791603177f502ba99cea5bd5119e",
+  "native_codec": "native-slice-kv-16",
+  "services_behavior": "services-credential-email-identity-ascii-user-recent-self-3",
+  "identity_policy": "identity-ascii-email-phone-user-owner-recent-self-1",
+  "source_sha256": {
+    "Cargo.lock": "b1c67427f79bdfbd5d5e50f5e5ea9607291b3014c6a9525177c581f303eb9cc8",
+    "Cargo.toml": "a6443745e30652df59a4220542c9da7c5ab25cdd8beb49372bf8c2acee9446c8",
+    "docs/a0-identity.md": "1b1daeaacb9751028b5db6bd862768889466cd5e5ec14ba726e6e16be947692d",
+    "docs/a1-proof-sessions.md": "33f1f1e48ab12837c76c704908bcbf720cf57f2abad1990699f9c3f4e1204935",
+    "docs/architecture.md": "60835ecc3978206b43b10bd1e1624d14b962f04c1ede4daf9c555c97f0434136",
+    "docs/email-phone-authentication.md": "d6e4d47afc0982ca9ab2acf334da9455b3c0db586560e7d5eeebd0ef2f9c73f9",
+    "docs/roadmap.md": "f8f38edfb0e3fa69488e1a64b37df42d2cc66df4fd5118e318990fbb2560f4a6",
+    "examples/g7_application.rs": "918f415c756cff865b931406127f048f526cf15cf099f89d8e7d1e96c4269bd9",
+    "src/access.rs": "d522f442742fc65c05d0120120bbc3eeb9d4f4f5ca14653161037c04cc33256f",
+    "src/authentication/mod.rs": "5b98a37b2e86c74ac5d43df557b9786860b207c72171cb9cb00b163b3311ced0",
+    "src/authentication/tests.rs": "2f37dc7fbbf85341e87afb5b4e2f743da461a5e8bbc4d6cd99e6b28ed0246905",
+    "src/authentication/types.rs": "04b6a38e85f01a70f2a8031f7f87b629d939d65a841387bedd2ff82630451f5c",
+    "src/binding.rs": "8458a85f3308f7ecfe8cd9fbeb4a28ec3eba8a10ed55565bf2f50ec204328467",
+    "src/causal.rs": "8ab3d56979e30e813192c7194848d97874bb7f6cf677d82224e990a2477447ee",
+    "src/credentials/grants.rs": "131ffe1b6a2b44018facbd4a39f359bfcb2e47fa49f43ad639e470fa5b37ecbb",
+    "src/credentials/lifecycle.rs": "081dd3488f54c6a9abac36a83560da4f2c82dd0946ef21f7e3f7c8f5cc916413",
+    "src/credentials/store.rs": "a5efcf0f3b94bd21fdec447c1d49104d44ffb832d54a66866e97c6d791504348",
+    "src/effects.rs": "0583d508f27604eb4e2abb4675695e90310d045455890e816fc6684cd6553e23",
+    "src/lib.rs": "df10fbc601e6ac665d0180e55b80a2418b5aabf58d34353556a070e8dffb6e61",
+    "src/lifecycle.rs": "e67514e0551bb18b1736dc45dbfca52c5b8ae95a2855c03037e3dbce2b2ada37",
+    "src/local.rs": "58c0ef193ac806c3c47adc4e70c8b3a765783cb32f8abd129af2ec43128450bc",
+    "src/model.rs": "36dd1f796cb8bebeeda2e0241dbb833097d4c6abd17e2802e81c422f4bead198",
+    "src/models/services.rs": "96c086b0e47bbb38de96e3db58f9205b798250295fef5b67d0be13425ab14cea",
+    "src/mutation.rs": "3c3818187d284e50a7e85a5fe75898e8997d86ee0d95f40a65765d10cb04aa2c",
+    "src/native_codec.rs": "d2f4bde0bf101d2981aeb2d48dad00736637ef429b0ff23baaeecb37448652e4",
+    "src/rpc.rs": "661db9a31c3a7e873f6848bf2e7ec48554c130d03658310192a0656739458abe",
+    "src/security.rs": "78a040a77596ce660be6977937f12025c0149ab5f4ab3fb99b61a3608691ffb0",
+    "src/server.rs": "741a62186d0c15bbe18e137f7337a8b962a2dacf4fe36161a8065b6ef021c983",
+    "src/storage.rs": "9e102fc34525764e373f06c693d45fa2735ff38c306ed5bb8a28d1d9ee922e34",
+    "src/storage/authentication_checks.rs": "c8eb80f4c406261794bd3c501362e4b1b9b5330ee6841f3c36ec43132ca6a473",
+    "src/storage/credential_checks.rs": "b3fc2b6a810908926e39a1eaac16d77b4bc936b0b097005470dcb7e3ae315c3d",
+    "tools/node/client.mjs": "fb76d41e0a2115d09d15bf38be852cff6b63801885febe8671954507989962e1",
+    "tools/node/model.mjs": "be04c1d370009585e8f3f6525465fb7179b0274f795f66f82eacf4e4d38dfa5d",
+    "tools/node/private/email-address.mjs": "b952f71d792d0287ea14714a491d4b13abf6fe70395c89c0ae93bd273f96bc1a",
+    "tools/node/private/email-plan.mjs": "226699df07e83a451edbde122bcdcff490b6d5dc28bc0c4f0600f609b1ea61aa",
+    "tools/node/private/identity-fields.mjs": "6f981fe3f5a5c2aa2e8293e48f5331e160abc38f44838d2d63d21fa1651491b4",
+    "tools/node/storage-check.mjs": "df45bbeb4c9d4b917c52cc4eb464457b8b421bb8e3d3b952f133219506213e97",
+    "tools/node/test/a0-identity-native.test.mjs": "eaa8ada4bf286af53237c9d979c5c00569ca94d0425be0c2ec73be4e9d969886",
+    "tools/node/test/email-client.test.mjs": "a71f44c224f1c5d3eb845ff5be8f41e030313094a71341a3c6c123f856ca0d97",
+    "tools/node/test/identity-fields.test.mjs": "7b336ca21fce6e03cc6dd6b50f58e997c22d59d0cc293ab73b39267687786101",
+    "tools/node/test/identity-storage.test.mjs": "9b8518af8ad5650f0655dbb69e9a2791d81fbbfc2b48612f68fda40596bb2075"
+  },
+  "verification": {
+    "rust": {
+      "passed": 400,
+      "failed": 0,
+      "ignored": 0,
+      "targets": 40
+    },
+    "node": {
+      "version": "26.12.0",
+      "passed": 224,
+      "failed": 0,
+      "skipped": 0,
+      "requires_node26_on_path_for_shebang_fixtures": true
+    },
+    "format": "passed",
+    "clippy_default_all_targets_warnings_denied": "passed",
+    "clippy_foundationdb_all_targets_warnings_denied": "passed",
+    "logs_sha256": {
+      "next-base-a0-rust-tests.log": "aa262a1ddc69f79c011e0d6c338a3209dc8c9f5d5d467ab3abac4e3df6a049d5",
+      "next-base-a0-node-tests.log": "97e7ee0428cf0b57791bba5d02d51e423ea0bf9a78016d6b2b4522af5449bb7f",
+      "next-base-a0-clippy.log": "b72d49febb4775cc788c9273a52ea4fb8a0afa425fff88d825c53c31ad07e726",
+      "next-base-a0-fdb-clippy.log": "15043741b3c391bebeddeadb720e0a93074e1c48780e3af9988ccae7be900e4e"
+    },
+    "default_binary_sha256": "a0cf545fb9184a310e25841faa30040cc840a664e46cb05d2bcf4e6ad1ddfa79",
+    "adapters": {
+      "foundationdb": {
+        "version": "7.3.77",
+        "topology": "one local process and host",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 20
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 14
+          },
+          "application": {
+            "status": "passed",
+            "cases": 19
+          },
+          "authentication": {
+            "status": "passed",
+            "cases": 11,
+            "cases_detail": [
+              {
+                "case": "a0-duplicate-1",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-duplicate-2",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-independent-owner-claims",
+                "concurrent": true,
+                "scans": [],
+                "shared_application_writes": [],
+                "shared_point_dependencies": []
+              },
+              {
+                "case": "a0-claim-absence-acquire-release",
+                "concurrent": true,
+                "deleted_last_identity": true,
+                "original_absence_conflict": true
+              },
+              {
+                "case": "a0-identity-edit-authority-epoch",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-update-action",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-inactive",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-owner-descent",
+                "concurrent": true,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-final-claim-swap-0",
+                "one_atomic_final_graph": true,
+                "principal_authentication_revision": 2,
+                "source_values": [
+                  "two@example.com",
+                  "one@example.com",
+                  "three@example.com"
+                ]
+              },
+              {
+                "case": "a0-final-claim-swap-1",
+                "one_atomic_final_graph": true,
+                "principal_authentication_revision": 2,
+                "source_values": [
+                  "two@example.com",
+                  "one@example.com",
+                  "three@example.com"
+                ]
+              },
+              {
+                "before_commit_abort": true,
+                "case": "a0-native-write-rollback-and-original-receipt",
+                "native_write_positions": 10,
+                "post_receipt_abort": true,
+                "principal_authentication_revision": 1,
+                "unknown_ack_original_receipt": true
+              }
+            ]
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 24
+          }
+        },
+        "reports_sha256": {
+          "g7_coordination": "76a99fa1f43b047db8049b28d0a9a5e506acebefe2e4f9af06d3fdf22be30066",
+          "g7_application": "fa5f0d3d826bd6b0dccca1f00cfa61b491cbbeb6df8903d7fa5a0a054acd07a1"
+        }
+      },
+      "redb": {
+        "version": "4.4.0",
+        "topology": "sequential local controls",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 17
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 10
+          },
+          "application": {
+            "status": "passed",
+            "cases": 13
+          },
+          "authentication": {
+            "status": "passed",
+            "cases": 11,
+            "cases_detail": [
+              {
+                "case": "a0-duplicate-1",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-duplicate-2",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-independent-owner-claims",
+                "concurrent": false,
+                "scans": [],
+                "shared_application_writes": [],
+                "shared_point_dependencies": []
+              },
+              {
+                "case": "a0-claim-absence-acquire-release",
+                "concurrent": false,
+                "deleted_last_identity": true,
+                "original_absence_conflict": false
+              },
+              {
+                "case": "a0-identity-edit-authority-epoch",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-update-action",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-inactive",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-identity-edit-authority-owner-descent",
+                "concurrent": false,
+                "original_loser_receipt_absent": true
+              },
+              {
+                "case": "a0-final-claim-swap-0",
+                "one_atomic_final_graph": true,
+                "principal_authentication_revision": 2,
+                "source_values": [
+                  "two@example.com",
+                  "one@example.com",
+                  "three@example.com"
+                ]
+              },
+              {
+                "case": "a0-final-claim-swap-1",
+                "one_atomic_final_graph": true,
+                "principal_authentication_revision": 2,
+                "source_values": [
+                  "two@example.com",
+                  "one@example.com",
+                  "three@example.com"
+                ]
+              },
+              {
+                "before_commit_abort": true,
+                "case": "a0-native-write-rollback-and-original-receipt",
+                "native_write_positions": 10,
+                "post_receipt_abort": true,
+                "principal_authentication_revision": 1,
+                "unknown_ack_original_receipt": true
+              }
+            ]
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 16
+          }
+        },
+        "reports_sha256": {
+          "g7_coordination": "d201a5d44bcf70a7bd82575dbceac26d3529e2aad27c4e9e811d1a780382b8ec",
+          "g7_application": "e4e67867b52a7f16da008965d025ba93128618a55b22d45df9acdb340cb33934"
+        }
+      }
+    }
+  },
+  "obligations": [
+    "User-only immutable ownership/kind; fresh signed iat for self, strict-descendant managers; owner authorization before CAS.",
+    "Canonical email and phone exact dictionary, final graph swaps, tenant separation and protected absence races.",
+    "Identity incarnation/revision and retained principal proof revision; normalized no-op, last deletion, recreate, overflow and corrupt-history rollback.",
+    "Repeated Attempt settlement uses entry graph; unchanged source tokens and full revert/no-op preserve protected reads.",
+    "Private system metadata absent from public records/receipts/plans/inspection; direct native self cannot invent recency.",
+    "Original receipt replay precedes self recency, under current read/owner/epoch disclosure.",
+    "Atomic source/claim/history/owner and ordered indexes/cursors/receipt; every native write and final receipt rollback.",
+    "Independent source-derived native/Node checkers, exact current inventory, retained history validity, reopen and backup/restore.",
+    "Previous owner-only, both-owner transfers, managed creation metadata, reference fanout, E2 retained secret/quota/worker recovery and absence of population counter retained."
+  ],
+  "limits": [
+    "A0 identity CRUD is not delivered proof or login. A1/A2 remain required and unaccepted, including factor-removal epoch revocation.",
+    "Actual FoundationDB evidence is one local process/host; redb conflict controls are explicitly sequential.",
+    "Standalone SurrealKV not rerun; no live email/SMS or multi-host capacity claims.",
+    "A1/A2, E3, E5 and fresh committed-source release/bootstrap remain required.",
+    "Optional password mode, C5, E4, frontend, live providers and TiKV remain deferred."
+  ]
+}

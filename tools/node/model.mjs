@@ -1,4 +1,5 @@
 import { createNativeAjv } from './private/config-validation.mjs';
+import { normalizeIdentityFields } from './private/identity-fields.mjs';
 
 const DIALECT = 'https://json-schema.org/draft/2020-12/schema';
 const HASH = /^[0-9a-f]{64}$/;
@@ -72,6 +73,7 @@ export function prepareModel(catalog, { native, selector } = {}) {
     },
     validateNative(selector, input) {
       const { metadata } = get(selector);
+      if (snapshot.capabilities?.identities?.contract === metadata.code) input = normalizeIdentityFields(input);
       const local = validate(metadata.name, input);
       if (!local.valid) throw new TypeError(`Input does not satisfy ${metadata.name} schema`);
       return callNative('validate', { code: metadata.code, input });
@@ -96,9 +98,11 @@ export function prepareModel(catalog, { native, selector } = {}) {
         if (typeof id !== 'string' || !UUID.test(id)) throw new TypeError('fixture record id must be a canonical UUID');
         if (seenIds.has(id)) throw new TypeError('fixture record IDs must be unique');
         seenIds.add(id);
-        const check = validate(metadata.name, fields);
+        const normalized = snapshot.capabilities?.identities?.contract === metadata.code
+          ? normalizeIdentityFields(fields) : fields;
+        const check = validate(metadata.name, normalized);
         if (!check.valid) throw new TypeError(`Fixture record does not satisfy ${metadata.name} schema`);
-        return Object.freeze({ op: 'create', id, contract: metadata.code, fields: cloneJson(fields, 'fixture fields') });
+        return Object.freeze({ op: 'create', id, contract: metadata.code, fields: cloneJson(normalized, 'fixture fields') });
       });
       if (returning.some(id => !seenIds.has(id))) throw new TypeError('returning IDs must refer to supplied fixture records');
       if (new Set(returning).size !== returning.length) throw new TypeError('returning IDs must be unique');

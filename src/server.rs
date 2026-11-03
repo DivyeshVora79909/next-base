@@ -89,7 +89,9 @@ async fn call<B: Binding>(State(app): State<App<B>>, headers: HeaderMap, body: B
     let work = tokio::task::spawn_blocking(move || {
         let _permit = permit;
         let claims = app.verifier.verify(&token, app.store.context().tenant)?;
-        let session = app.store.session(claims.sub, claims.epoch)?;
+        let session = app
+            .store
+            .authenticated_session(claims.sub, claims.epoch, claims.iat)?;
         Ok::<_, Error>(rpc::handle_with_credentials(
             &session,
             app.credentials.as_deref(),

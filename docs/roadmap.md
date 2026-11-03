@@ -211,7 +211,9 @@ The [server plan](server-execution.md) preserves existing execution/fact/applica
 machinery while adding strict typed capabilities. E0 records the service contract pass;
 C3/C4 and [E1 credentials](e1-credentials.md) are accepted. E1 also fixes managed
 UUID lifetime creation metadata and array-reference tentative fanout selection.
-[E2/R0](e2-email.md) is accepted. [A0 identities](a0-identity.md), A1–A2, E3, E5 and fresh release verification follow in dependency order.
+[E2/R0](e2-email.md) and [A0 identities](a0-identity.md) are accepted.
+[A1–A2 private proof and sessions](a1-proof-sessions.md), E3, E5 and fresh release
+verification follow in dependency order.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |

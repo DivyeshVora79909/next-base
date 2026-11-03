@@ -225,6 +225,7 @@ pub struct Store<B: Binding> {
     pub(crate) bootstrap_actor: Uuid,
     pub(crate) secured: bool,
     pub(crate) credential_epoch: Option<u64>,
+    pub(crate) issued_at: Option<u64>,
     pub(crate) expected_store: Option<Uuid>,
     pub(crate) credentials: Option<Arc<crate::credentials::grants::Runtime>>,
 }
@@ -315,6 +316,7 @@ impl<B: Binding> Store<B> {
             bootstrap_actor: context.actor,
             secured,
             credential_epoch: None,
+            issued_at: None,
             expected_store: None,
             credentials: None,
         })
@@ -361,6 +363,7 @@ impl<B: Binding> Store<B> {
             bootstrap_actor: context.actor,
             secured,
             credential_epoch: None,
+            issued_at: None,
             expected_store: None,
             credentials: None,
         };
@@ -451,6 +454,7 @@ impl<B: Binding> Store<B> {
             bootstrap_actor: self.bootstrap_actor,
             secured: self.secured,
             credential_epoch: self.credential_epoch,
+            issued_at: self.issued_at,
             expected_store: Some(expected_store),
             credentials: self.credentials.clone(),
         }
@@ -659,6 +663,7 @@ impl<B: Binding> Store<B> {
                     stage,
                 )?;
             }
+            let mut identity_users = None;
             let settled = crate::mutation::settle_authorized(
                 &mut ws,
                 &self.model,
@@ -667,6 +672,16 @@ impl<B: Binding> Store<B> {
                 allocate,
                 false,
                 &mut |ws, command, old, new| {
+                    crate::authentication::authorize_identity_command::<B>(
+                        &write,
+                        &scope,
+                        self.secured,
+                        self.issued_at,
+                        command,
+                        old,
+                        new,
+                        &mut identity_users,
+                    )?;
                     let action = match command {
                         Command::Create {
                             contract, owner, ..
@@ -957,7 +972,14 @@ impl<B: Binding> Store<B> {
             let (key, value) = row.map_err(storage)?;
             let key = Key::decode(key.value())?;
             match (&key,native_codec::decode_for::<B>(&key,value.value())?) {
-                (Key::Record(id),StoredValue::Record(record))=>records.push(json!({"id":id,"record":record})),
+                (Key::Record(id),StoredValue::Record(record))=>{
+                    let shown=if B::identity_input(&record.input).is_some() {
+                        let (_,state)=B::identity_values(&record)?;
+                        json!({"contract":record.contract,"tenant":record.tenant,"owner":record.owner,"created_at":record.created_at.to_string(),"version":record.version,"input":record.input,
+                            "derived":{"identity_revision":state.identity_revision.to_string(),"verified_revision":state.verified_revision.map(|v|v.to_string()),"verified_at":state.verified_at.map(|v|v.to_string())}})
+                    } else { serde_json::to_value(record).map_err(storage)? };
+                    records.push(json!({"id":id,"record":shown}));
+                },
                 (Key::Root(address),StoredValue::Root(root))=>roots.push(json!({"root":address,"revision":root.revision.to_string(),"summary":root.summary})),
                 (Key::Query(address),StoredValue::Query(query))=>queries.push(json!({"query":address,"descriptor":query})),
                 (Key::Role(address),StoredValue::Role(role))=>roles.push(json!({"source_role":address,"binding":role})),

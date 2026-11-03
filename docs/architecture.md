@@ -138,8 +138,10 @@ separate-scope original creates/deletes committing without automatic retries on
 FoundationDB 7.3.77, one local process/host. Required epoch and shared-business-root
 conflict controls remain. See [results and continuation](c3-accounting-handoff.md);
 these results do not establish multi-host performance or throughput.
-[Email/phone login](email-phone-authentication.md) is planned; current JWT verification
-and operator graph replacement do not implement identity proof or ordinary principal CRUD.
+[A0 protected identities](a0-identity.md) add immutable User linkage, exact normalized
+claims and recent self-management. [Email/phone proof and login](a1-proof-sessions.md)
+remain planned; identity presence and operator graph replacement do not prove a
+factor or implement ordinary principal CRUD.
 Public root ranges and reverse subscriber routes now use `NativeRange<I::Key>`.
 Native numeric, string and composite keys preserve included/excluded group boundaries,
 old/new registration repair and final-graph causality. TimeRange remains an explicit
@@ -150,4 +152,6 @@ operations in the same ordinary transaction domain. `Role.first_created_at` and
 private credential envelopes are part of codec14. A generated UUID's timestamp
 survives inactivity; a Credential's internal incarnation fences delete/recreate
 authorization. See [E1](e1-credentials.md) for implemented custody/grant boundaries
-and [E2/R0](e2-email.md) for the next, still planned durable email work.
+and accepted [E2/R0](e2-email.md) for durable email, retained secret revisions and
+charged physical-start admission. Current A0 source uses codec16 for the private
+identity dictionary and retained principal authentication revision.

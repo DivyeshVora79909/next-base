@@ -378,16 +378,12 @@ impl Store<Services> {
                 _ => {}
             }
         }
-        let mut expected: BTreeSet<_> = sources
-            .iter()
-            .filter_map(|(&id, record)| {
-                record
-                    .derived
-                    .as_ref()
-                    .and_then(|state| state.secret_revision)
-                    .map(|revision| (id, revision))
-            })
-            .collect();
+        let mut expected = BTreeSet::new();
+        for (&id, record) in &sources {
+            if let Some(revision) = Services::credential_values(record)?.1.secret_revision {
+                expected.insert((id, revision));
+            }
+        }
         let pins = super::store::pinned_revisions::<Services>(
             &read.open_table(crate::effects::EXECUTIONS)?,
         )?;
@@ -589,10 +585,19 @@ mod tests {
         );
         assert_eq!(f.crypto.decrypt_counts(), counts);
         let current = record(&f.store, id(100));
-        assert_eq!(current.derived.as_ref().unwrap().secret_revision, Some(2));
         assert_eq!(
-            current.derived.as_ref().unwrap().incarnation,
-            previous.derived.as_ref().unwrap().incarnation
+            Services::credential_values(&current)
+                .unwrap()
+                .1
+                .secret_revision,
+            Some(2)
+        );
+        assert_eq!(
+            Services::credential_values(&current).unwrap().1.incarnation,
+            Services::credential_values(&previous)
+                .unwrap()
+                .1
+                .incarnation
         );
         let retained = |store: &Store<Services>| {
             let read = store.db.begin_read().unwrap();

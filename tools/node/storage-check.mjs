@@ -66,6 +66,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const nativeKeys = new Set();
   const recordsById = new Map();
   const secrets = new Map();
+  const identityClaims = new Map(), authenticationRevisions = new Map();
   const uniqueClaims = [];
   let metadata;
   for (const row of rows) {
@@ -110,6 +111,18 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       validateSecretEnvelope(value.data, decodedKey.id, decodedKey.revision);
       secrets.set(`${decodedKey.id}/${decodedKey.revision}`, value.data);
     }
+    else if (decodedKey.type === 'identity_claim') {
+      exactKeys(value.data, ['identity', 'incarnation'], 'identity claim');
+      nonnilUuid(value.data.identity, 'identity claim source');
+      nonnilUuid(value.data.incarnation, 'identity claim incarnation');
+      identityClaims.set(`${decodedKey.kind}/${decodedKey.value}`, value.data);
+    }
+    else if (decodedKey.type === 'authentication_revision') {
+      exactKeys(value.data, ['revision'], 'authentication revision');
+      nonnilUuid(decodedKey.id, 'authentication revision principal');
+      requireThat(canonicalU64(value.data.revision, 'authentication revision') > 0n, 'authentication revision is zero');
+      authenticationRevisions.set(decodedKey.id, value.data.revision);
+    }
     if (decodedKey.type === 'access_root' || decodedKey.type === 'access_node') {
       const inventory = decodedKey.type === 'access_root' ? accessRoots : accessNodes;
       inventory.set(addressToken(decodedKey.address), { address: decodedKey.address, value: value.data });
@@ -126,6 +139,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   }
   const executions = decodeRows(backup.payload.tables.effect_executions, 256, 'effect executions');
   const credentialSecretInventory = checkSecretInventory(catalog, recordsById, secrets, executions);
+  const identityInventory = checkIdentityInventory(catalog, recordsById, identityClaims,
+    authenticationRevisions, backup.payload.tables.authority, metadata);
   const emailAdmissionCount = checkEmailAdmissions(backup.payload.tables, executions);
   // Public source records define the complete owner catalog. Managed outputs
   // remain native records but are deliberately absent from both catalogs.
@@ -278,16 +293,94 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const result = { status: 'passed', sourceMembership: expectedMembers ? 'checked' : 'not_evaluated',
     credentialSecretInventory, credentialSecretCount: secrets.size, credentialSecretAuthentication: 'not_evaluated',
     emailAdmissionInventory: 'checked', emailAdmissionCount,
+    identityInventory, identityClaimCount: identityClaims.size, authenticationRevisionCount: authenticationRevisions.size,
     accessSourceMembership: accessExpected ? 'checked' : 'not_evaluated', accessRootCount: accessRoots.size, accessNodeCount: accessNodes.size,
     rootCount: roots.size, nodeCount: nodes.size, nativeKvRows: rows.length, snapshotBytes: backupBytes.length };
-  if (includeObservation) result.observation = Object.freeze(Object.fromEntries(
-    Object.entries(observation).map(([name, values]) => [name, Object.freeze(values.map(Object.freeze))])));
+  if (includeObservation) {
+    const identityCode = catalog?.capabilities?.identities?.contract ?? 1003;
+    observation.records = observation.records.map(row => {
+      if (row.record.contract !== identityCode) return row;
+      const { identity_revision, verified_revision, verified_at } = row.record.derived;
+      return { ...row, record: { ...row.record, derived: { identity_revision, verified_revision, verified_at } } };
+    });
+    result.observation = Object.freeze(Object.fromEntries(
+      Object.entries(observation).map(([name, values]) => [name, Object.freeze(values.map(Object.freeze))])));
+  }
   return Object.freeze(result);
 }
 
 function canonicalU64(value, label) {
   requireThat(typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value) && BigInt(value) < (1n << 64n), `${label} is not canonical u64`);
   return BigInt(value);
+}
+
+// Deliberately independent of the writer's normalizer: derive keys from canonical source facts.
+function validateIdentityInput(input) {
+  exactKeys(input, ['kind', 'value'], 'identity input');
+  const { kind, value } = input;
+  requireThat(typeof value === 'string' && /^[\x21-\x7e]+$/u.test(value), 'identity value is not canonical ASCII');
+  if (kind === 'phone') {
+    requireThat(/^\+[1-9][0-9]{7,14}$/u.test(value), 'identity phone is not canonical E164');
+    return;
+  }
+  requireThat(kind === 'email' && value.length <= 254 && value === value.toLowerCase(), 'identity email is not canonical');
+  const at = value.indexOf('@'), local = value.slice(0, at), domain = value.slice(at + 1);
+  requireThat(at > 0 && at === value.lastIndexOf('@') && local.length <= 64
+    && /^[a-z0-9!#$%&'*+\-/=?^_`{|}~]+(?:\.[a-z0-9!#$%&'*+\-/=?^_`{|}~]+)*$/u.test(local)
+    && domain.length > 0 && domain.length <= 253
+    && domain.split('.').every(label => label.length > 0 && label.length <= 63
+      && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label)), 'identity email syntax differs');
+}
+
+function checkIdentityInventory(catalog, records, claims, revisions, authorityRows, metadata) {
+  const declaration = catalog?.capabilities?.identities;
+  const code = declaration?.contract ?? 1003;
+  if (declaration !== undefined) requireThat(Number.isInteger(code)
+    && catalog.contracts.some(contract => contract.code === code), 'identity source declaration is missing');
+  const identities = [...records].filter(([, source]) => source.contract === code);
+  if (catalog !== undefined && declaration === undefined) {
+    requireThat(identities.length === 0 && claims.size === 0 && revisions.size === 0, 'identity state is not declared in the catalog');
+    return 'checked';
+  }
+  let graph;
+  if (identities.length || claims.size || revisions.size) {
+    const row = authorityRows?.find(row => row.key === Buffer.from('graph').toString('hex'));
+    requireThat(row !== undefined, 'identity principal graph is missing');
+    graph = parseFrame(decodeHex(row.value, 'identity principal graph'));
+    object(graph, 'identity principal graph');
+    requireThat(graph.tenant === metadata?.tenant && UUID.test(graph.tenant ?? '')
+      && Array.isArray(graph.principals) && graph.principals.length <= 128, 'identity principal graph tenant or inventory differs');
+  }
+  const principals = new Map();
+  for (const principal of graph?.principals ?? []) {
+    object(principal, 'identity principal');
+    nonnilUuid(principal.id, 'identity principal');
+    requireThat(!principals.has(principal.id) && ['tenant', 'group', 'user'].includes(principal.kind), 'identity principal inventory differs');
+    principals.set(principal.id, principal);
+  }
+  for (const owner of revisions.keys()) requireThat(principals.get(owner)?.kind === 'user', 'authentication revision owner is not a User');
+  const expected = new Map();
+  for (const [id, source] of identities) {
+    nonnilUuid(id, 'identity source');
+    requireThat(source.tenant === graph.tenant && principals.get(source.owner)?.kind === 'user', 'identity owner or tenant differs');
+    validateIdentityInput(source.input);
+    const state = source.derived;
+    exactKeys(state, ['incarnation', 'identity_revision', 'verified_revision', 'verified_at'], 'identity system state');
+    nonnilUuid(state.incarnation, 'identity incarnation');
+    const revision = canonicalU64(state.identity_revision, 'identity revision');
+    requireThat(revision > 0n && revisions.has(source.owner)
+      && revision <= BigInt(revisions.get(source.owner)), 'identity authentication revision is missing or stale');
+    requireThat((state.verified_revision === null) === (state.verified_at === null), 'identity verification pair differs');
+    if (state.verified_revision !== null) requireThat(canonicalU64(state.verified_revision, 'identity verified revision') === revision
+      && canonicalTime(state.verified_at) >= 0n, 'identity verified state is stale or invalid');
+    const key = `${source.input.kind}/${source.input.value}`;
+    requireThat(!expected.has(key), 'duplicate final identity claim');
+    expected.set(key, { identity: id, incarnation: state.incarnation });
+  }
+  requireThat(expected.size === claims.size, 'identity claim inventory size differs');
+  for (const [key, expectedClaim] of expected) requireThat(claims.get(key)?.identity === expectedClaim.identity
+    && claims.get(key)?.incarnation === expectedClaim.incarnation, 'identity claim source or incarnation differs');
+  return catalog === undefined ? 'not_evaluated' : 'checked';
 }
 function secretBase64(value, min, max) {
   requireThat(typeof value === 'string' && value.length <= Math.ceil(max / 3) * 4 && /^[A-Za-z0-9_-]+$/.test(value), 'credential secret encoding is invalid');
@@ -631,14 +724,21 @@ function decodeKey(bytes) {
     requireThat(revision !== '0', 'credential secret point revision is zero');
     return { type: 'credential_secret', id: formatUuid(bytes.subarray(1, 17)), revision };
   }
-  const expectedLength = new Set([1, 5, 6, 9]).has(tag) ? 17
+  if (tag === 18) {
+    requireThat(bytes.length >= 3 && bytes.length <= 256 && [1, 2].includes(bytes[1]), 'invalid identity claim key');
+    const kind = bytes[1] === 1 ? 'email' : 'phone';
+    const value = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(2));
+    validateIdentityInput({ kind, value });
+    return { type: 'identity_claim', kind, value };
+  }
+  const expectedLength = new Set([1, 5, 6, 9, 19]).has(tag) ? 17
     : new Set([2, 3, 4, 7, 8, 10, 11, 12, 15, 16]).has(tag) ? 19 : 0;
   requireThat(expectedLength > 0 && bytes.length === expectedLength, 'invalid native point key');
   const id = formatUuid(bytes.subarray(1, 17));
   const slot = expectedLength === 19 ? bytes.readUInt16BE(17) : null;
   if (expectedLength === 19) requireThat(slot > 0, 'native address slot is zero');
   const type = ({ 1: 'record', 2: 'root', 3: 'node', 4: 'query', 5: 'incoming', 6: 'direct',
-    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node', 15: 'access_root', 16: 'access_node', 17: 'credential_secret' })[tag];
+    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node', 15: 'access_root', 16: 'access_node', 17: 'credential_secret', 19: 'authentication_revision' })[tag];
   requireThat(type !== undefined, 'invalid native point key tag');
   return { type, id, ...(expectedLength === 19 ? { address: { id, slot } } : {}) };
 }

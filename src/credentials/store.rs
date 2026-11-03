@@ -506,7 +506,10 @@ pub(crate) mod test_support {
         else {
             panic!("source role");
         };
-        let revision = source.derived.as_ref()?.secret_revision?;
+        let revision = Services::credential_values(&source)
+            .unwrap()
+            .1
+            .secret_revision?;
         table
             .get(Key::CredentialSecret(id, revision).encode())
             .unwrap()
@@ -591,8 +594,12 @@ pub(crate) mod test_support {
         SecretContext {
             tenant: record.tenant,
             credential: id,
-            secret_revision: record.derived.as_ref().unwrap().secret_revision.unwrap(),
-            incarnation: record.derived.as_ref().unwrap().incarnation,
+            secret_revision: Services::credential_values(record)
+                .unwrap()
+                .1
+                .secret_revision
+                .unwrap(),
+            incarnation: Services::credential_values(record).unwrap().1.incarnation,
             provider: record.input.credential().unwrap().provider,
             account: record.input.credential().unwrap().account.clone(),
         }
@@ -623,13 +630,13 @@ mod tests {
         let first = record(&f.store, id(100));
         let first_envelope = envelope(&f.store, id(100)).unwrap();
         assert_eq!(
-            first.derived,
-            Some(Derived {
+            Services::credential_values(&first).unwrap().1,
+            &Derived {
                 incarnation: first_envelope.incarnation,
                 has_secret: true,
                 secret_revision: Some(1),
                 use_epoch: 0
-            })
+            }
         );
         for safe in [
             serde_json::to_string(&result).unwrap(),
@@ -648,10 +655,9 @@ mod tests {
             .mutate(&edit(&caller, id(100), None, json!({"label":"Renamed"})))
             .unwrap();
         assert_eq!(
-            record(&f.store, id(100))
-                .derived
-                .as_ref()
+            Services::credential_values(&record(&f.store, id(100)))
                 .unwrap()
+                .1
                 .use_epoch,
             0
         );
@@ -667,7 +673,10 @@ mod tests {
             .unwrap();
         let disabled = record(&f.store, id(100));
         assert_eq!(disabled.owner, id(6));
-        assert_eq!(disabled.derived.as_ref().unwrap().use_epoch, 1);
+        assert_eq!(
+            Services::credential_values(&disabled).unwrap().1.use_epoch,
+            1
+        );
         assert_eq!(disabled.created_at, first.created_at);
         assert_eq!(envelope(&f.store, id(100)), Some(first_envelope.clone()));
         caller
@@ -679,7 +688,10 @@ mod tests {
             ))
             .unwrap();
         let enabled = record(&f.store, id(100));
-        assert_eq!(enabled.derived.as_ref().unwrap().use_epoch, 2);
+        assert_eq!(
+            Services::credential_values(&enabled).unwrap().1.use_epoch,
+            2
+        );
         let rotate = sealed(
             &caller,
             &f.crypto,
@@ -693,13 +705,13 @@ mod tests {
         let rotated = record(&f.store, id(100));
         let second_envelope = envelope(&f.store, id(100)).unwrap();
         assert_eq!(
-            rotated.derived,
-            Some(Derived {
+            Services::credential_values(&rotated).unwrap().1,
+            &Derived {
                 incarnation: first_envelope.incarnation,
                 has_secret: true,
                 secret_revision: Some(2),
                 use_epoch: 2
-            })
+            }
         );
         assert_ne!(first_envelope.nonce, second_envelope.nonce);
         assert_eq!(
@@ -727,7 +739,10 @@ mod tests {
             .mutate(&edit(&caller, id(100), Some(id(4)), json!({})))
             .unwrap();
         let current = record(&f.store, id(100));
-        assert_eq!(current.derived.as_ref().unwrap().use_epoch, 3);
+        assert_eq!(
+            Services::credential_values(&current).unwrap().1.use_epoch,
+            3
+        );
         caller
             .mutate(&mutation(
                 &caller,
@@ -907,19 +922,20 @@ mod tests {
                 json!([{"op":"create","id":id(100),"contract":CREDENTIAL,"fields":disabled}]),
             ))
             .unwrap();
-        let incarnation = record(&f.store, id(100))
-            .derived
-            .as_ref()
+        let incarnation = Services::credential_values(&record(&f.store, id(100)))
             .unwrap()
+            .1
             .incarnation;
         assert_eq!(
-            record(&f.store, id(100)).derived,
-            Some(Derived {
+            Services::credential_values(&record(&f.store, id(100)))
+                .unwrap()
+                .1,
+            &Derived {
                 incarnation,
                 has_secret: false,
                 secret_revision: None,
                 use_epoch: 0
-            })
+            }
         );
         assert!(
             caller
@@ -949,13 +965,15 @@ mod tests {
         let committed = caller.write_secret(&f.crypto, &write).unwrap();
         assert_eq!(committed["result"]["records"][0]["record"], Value::Null);
         assert_eq!(
-            record(&f.store, id(100)).derived,
-            Some(Derived {
+            Services::credential_values(&record(&f.store, id(100)))
+                .unwrap()
+                .1,
+            &Derived {
                 incarnation,
                 has_secret: true,
                 secret_revision: Some(1),
                 use_epoch: 1
-            })
+            }
         );
         assert_eq!(f.crypto.decrypt_counts(), (1, 0));
         f.store.check_integrity().unwrap();

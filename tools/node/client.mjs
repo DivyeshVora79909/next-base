@@ -102,6 +102,11 @@ export function connect({ endpoint: endpointInput, credential, timeoutMs = 20_00
       if (catalog.model !== session.model) throw rpcError('model_mismatch', 'Catalog and server model differ');
       const model = prepareModel(catalog, { selector: 'services' });
       for (const command of commands) {
+        if ((command.op === 'create' && command.contract === 1003
+          || command.op === 'update' && [...Object.keys(command.set), ...command.unset].some(field => ['kind', 'value'].includes(field)))
+          && catalog.capabilities?.identities?.contract !== 1003) {
+          throw rpcError('invalid_plan', 'Identity mutation is not declared in the prepared catalog');
+        }
         if (command.op === 'create' && !model.validate(command.contract, command.fields).valid) {
           throw rpcError('invalid_plan', 'Email enqueue input does not satisfy the prepared catalog');
         }
