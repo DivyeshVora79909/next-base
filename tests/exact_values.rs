@@ -165,6 +165,7 @@ impl Binding for ExactEntries {
                     targets: vec![11],
                     optional: false,
                     direct_fields: vec![],
+                    validation_fields: vec![],
                     on_delete: "reject",
                     reader: true,
                 });

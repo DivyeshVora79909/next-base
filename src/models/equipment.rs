@@ -129,6 +129,7 @@ fn reference(slot: u16, field: &'static str, target: u16) -> Reference {
         targets: vec![target],
         optional: false,
         direct_fields: vec![],
+        validation_fields: vec![],
         on_delete: "reject",
         reader: field == "pool",
     }

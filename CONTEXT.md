@@ -1,5 +1,29 @@
 # Current checkpoint
 
+## C2.P — Declared parent projections and final-graph rules
+
+`Reference.validation_fields` selects authored parent inputs for the pure ordinary
+`Binding::validate_relationships(input, parents)` hook. `RelationInput` exposes
+slot, target UUID and exactly the declared field map. Required/optional and
+polymorphic references retain actual catalog type checks; native contract hints
+are nonbinding. No calculation routes or published-output dependencies are inferred.
+
+Shared validation runs after settlement/readers/client-reference authority and
+before uniqueness/publication. Check all changed surviving sources and final
+incoming consumers whose declared parent projection changed, including hidden
+children. One-hop discovery suffices because predicates do not write state.
+Compiled immutable field unions skip Incoming traversal for unrelated body edits.
+Independent Snapshot source enumeration checks rules without writer candidates.
+Hook error details are redacted, and a shared policy revision joins model identity.
+Codec stays kv-10; changed prepared identities require explicit recreation.
+
+See docs/relationships.md and docs/checkpoints/c2-relationship-predicates.json.
+Rules must be pure, deterministic and bounded native code; there is no untrusted
+code sandbox, arbitrary global solver or inferred reverse cardinality constraint.
+Bindings currently maintain final Incoming routes from their source references;
+the next review checks this remaining authoring responsibility before C3 accounting.
+C3 retains its separate source-derived totals/concurrency acceptance contract.
+
 ## C2.U — Protected catalog reference tuple uniqueness
 
 `Contract.uniqueness` declares positive local constraint codes and ordered scalar
@@ -22,9 +46,9 @@ target existence; native checking additionally derives complete semantic invento
 The explicit local FoundationDB test isolates the claim primitive from population
 and reader epochs; it is not full application or multi-host performance acceptance.
 
-Next C2 dependency: pure final-graph relationship predicates with explicit parent
-inputs and revalidation of affected children on parent edits. This is not provided
-by tuple uniqueness or local JSON Schema. C3 access/order changes follow that contract.
+C2.P adds own-input/immediate-parent predicates and parent-edit revalidation.
+These are independent of uniqueness and local JSON Schema. C3 access/order work
+retains its separate contract.
 
 ## C2.F — Final-graph reference binding and authorization
 
@@ -108,8 +132,8 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
 - C1.1 structural sizes/count-only family, C1.2 same-view storage batches, C1.3
   trusted rank windows and C1.4 authorized member paging are accepted on the default
   backend. Broader distributed workload acceptance is separate.
-- C2.F final-graph references and C2.U catalog 1:1/pair uniqueness are accepted.
-  Generic final-graph relationship predicates remain.
+- C2.F final-graph references, C2.U catalog uniqueness and C2.P own-input/
+  immediate-parent predicates are accepted within their documented scopes.
   Parent/child order comparisons must register parent inputs and revalidate parent
   edits, not only child insertion. Local JSON Schema alone is insufficient.
 - C3 access indexes are explicitly opted-in resource/tenant/reader-or-owner/order

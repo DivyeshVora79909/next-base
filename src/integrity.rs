@@ -660,6 +660,18 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 )?;
             }
         }
+        // Independently enumerate every source, without writer candidate caches.
+        for record in records.values() {
+            let parents = crate::relationships::inputs::<B>(
+                store.model(),
+                record,
+                &mut |id| Ok(records.get(&id).cloned()),
+                &mut |_| Ok(()),
+            )
+            .map_err(|_| local::corrupt("relationship input"))?;
+            B::validate_relationships(&record.input, &parents)
+                .map_err(|_| local::corrupt("relationship predicate"))?;
+        }
         // Derive the complete claim inventory from source, never writer caches.
         let mut expected_unique = BTreeMap::new();
         for (&id, record) in &records {

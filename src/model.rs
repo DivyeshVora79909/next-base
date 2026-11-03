@@ -63,6 +63,8 @@ pub struct Reference {
     pub targets: Vec<u16>,
     pub optional: bool,
     pub direct_fields: Vec<&'static str>,
+    /// Authored parent fields read by the pure relationship validator.
+    pub validation_fields: Vec<&'static str>,
     pub on_delete: &'static str,
     pub reader: bool,
 }
@@ -179,6 +181,7 @@ pub struct Prepared<B: Binding> {
     contracts: BTreeMap<u16, Contract>,
     indexes: Vec<IndexDescriptor>,
     publication_targets: BTreeSet<u16>,
+    relationship_validation_fields: BTreeMap<u16, BTreeSet<&'static str>>,
     validators: BTreeMap<u16, jsonschema::Validator>,
     field_validators: BTreeMap<(u16, &'static str), jsonschema::Validator>,
 }
@@ -435,6 +438,7 @@ impl<B: Binding> Prepared<B> {
         }
         let contracts: BTreeMap<_, _> = declarations.into_iter().map(|c| (c.code, c)).collect();
         let mut publication_targets = BTreeSet::new();
+        let mut relationship_validation_fields = BTreeMap::<u16, BTreeSet<&'static str>>::new();
         for contract in contracts.values() {
             let published_shape = B::published_shape(contract.code);
             if contract
@@ -460,6 +464,15 @@ impl<B: Binding> Prepared<B> {
                 }
             }
             for reference in &contract.references {
+                if reference
+                    .validation_fields
+                    .iter()
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != reference.validation_fields.len()
+                {
+                    return Err(model_error("duplicate relationship validation field"));
+                }
                 for code in &reference.targets {
                     let target = contracts
                         .get(code)
@@ -468,6 +481,19 @@ impl<B: Binding> Prepared<B> {
                         && target.visibility != Visibility::Public
                     {
                         return Err(model_error("public input points at private contract"));
+                    }
+                    if reference
+                        .validation_fields
+                        .iter()
+                        .any(|f| !target.fields.iter().any(|v| v.name == *f))
+                    {
+                        return Err(model_error("unresolved relationship validation field"));
+                    }
+                    if !reference.validation_fields.is_empty() {
+                        relationship_validation_fields
+                            .entry(*code)
+                            .or_default()
+                            .extend(reference.validation_fields.iter().copied());
                     }
                     if reference
                         .direct_fields
@@ -637,6 +663,7 @@ impl<B: Binding> Prepared<B> {
             B::NAME.as_bytes(),
             B::BEHAVIOR.as_bytes(),
             crate::access::READER_POLICY.as_bytes(),
+            crate::relationships::POLICY.as_bytes(),
             crate::mutation::REFERENCE_POLICY.as_bytes(),
             core_identity.as_bytes(),
             bytes.as_slice(),
@@ -660,6 +687,7 @@ impl<B: Binding> Prepared<B> {
             contracts,
             indexes,
             publication_targets,
+            relationship_validation_fields,
             validators,
             field_validators,
         })
@@ -679,6 +707,14 @@ impl<B: Binding> Prepared<B> {
         self.contracts
             .get(&code)
             .ok_or_else(|| Error::new("invalid_input", "unknown contract"))
+    }
+
+    /// Immutable dependency union compiled from validated reference declarations.
+    pub(crate) fn relationship_validation_fields(
+        &self,
+        code: u16,
+    ) -> Option<&BTreeSet<&'static str>> {
+        self.relationship_validation_fields.get(&code)
     }
 
     pub(crate) fn has_publication_dependents(&self, code: u16) -> bool {
@@ -842,6 +878,7 @@ fn reference(
         targets: targets.to_vec(),
         optional,
         direct_fields: direct.to_vec(),
+        validation_fields: vec![],
         on_delete: "reject",
         reader: matches!(
             field,

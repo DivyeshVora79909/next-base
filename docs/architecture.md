@@ -66,6 +66,12 @@ See [relationship semantics](relationships.md) for scope, optionality, costs and
 independent inventory checking. Endpoint deletion still follows declared reject
 rules. Reuse a cardinality root instead when it fully expresses a distinct invariant;
 do not duplicate coordination without a reason. Reader choice remains explicit.
+`Reference.validation_fields` and the pure `Binding::validate_relationships` hook
+cover own-input/immediate-parent rules without a second expression language.
+Final incoming references select affected children on parent edits; unchanged
+declared field unions skip traversal. Independent source enumeration checks every
+rule. Hidden dependents still constrain integrity, with redacted client errors.
+See [relationship rules](relationships.md#pure-parentchild-rules) for costs and scope.
 
 ## Selected index structure and planned read work
 
@@ -75,7 +81,7 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
 count/count-only indexing is implemented in C1.1; business counts retain their
-own declared meaning. Codec v9 requires explicit store recreation.
+own declared meaning. Current codec v10 requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.

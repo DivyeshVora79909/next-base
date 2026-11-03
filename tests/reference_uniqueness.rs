@@ -71,7 +71,7 @@ impl Binding for Relations {
             for (slot,field) in [(1,"first"),(2,"second")] {
                 if code == 11 || (slot == 2 && code != 22) {continue;}
                 properties[field] = uuid.clone();
-                references.push(Reference{slot,field,targets:vec![11],optional:true,direct_fields:vec![],on_delete:"reject",reader:false});
+                references.push(Reference{slot,field,targets:vec![11],optional:true,direct_fields:vec![],validation_fields:vec![],on_delete:"reject",reader:false});
             }
             Contract {code,name,visibility:Visibility::Public,
                 schema:json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"properties":properties,"required":["kind","note","first","second"]}),

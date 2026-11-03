@@ -352,6 +352,7 @@ fn reference(
         targets,
         optional: false,
         direct_fields,
+        validation_fields: vec![],
         on_delete: "reject",
         reader: field == "invoice" || field == "target",
     }

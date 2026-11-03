@@ -1,5 +1,6 @@
 //! Compiled model boundary. Types remain native; selecting a model does not
 //! install a parser, registry, dynamic plugin, or alternate transaction runner.
+pub use crate::relationships::RelationInput;
 use crate::{
     local::Store,
     model::{Contract, Prepared},
@@ -48,6 +49,15 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
     }
     fn valid_derived(input: &Self::Input, derived: Option<&Self::Derived>) -> bool;
     fn published_shape(code: u16) -> Value;
+    /// Pure, deterministic final-graph validation over authored input and declared
+    /// parent projections. Implementations must not perform external I/O or make
+    /// decisions from ambient state; behavior identity pins compiled semantics.
+    fn validate_relationships(
+        _input: &Self::Input,
+        _parents: &[crate::relationships::RelationInput],
+    ) -> Result<()> {
+        Ok(())
+    }
     fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
         ws: &mut Attempt<L, Self>,
         model: &Prepared<Self>,

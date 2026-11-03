@@ -66,5 +66,48 @@ See [checkpoint evidence](checkpoints/c2-reference-uniqueness.json) and
 test requires `NEXT_BASE_FDB_CLUSTER` and an explicit ignored-test run. It proves
 the claim primitive's same-key conflict and disjoint-key independence on a real
 adapter, without population or reader epochs. It is not multi-host performance
-evidence or a full application concurrency campaign. Generic parent/child field
-predicates and parent-edit revalidation remain the next C2 slice.
+evidence or a full application concurrency campaign.
+
+# Pure parent/child rules
+
+Declare authored parent fields on each reference with
+`reference.validation_fields = vec!["start", "end", "limit"]`, then implement the
+ordinary compiled `Binding::validate_relationships(input, parents)` function.
+Each `RelationInput` has the reference `slot`, target UUID and a `Map<String, Value>`
+containing exactly the declared fields. No storage, allocator, owner/reader headers,
+derived values or external service handle is supplied. Own authored input remains
+native and typed. Optional absent references supply no entry. Polymorphic references
+require every admitted target contract to declare the requested fields.
+
+For example, a reservation can require `start <= at <= end` and `amount <= limit`.
+These are ordinary comparisons, with the model defining units, numeric bindings
+and strictness. Rules may compose any deterministic native functions over the given
+inputs. They must be pure and have bounded cost; this is a compiled authoring
+contract, not a sandbox for untrusted code. The engine budgets discovery and
+projection work, not arbitrary work inside authored Rust functions.
+
+The final mutation checks changed surviving sources and final incoming consumers
+whose declared parent projections changed. It does not filter hidden children out
+of integrity validation. Joint parent/child repairs and retargets use the final
+graph, independent of command order. An unchanged union of consumed parent fields
+skips incoming traversal, even if the parent's unrelated body changed. The union
+is compiled once into immutable prepared-model metadata from the same declarations.
+
+Predicates produce no data, so candidate discovery is one hop rather than a new
+reactive scheduler. A grandparent input needs an explicit reference/declaration;
+a rule must not acquire hidden dependencies. These declarations do not install
+calculation routes or read published outputs. Generic order subscriptions remain
+the separate C3 work described in the roadmap.
+
+Independent native integrity checking enumerates every source and resolves its
+declared parents from the complete source snapshot, then applies the same pure
+authored rule. It does not trust the writer's candidate selection. Domain rejection
+rolls back all staged state. Client diagnostics retain the error class but redact
+rule details, which could contain hidden parent/child data. A semantic policy revision
+and all declarations participate in prepared identity; old model identities require
+explicit recreation. The physical codec remains `native-slice-kv-10`.
+
+See [C2.P evidence](checkpoints/c2-relationship-predicates.json) and the
+[scheduling example/tests](../tests/relationship_predicates.rs). This slice covers
+own-input and declared immediate-parent rules; it does not infer reverse cardinality
+requirements or provide an arbitrary global-constraint solver.

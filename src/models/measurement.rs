@@ -214,6 +214,7 @@ fn declarations() -> Result<Vec<Contract>> {
                 } else {
                     vec![]
                 },
+                validation_fields: vec![],
                 on_delete: "reject",
                 reader: true,
             });

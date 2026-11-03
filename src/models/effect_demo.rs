@@ -138,7 +138,7 @@ impl Binding for EffectDemo {
                 schema: json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"required":names,"properties":fields}),
                 fields: names.into_iter().enumerate().map(|(i, name)| InputField { code: i as u16 + 1, name, mutable: code == 101 }).collect(),
                 published: vec![], publication_inputs: vec![],
-                references: if code == 205 { vec![Reference { slot: 1, field: "account", targets: vec![101], optional: false, direct_fields: vec![], on_delete: "reject", reader: true }] } else { vec![] },
+                references: if code == 205 { vec![Reference { slot: 1, field: "account", targets: vec![101], optional: false, direct_fields: vec![], validation_fields: vec![], on_delete: "reject", reader: true }] } else { vec![] },
                 roots: vec![], memberships: vec![], queries: vec![], outputs: vec![], calculations: vec![], calculation_order: vec![],
                 rules: if code == 101 { vec!["nonnegative settled balance"] } else { vec!["immutable external request"] },
                 schema_source: "src/models/effect_demo.rs", behavior_source: "src/models/effect_demo.rs",

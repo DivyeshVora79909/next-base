@@ -1,0 +1,141 @@
+{
+  "format": "next-base-relationship-predicates-1",
+  "checkpoint": "C2.P",
+  "status": "accepted bounded declared authored-parent relationship rules",
+  "parentCommit": "8511a085a2cf497162c193d8f0d5b8e89182e1ca",
+  "inputs": [
+    {
+      "path": "src/binding.rs",
+      "sha256": "c7ee438be5ed85a0f00453fe86956a708e3ed716acb3fcf5d9079d39ea86d9e6"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "4491a8d401dfa74d7219d1bae3382e58ebd981a3fb3f9abdb97a8acc8a7fbfb1"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "fe69fc986a3e5daab8d9e2d7f1e692b60885ea75f866ffb83dc7053c80c5d502"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "82ae1613c5ed8a3c4139d19bb18d83e297bbad153f8542cbbe0c45aff215bc8f"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "7df106d1641bf3bebb6a53ae2877d368648ab3b92dd6688246ee98daff2a0f0f"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "aaf734ab99b8954cc27ac73aa4de3045dc94f79337817f0b434613e5966abe72"
+    },
+    {
+      "path": "src/models/invoicing.rs",
+      "sha256": "42914ea542d12b4dbf739ab51be50549d541bf4005144652a2423081b4fb4974"
+    },
+    {
+      "path": "src/models/measurement.rs",
+      "sha256": "0825462a5ea187d2da5428093e49e1dabdc99330582f171ede72bba4bf215b52"
+    },
+    {
+      "path": "src/models/quantity.rs",
+      "sha256": "4c2806cc9da2f44da56155cfcdcf960e376986b9898263ded5769586513d3edd"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "42f732b430f88931dd3bea03133249ea5a00fc13e5146f5d1e9fe4871c54fb3f"
+    },
+    {
+      "path": "src/parameter_tests.rs",
+      "sha256": "80d9d3c8745c7758df49b4f65815a78f2d44cde43a92e71f99fb69e0e674407f"
+    },
+    {
+      "path": "src/publication_tests.rs",
+      "sha256": "62c246d9ca18dc01e7f60edff13f576c025dac9cb784e694d54b83e4099b3f96"
+    },
+    {
+      "path": "src/relationships.rs",
+      "sha256": "1810ae172120bcedd9742f82ac6691ac9ed2ec355513f5ed0ffb3b734b322f8c"
+    },
+    {
+      "path": "src/window_tests.rs",
+      "sha256": "97799459e69578d7c07e6edc63c2c650a3f6c0f0d85fd325d594253dbc30de28"
+    },
+    {
+      "path": "tests/exact_values.rs",
+      "sha256": "5a495824df0dbc43bef6c5a014040a94f9e38caa945ccea7b072a41021c785b0"
+    },
+    {
+      "path": "tests/reference_uniqueness.rs",
+      "sha256": "a261df86a6f1fba458d244bdb494f88a99dfc85e35517f082ece37b6f70fc8b0"
+    },
+    {
+      "path": "tests/relationship_predicates.rs",
+      "sha256": "7680c7bc1798bcebb126bf2e66187c00cd33b79c961a8d02159db0806efcbc0c"
+    }
+  ],
+  "api": {
+    "declaration": "Reference.validation_fields authored field names, checked for duplicates and every polymorphic target",
+    "hook": "Binding::validate_relationships(&Input, &[RelationInput { slot, target, fields }]) default success",
+    "purity": "compiled deterministic bounded functions; no storage, allocator, authority headers, derived values or external I/O supplied",
+    "identity": "relationships::POLICY and declarations included in prepared identity; physical codec unchanged kv-10",
+    "selection": "changed surviving sources plus final Incoming consumers with changed declared parent projection; one hop, no recursive scheduler",
+    "optimization": "immutable field union compiled in Prepared; unchanged union avoids Incoming reads; parent authored JSON reused for discovery",
+    "privacy": "validate hidden children; retain static error class while redacting domain detail",
+    "checker": "full source enumeration and parent resolution independent of writer candidate selection; pure authored rule shared"
+  },
+  "checks": {
+    "defaultRust": {
+      "passed": 276,
+      "failed": 0,
+      "ignored": 0,
+      "allTargets": true,
+      "includesExampleTests": true,
+      "logSha256": "44d273c04aa6745857d6e6cb0c0524d2e0d8efd0a1ba4c3c96386db9d5d49af0"
+    },
+    "focusedDefault": {
+      "logSha256": "96568f711e8bb47e9c3152ae30c907b7b12da057364aab8237cf7fb3fae5f4ae"
+    },
+    "node": {
+      "version": "24.22.1",
+      "passed": 171,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "logSha256": "71dad1e2ba9bd9876e8ff6675e31e58fd0296892e002beabf9c4d6380507c990"
+    },
+    "clippy": {
+      "defaultAllTargets": true,
+      "warningsDenied": true,
+      "defaultLogSha256": "3c1177f2febe8ace3bb3354a7c486a88ab72b44101c5c70e38517adccc77ed38",
+      "foundationdbTarget": "relationship_predicates",
+      "foundationdbLogSha256": "5332030e5bfa6788a57ffc4a000e8c3d906269300206aaf7d881d398b1479ef3"
+    },
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "scope": "shared mutation/rule primitive with Store-seeded source graph; no query epoch, receipt or Population coordination writes",
+      "passed": 1,
+      "failed": 0,
+      "commitOrders": 2,
+      "logSha256": "67706495bd49685bd02bed322b9d4e278e78a55e8ce090e1ca4a5e4ca9141861",
+      "stdout": "\nrunning 1 test\ntest foundationdb_parent_child_write_skew_conflicts_in_both_commit_orders ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.08s\n\n"
+    },
+    "format": "cargo fmt --all; git diff --check"
+  },
+  "witnesses": [
+    "literal scheduling and amount bounds, equality boundaries, invalid source/parent edits and exact rollback",
+    "joint creation and joint repair command orders, optional and polymorphic refs, retarget removes old-parent relevance",
+    "native target contract hints remain nonbinding; actual target and catalog union checked",
+    "hidden child constrains visible parent edit; sentinel secret detail redacted",
+    "unrelated body edit cannot load Incoming (guarded loader) and avoids child predicate calls",
+    "actual Snapshot rejects corrupt authored parent with untouched child; low work budget publishes nothing",
+    "real redb reopen with explicit literal source oracle",
+    "real FoundationDB parent/child write skew: either commit order rejects stale contender; each staged batch has only its distinct source Record write and no Population/epoch/receipt write"
+  ],
+  "limits": [
+    "predicates read own authored input and explicit immediate-parent projections; no inferred reverse cardinality or arbitrary global solver",
+    "model authors are trusted to write pure bounded Rust; engine traversal budgets do not sandbox hook CPU",
+    "Incoming routes currently maintained by compiled bindings; automatic shared ownership is the next slice",
+    "FoundationDB proof covers the shared mutation/rule primitive; not full transport authority/cursor publication or multi-host performance",
+    "SurrealKV-specific acceptance was not rerun"
+  ]
+}

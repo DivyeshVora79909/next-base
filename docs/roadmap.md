@@ -91,8 +91,10 @@ Early action/CAS boundaries remain; readers are repaired before final target acc
 This does not implement arbitrary relationship predicates or allow causal cycles.
 Catalog scalar/pair tuple uniqueness is accepted as C2.U: see
 [semantics](relationships.md) and [evidence](checkpoints/c2-reference-uniqueness.json).
-The remaining implementation slice is explicit relationship predicates and
-parent-edit revalidation; preserve the following full C2 obligations.
+Own-input/immediate-parent predicates and parent-edit revalidation are accepted
+as C2.P: see [semantics](relationships.md#pure-parentchild-rules) and
+[evidence](checkpoints/c2-relationship-predicates.json). Broader global or reverse
+cardinality rules are not inferred. Preserve the following full C2 obligations.
 
 Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.
