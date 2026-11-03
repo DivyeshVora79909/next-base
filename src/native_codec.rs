@@ -7,10 +7,11 @@ use uuid::Uuid;
 
 use crate::{
     native_slice::{Error, Meta, ModelRecord, Query, Result},
+    order_value::AccessOrder,
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-12";
+pub const CODEC: &str = "native-slice-kv-13";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -203,6 +204,8 @@ pub enum Key {
     Record(Uuid),
     Root(Address),
     Node(Address),
+    AccessRoot(Address),
+    AccessNode(Address),
     Query(Address),
     Incoming(Uuid),
     Direct(Uuid),
@@ -236,6 +239,8 @@ impl Key {
             Self::Record(id) => (1, *id, None),
             Self::Root(a) => (2, a.id, Some(a.slot)),
             Self::Node(a) => (3, a.id, Some(a.slot)),
+            Self::AccessRoot(a) => (15, a.id, Some(a.slot)),
+            Self::AccessNode(a) => (16, a.id, Some(a.slot)),
             Self::Query(a) => (4, a.id, Some(a.slot)),
             Self::Incoming(id) => (5, *id, None),
             Self::Direct(id) => (6, *id, None),
@@ -282,7 +287,7 @@ impl Key {
         }
         let length = match tag {
             1 | 5 | 6 | 9 => 17,
-            2..=4 | 7 | 8 | 10..=12 => 19,
+            2..=4 | 7 | 8 | 10..=12 | 15 | 16 => 19,
             _ => return Err(bad()),
         };
         if bytes.len() != length {
@@ -302,6 +307,8 @@ impl Key {
             1 => Self::Record(id),
             2 => Self::Root(a),
             3 => Self::Node(a),
+            15 => Self::AccessRoot(a),
+            16 => Self::AccessNode(a),
             4 => Self::Query(a),
             5 => Self::Incoming(id),
             6 => Self::Direct(id),
@@ -333,11 +340,13 @@ pub enum StoredValue<B: Binding> {
     Record(ModelRecord<B>),
     Root(Root<B::Index>),
     Node(Node<B::Index>),
+    AccessRoot(Root<AccessOrder>),
+    AccessNode(Node<AccessOrder>),
     Query(Query<B::Index>),
     Incoming(crate::routes::Header),
     Direct(crate::routes::Header),
     Subscribers(crate::routes::Header),
-    RouteNode(crate::routes::Node),
+    RouteNode(crate::routes::Node<<B::Index as NativeIndex>::Key>),
     Role(Role),
     Reserved(Address),
 }
@@ -373,6 +382,51 @@ pub fn decode_for<B: Binding>(key: &Key, bytes: &[u8]) -> Result<StoredValue<B>>
     Ok(value)
 }
 
+fn valid_root<I: NativeIndex>(a: &Address, r: &Root<I>) -> bool {
+    a.slot > 0
+        && !r.revision.is_nil()
+        && I::validate_summary(r.kind, &r.summary).is_ok()
+        && r.height < 64
+        && r.head.is_none() == (r.height == 0)
+        && r.head.is_none() == (r.size == 0)
+        && r.head.is_none() == r.first.is_none()
+        && r.head.is_none() == r.last.is_none()
+        && r.head.is_none() == r.span.is_none()
+        && r.head
+            .into_iter()
+            .chain(r.first)
+            .chain(r.last)
+            .all(|a| a.slot > 0)
+        && r.span.as_ref().is_none_or(|span| {
+            span.first <= span.last
+                && I::validate_key(r.kind, &span.first).is_ok()
+                && I::validate_key(r.kind, &span.last).is_ok()
+        })
+        && (r.head.is_some() || I::empty(r.kind).is_ok_and(|empty| empty == r.summary))
+}
+
+fn valid_node<I: NativeIndex>(a: &Address, n: &Node<I>) -> bool {
+    a.slot > 0
+        && n.root.slot > 0
+        && n.key.id == a.id
+        && n.key.slot == a.slot
+        && I::validate_key(n.kind, &n.key.value).is_ok()
+        && I::validate_leaf(n.kind, &n.leaf).is_ok()
+        && I::validate_summary(n.kind, &n.summary).is_ok()
+        && n.size > 0
+        && n.height > 0
+        && n.height < 64
+        && n.span.first <= n.key.value
+        && n.key.value <= n.span.last
+        && I::validate_key(n.kind, &n.span.first).is_ok()
+        && I::validate_key(n.kind, &n.span.last).is_ok()
+        && [n.parent, n.left, n.right, n.prev, n.next]
+            .into_iter()
+            .flatten()
+            .all(|id| id.slot > 0 && id != *a)
+        && (n.left.is_none() || n.left != n.right)
+}
+
 fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
     let valid = match (key, value) {
         (
@@ -397,50 +451,10 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                 && r.input.managed().is_none_or(|(_, role)| role > 0)
                 && B::valid_derived(&r.input, r.derived.as_ref())
         }
-        (Key::Root(a), StoredValue::Root(r)) => {
-            a.slot > 0
-                && !r.revision.is_nil()
-                && B::Index::validate_summary(r.kind, &r.summary).is_ok()
-                && r.height < 64
-                && r.head.is_none() == (r.height == 0)
-                && r.head.is_none() == (r.size == 0)
-                && r.head.is_none() == r.first.is_none()
-                && r.head.is_none() == r.last.is_none()
-                && r.head.is_none() == r.span.is_none()
-                && r.head
-                    .into_iter()
-                    .chain(r.first)
-                    .chain(r.last)
-                    .all(|a| a.slot > 0)
-                && r.span.as_ref().is_none_or(|span| {
-                    span.first <= span.last
-                        && B::Index::validate_key(r.kind, &span.first).is_ok()
-                        && B::Index::validate_key(r.kind, &span.last).is_ok()
-                })
-                && (r.head.is_some()
-                    || B::Index::empty(r.kind).is_ok_and(|empty| empty == r.summary))
-        }
-        (Key::Node(a), StoredValue::Node(n)) => {
-            a.slot > 0
-                && n.root.slot > 0
-                && n.key.id == a.id
-                && n.key.slot == a.slot
-                && B::Index::validate_key(n.kind, &n.key.value).is_ok()
-                && B::Index::validate_leaf(n.kind, &n.leaf).is_ok()
-                && B::Index::validate_summary(n.kind, &n.summary).is_ok()
-                && n.size > 0
-                && n.height > 0
-                && n.height < 64
-                && n.span.first <= n.key.value
-                && n.key.value <= n.span.last
-                && B::Index::validate_key(n.kind, &n.span.first).is_ok()
-                && B::Index::validate_key(n.kind, &n.span.last).is_ok()
-                && [n.parent, n.left, n.right, n.prev, n.next]
-                    .into_iter()
-                    .flatten()
-                    .all(|id| id.slot > 0 && id != *a)
-                && (n.left.is_none() || n.left != n.right)
-        }
+        (Key::Root(a), StoredValue::Root(r)) => valid_root(a, r),
+        (Key::Node(a), StoredValue::Node(n)) => valid_node(a, n),
+        (Key::AccessRoot(a), StoredValue::AccessRoot(r)) => valid_root(a, r),
+        (Key::AccessNode(a), StoredValue::AccessNode(n)) => valid_node(a, n),
         (Key::Query(a), StoredValue::Query(q)) => {
             a.slot > 0 && q.source.slot > 0 && B::Index::validate_query(q).is_ok()
         }
@@ -459,7 +473,7 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
             use crate::routes::{Endpoint, Route};
             a.slot > 0
                 && n.key.member == *a
-                && n.key.endpoint == crate::routes::endpoint(n.range)
+                && n.key.endpoint == crate::routes::endpoint(&n.range)
                 && n.route.node_key(*a) == *key
                 && n.height > 0
                 && n.height < 64
@@ -470,11 +484,12 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                     Route::Subscribers(root) => root.slot > 0,
                     _ => {
                         n.key.endpoint == Endpoint::All
-                            && n.range == crate::time_range::TimeRange::ALL
+                            && n.range == crate::native_range::NativeRange::ALL
                     }
                 }
                 && (n.range.is_empty()
                     || n.min_lower
+                        .as_ref()
                         .is_some_and(|bound| bound.lower_cut() <= n.range.lower.lower_cut()))
         }
         (Key::Role(a), StoredValue::Role(_)) => a.slot > 0,
@@ -504,6 +519,58 @@ pub fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn access_namespaces_are_distinct_and_enforce_native_tree_shapes() {
+        use crate::order_value::{ORDER_INDEX, OrderAtom, OrderKey};
+        use crate::tree::{FullKey, Span};
+        let root = Address::new(Uuid::from_u128(1), 7);
+        let member = Address::new(Uuid::from_u128(2), 7);
+        for (key, tag) in [(Key::AccessRoot(root), 15), (Key::AccessNode(member), 16)] {
+            let bytes = key.encode();
+            assert_eq!(bytes[0], tag);
+            assert_eq!(Key::decode(&bytes).unwrap(), key);
+            let mut zero_slot = bytes;
+            zero_slot[17..].fill(0);
+            assert!(Key::decode(&zero_slot).is_err());
+        }
+        let value = OrderKey::new(vec![OrderAtom::Integer(10)]).unwrap();
+        let node = Node::<AccessOrder> {
+            kind: ORDER_INDEX,
+            root,
+            key: FullKey {
+                value: value.clone(),
+                id: member.id,
+                slot: member.slot,
+            },
+            leaf: (),
+            parent: None,
+            left: None,
+            right: None,
+            prev: None,
+            next: None,
+            height: 1,
+            size: 1,
+            span: Span {
+                first: value.clone(),
+                last: value,
+            },
+            summary: (),
+        };
+        let stored = Stored::AccessNode(node.clone());
+        let bytes = encode(&Key::AccessNode(member), &stored).unwrap();
+        assert_eq!(decode(&Key::AccessNode(member), &bytes).unwrap(), stored);
+        assert!(encode(&Key::Node(member), &stored).is_err());
+        assert!(decode(&Key::Node(member), &bytes).is_err());
+        let mut invalid = node;
+        invalid.size = 0;
+        assert!(encode(&Key::AccessNode(member), &Stored::AccessNode(invalid)).is_err());
+        let header = Stored::AccessRoot(
+            Root::<AccessOrder>::empty(ORDER_INDEX, Uuid::from_u128(3)).unwrap(),
+        );
+        assert!(encode(&Key::AccessRoot(root), &header).is_ok());
+        assert!(encode(&Key::Root(root), &header).is_err());
+    }
 
     #[test]
     fn removed_population_tag_is_unknown() {

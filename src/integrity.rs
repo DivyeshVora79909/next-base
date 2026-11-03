@@ -12,11 +12,13 @@ use crate::{
     model::Visibility,
     native_codec::StoredValue,
     native_codec::{self, Address, Key, Stored},
+    native_range::{NativeBound, NativeRange, RangeKey},
     native_slice::{Calculated, Derived, Input, Query},
     native_slice::{Error, Result},
     native_slice::{Meta, ModelRecord, Population},
-    time_range::{TimeBound, TimeRange},
-    tree::{FullKey, Node, Span},
+    order_value::{AccessOrder, ORDER_INDEX},
+    time_range::TimeRange,
+    tree::{FullKey, Node, Root, Span},
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,7 +27,7 @@ use uuid::Uuid;
 pub(crate) type Members = BTreeMap<Address, (Address, i64, Leaf)>;
 pub(crate) type NativeMembers<I> =
     BTreeMap<Address, (Address, <I as NativeIndex>::Key, <I as NativeIndex>::Leaf)>;
-type SourceAggregate<I> = dyn Fn(
+pub(crate) type SourceAggregate<I> = dyn Fn(
     IndexCode,
     &[(<I as NativeIndex>::Key, <I as NativeIndex>::Leaf)],
 ) -> Result<<I as NativeIndex>::Summary>;
@@ -90,45 +92,78 @@ fn aggregate(kind: IndexCode, leaves: &[(TimeKey, Leaf)]) -> Result<Aggregate> {
 
 // This walker derives exact registration identities and augmentation from source
 // queries. Its bound ordering and emptiness oracle are independent of the writer.
-fn source_lower_order(bound: TimeBound) -> (i128, bool) {
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum SourceCut<'a, K> {
+    NegativeInfinity,
+    Key(&'a K, bool),
+    PositiveInfinity,
+}
+fn source_lower_order<K>(bound: &NativeBound<K>) -> SourceCut<'_, K> {
     match bound {
-        TimeBound::Unbounded => (i128::from(i64::MIN) - 1, false),
-        TimeBound::Included(at) => (i128::from(at), false),
-        TimeBound::Excluded(at) => (i128::from(at), true),
+        NativeBound::Unbounded => SourceCut::NegativeInfinity,
+        NativeBound::Included(key) => SourceCut::Key(key, false),
+        NativeBound::Excluded(key) => SourceCut::Key(key, true),
     }
 }
-fn source_route_order(order: crate::routes::Order) -> ((i128, bool), Address) {
+fn source_route_order<K: RangeKey>(order: &crate::routes::Order<K>) -> (SourceCut<'_, K>, Address) {
     use crate::routes::Endpoint;
-    let endpoint = match order.endpoint {
-        Endpoint::Time(at) => (i128::from(at), false),
-        Endpoint::Through(at) => (i128::from(at), true),
-        Endpoint::All => (i128::from(i64::MAX) + 1, false),
+    let endpoint = match &order.endpoint {
+        Endpoint::Before(key) => SourceCut::Key(key, false),
+        Endpoint::Through(key) => SourceCut::Key(key, true),
+        Endpoint::All => SourceCut::PositiveInfinity,
     };
     (endpoint, order.member)
 }
-fn source_nonempty(range: TimeRange) -> bool {
-    let lower = match range.lower {
-        TimeBound::Unbounded => i128::from(i64::MIN),
-        TimeBound::Included(at) => i128::from(at),
-        TimeBound::Excluded(at) => i128::from(at) + 1,
-    };
-    let upper = match range.upper {
-        TimeBound::Unbounded => i128::from(i64::MAX),
-        TimeBound::Included(at) => i128::from(at),
-        TimeBound::Excluded(at) => i128::from(at) - 1,
-    };
-    lower <= upper
+fn source_nonempty<K: RangeKey>(range: &NativeRange<K>) -> bool {
+    use NativeBound::{Excluded, Included, Unbounded};
+    if let Excluded(key) = &range.lower
+        && K::maximum().as_ref() == Some(key)
+    {
+        return false;
+    }
+    if let Excluded(key) = &range.upper
+        && K::minimum().as_ref() == Some(key)
+    {
+        return false;
+    }
+    match (&range.lower, &range.upper) {
+        (Unbounded, _) | (_, Unbounded) => true,
+        (Included(a) | Excluded(a), Included(b) | Excluded(b)) => match a.cmp(b) {
+            std::cmp::Ordering::Less => {
+                !(matches!((&range.lower, &range.upper), (Excluded(_), Excluded(_)))
+                    && K::adjacent(a, b))
+            }
+            std::cmp::Ordering::Equal => {
+                matches!((&range.lower, &range.upper), (Included(_), Included(_)))
+            }
+            std::cmp::Ordering::Greater => false,
+        },
+    }
 }
-#[derive(Default)]
-struct RouteStats {
+struct RouteStats<K> {
     height: u16,
     len: u32,
     bounded: u32,
-    min_lower: Option<TimeBound>,
+    min_lower: Option<NativeBound<K>>,
 }
+impl<K> Default for RouteStats<K> {
+    fn default() -> Self {
+        Self {
+            height: 0,
+            len: 0,
+            bounded: 0,
+            min_lower: None,
+        }
+    }
+}
+type SourceRoute<I> = (
+    crate::routes::Route,
+    crate::routes::Order<<I as NativeIndex>::Key>,
+    NativeRange<<I as NativeIndex>::Key>,
+);
 struct RouteWalk<'a, B: Binding> {
     all: &'a BTreeMap<Key, StoredValue<B>>,
-    expected: BTreeMap<Key, (crate::routes::Route, crate::routes::Order, TimeRange)>,
+    expected: BTreeMap<Key, SourceRoute<B::Index>>,
     seen: BTreeSet<Key>,
 }
 impl<B: Binding> RouteWalk<'_, B> {
@@ -136,10 +171,10 @@ impl<B: Binding> RouteWalk<'_, B> {
         &mut self,
         route: crate::routes::Route,
         id: Option<Address>,
-        lower: Option<crate::routes::Order>,
-        upper: Option<crate::routes::Order>,
+        lower: Option<crate::routes::Order<<B::Index as NativeIndex>::Key>>,
+        upper: Option<crate::routes::Order<<B::Index as NativeIndex>::Key>>,
         depth: u16,
-    ) -> Result<RouteStats> {
+    ) -> Result<RouteStats<<B::Index as NativeIndex>::Key>> {
         let Some(id) = id else {
             return Ok(RouteStats::default());
         };
@@ -149,30 +184,34 @@ impl<B: Binding> RouteWalk<'_, B> {
         let Some(StoredValue::RouteNode(n)) = self.all.get(&key) else {
             return Err(local::corrupt("selector dangling link"));
         };
-        let expected = self.expected.get(&key).copied();
+        let expected = self.expected.get(&key).cloned();
         require(
-            expected == Some((n.route, n.key, n.range)) && n.route == route,
+            expected == Some((n.route, n.key.clone(), n.range.clone())) && n.route == route,
             "selector exact source membership/bound",
         )?;
         let range = expected.expect("required source registration").2;
         require(
-            lower.is_none_or(|k| source_route_order(k) < source_route_order(n.key))
-                && upper.is_none_or(|k| source_route_order(n.key) < source_route_order(k)),
+            lower
+                .as_ref()
+                .is_none_or(|k| source_route_order(k) < source_route_order(&n.key))
+                && upper
+                    .as_ref()
+                    .is_none_or(|k| source_route_order(&n.key) < source_route_order(k)),
             "selector order",
         )?;
         let n = n.clone();
-        let left = self.visit(route, n.left, lower, Some(n.key), depth + 1)?;
+        let left = self.visit(route, n.left, lower, Some(n.key.clone()), depth + 1)?;
         let right = self.visit(route, n.right, Some(n.key), upper, depth + 1)?;
         require(
             left.height.abs_diff(right.height) <= 1
                 && n.height == 1 + left.height.max(right.height),
             "selector balance/height",
         )?;
-        let own = source_nonempty(range).then_some(range.lower);
+        let own = source_nonempty(&range).then_some(range.lower.clone());
         let min_lower = [own, left.min_lower, right.min_lower]
             .into_iter()
             .flatten()
-            .min_by_key(|bound| source_lower_order(*bound));
+            .min_by(|a, b| source_lower_order(a).cmp(&source_lower_order(b)));
         require(
             n.min_lower == min_lower,
             "selector exact minimum lower bound",
@@ -180,7 +219,9 @@ impl<B: Binding> RouteWalk<'_, B> {
         Ok(RouteStats {
             height: n.height,
             len: 1 + left.len + right.len,
-            bounded: u32::from(range.lower != TimeBound::Unbounded) + left.bounded + right.bounded,
+            bounded: u32::from(range.lower != NativeBound::Unbounded)
+                + left.bounded
+                + right.bounded,
             min_lower,
         })
     }
@@ -204,14 +245,14 @@ fn check_routes<B: Binding>(
                     .get(&member)
                     .ok_or_else(|| local::corrupt("selector lacks expected query"))?;
                 require(q.source == root, "selector query root")?;
-                q.range
+                q.range.clone()
             } else {
-                TimeRange::ALL
+                NativeRange::ALL
             };
-            let endpoint = match range.upper {
-                TimeBound::Included(at) => Endpoint::Through(at),
-                TimeBound::Excluded(at) => Endpoint::Time(at),
-                TimeBound::Unbounded => Endpoint::All,
+            let endpoint = match &range.upper {
+                NativeBound::Included(at) => Endpoint::Through(at.clone()),
+                NativeBound::Excluded(at) => Endpoint::Before(at.clone()),
+                NativeBound::Unbounded => Endpoint::All,
             };
             require(
                 walk.expected
@@ -318,6 +359,129 @@ impl<I: NativeIndex> Walk<'_, I> {
         Ok((node.height, order))
     }
 }
+/// Verify a complete forest against independently enumerated source memberships
+/// and a source-fold oracle. Physical namespaces and root declarations are checked
+/// by the caller; this checker never invokes the tree writer or reads its caches
+/// to derive expectations.
+pub(crate) fn check_tree_forest<I: NativeIndex>(
+    roots: &BTreeMap<Address, Root<I>>,
+    nodes: &BTreeMap<Address, Node<I>>,
+    members: &NativeMembers<I>,
+    aggregate: &SourceAggregate<I>,
+) -> Result<()> {
+    require(nodes.len() == members.len(), "node inventory size")?;
+    let mut walk = Walk {
+        nodes,
+        members,
+        aggregate,
+        seen: BTreeSet::new(),
+    };
+    for (&address, root) in roots {
+        require(!root.revision.is_nil(), "root inventory/version")?;
+        let (height, order) = walk.visit(root.head, None, address, root.kind, 0)?;
+        require(
+            root.height == height
+                && root.first == order.first().copied()
+                && root.last == order.last().copied(),
+            "root links/height",
+        )?;
+        require(
+            u64::try_from(order.len()).is_ok_and(|size| root.size == size),
+            "exact root size",
+        )?;
+        let mut previous = None;
+        for (i, id) in order.iter().enumerate() {
+            let n = &nodes[id];
+            require(
+                n.prev == i.checked_sub(1).map(|i| order[i]) && n.next == order.get(i + 1).copied(),
+                "neighbour links",
+            )?;
+            require(
+                previous.is_none_or(|p: &FullKey<_>| p < &n.key),
+                "tree order",
+            )?;
+            previous = Some(&n.key);
+        }
+        let leaves: Vec<_> = order
+            .iter()
+            .map(|id| {
+                let (_, at, leaf) = &members[id];
+                (at.clone(), leaf.clone())
+            })
+            .collect();
+        require(
+            root.summary == aggregate(root.kind, &leaves)?,
+            "root summary",
+        )?;
+        let span = leaves.first().zip(leaves.last()).map(|(first, last)| Span {
+            first: first.0.clone(),
+            last: last.0.clone(),
+        });
+        require(root.span == span, "exact root span")?;
+    }
+    require(
+        walk.seen == members.keys().copied().collect(),
+        "disconnected membership",
+    )?;
+    Ok(())
+}
+
+/// Access streams are reconstructed from source records and catalog declarations,
+/// then checked by the same independent forest walker as business memberships.
+fn check_access_indexes<B: Binding>(
+    model: &crate::model::Prepared<B>,
+    all: &BTreeMap<Key, StoredValue<B>>,
+    records: &BTreeMap<Uuid, ModelRecord<B>>,
+) -> Result<BTreeSet<Key>> {
+    let roots: BTreeMap<_, _> = all
+        .iter()
+        .filter_map(|(key, value)| match (key, value) {
+            (Key::AccessRoot(address), StoredValue::AccessRoot(root)) => {
+                Some((*address, root.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    let nodes: BTreeMap<_, _> = all
+        .iter()
+        .filter_map(|(key, value)| match (key, value) {
+            (Key::AccessNode(address), StoredValue::AccessNode(node)) => {
+                Some((*address, node.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    let mut members = NativeMembers::<AccessOrder>::new();
+    let mut expected_roots = BTreeSet::new();
+    for (&id, record) in records {
+        for (root, node, order) in crate::access_index::memberships(model, id, record)? {
+            require(
+                members.insert(node, (root, order, ())).is_none(),
+                "duplicate access source membership",
+            )?;
+            expected_roots.insert(root);
+        }
+    }
+    require(
+        roots.keys().copied().collect::<BTreeSet<_>>() == expected_roots,
+        "exact access root inventory",
+    )?;
+    for root in roots.values() {
+        require(
+            root.kind == ORDER_INDEX && root.size > 0,
+            "access root kind/nonempty",
+        )?;
+    }
+    check_tree_forest(&roots, &nodes, &members, &|kind, _leaves| {
+        require(kind == ORDER_INDEX, "access source index kind")
+    })?;
+    Ok(expected_roots
+        .into_iter()
+        .map(Key::AccessRoot)
+        .chain(members.keys().copied().map(Key::AccessNode))
+        .collect())
+}
+
 /// A complete bounded native snapshot. Model checkers derive semantic expectations
 /// from `records`, then finish with the shared structural and authority checker.
 pub(crate) struct Snapshot<'a, B: Binding> {
@@ -709,6 +873,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             ..
         } = self;
         expected_keys.extend(check_routes(all, &routes, &queries)?);
+        expected_keys.extend(check_access_indexes(store.model(), all, records)?);
         for (id, query) in queries {
             let key = Key::Query(id);
             require(
@@ -717,16 +882,9 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             )?;
             expected_keys.insert(key);
         }
-        require(nodes.len() == members.len(), "node inventory size")?;
-        let mut walk = Walk {
-            nodes,
-            members: &members,
-            aggregate,
-            seen: BTreeSet::new(),
-        };
         for (&address, root) in roots {
             require(
-                expected_keys.contains(&Key::Root(address)) && !root.revision.is_nil(),
+                expected_keys.contains(&Key::Root(address)),
                 "root inventory/version",
             )?;
             let owner = records
@@ -740,52 +898,8 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 .find(|r| r.slot == address.slot)
                 .ok_or_else(|| local::corrupt("undeclared root"))?;
             require(root.kind == declaration.kind, "root kind")?;
-            let (height, order) = walk.visit(root.head, None, address, root.kind, 0)?;
-            require(
-                root.height == height
-                    && root.first == order.first().copied()
-                    && root.last == order.last().copied(),
-                "root links/height",
-            )?;
-            require(
-                u64::try_from(order.len()).is_ok_and(|size| root.size == size),
-                "exact root size",
-            )?;
-            let mut previous = None;
-            for (i, id) in order.iter().enumerate() {
-                let n = &nodes[id];
-                require(
-                    n.prev == i.checked_sub(1).map(|i| order[i])
-                        && n.next == order.get(i + 1).copied(),
-                    "neighbour links",
-                )?;
-                require(
-                    previous.is_none_or(|p: &FullKey<_>| p < &n.key),
-                    "tree order",
-                )?;
-                previous = Some(&n.key);
-            }
-            let leaves: Vec<_> = order
-                .iter()
-                .map(|id| {
-                    let (_, at, leaf) = &members[id];
-                    (at.clone(), leaf.clone())
-                })
-                .collect();
-            require(
-                root.summary == aggregate(root.kind, &leaves)?,
-                "root summary",
-            )?;
-            let span = leaves.first().zip(leaves.last()).map(|(first, last)| Span {
-                first: first.0.clone(),
-                last: last.0.clone(),
-            });
-            require(root.span == span, "exact root span")?;
         }
-        require(
-            walk.seen == members.keys().copied().collect(),
-            "disconnected membership",
-        )?;
+        check_tree_forest(roots, nodes, &members, aggregate)?;
         expected_keys.extend(members.keys().map(|id| Key::Node(*id)));
         require(
             expected_keys == all.keys().cloned().collect(),
@@ -1094,7 +1208,7 @@ pub(crate) fn check_calculation(store: &Store<Calculation>) -> Result<Value> {
                         operation: "latest".into(),
                         phase: "calculate".into(),
                         channel: "rate".into(),
-                        range: TimeRange::through(*at),
+                        range: TimeRange::through(*at).into(),
                         selected: selected.map(|v| v.1),
                         result: i128::from(selected.map_or(1, |v| v.2)),
                     },
@@ -1171,7 +1285,7 @@ pub(crate) fn check_calculation(store: &Store<Calculation>) -> Result<Value> {
                             operation: "sum".into(),
                             phase: if slot == 1 { "calculate" } else { "validate" }.into(),
                             channel: "amount".into(),
-                            range: TimeRange::before(at),
+                            range: TimeRange::before(at).into(),
                             selected: None,
                             result: before,
                         },
@@ -1221,7 +1335,7 @@ pub(crate) fn check_calculation(store: &Store<Calculation>) -> Result<Value> {
                             operation: "sum".into(),
                             phase: "calculate".into(),
                             channel: "amount".into(),
-                            range: TimeRange::ALL,
+                            range: TimeRange::ALL.into(),
                             selected: None,
                             result: account_sum(source, None)?,
                         },
@@ -1352,6 +1466,7 @@ pub(crate) fn check_calculation(store: &Store<Calculation>) -> Result<Value> {
 mod tests {
     use super::*;
     use crate::local::LocalStore;
+    use crate::time_range::TimeBound;
     use std::sync::Arc;
     #[test]
     fn scoped_coordination_inventory_rejects_corruption_without_repair() {
@@ -1668,7 +1783,7 @@ mod tests {
                         operation: "sum".into(),
                         phase: "calculate".into(),
                         channel: "amount".into(),
-                        range,
+                        range: range.into(),
                         selected: None,
                         result: 0,
                     },
@@ -1679,8 +1794,8 @@ mod tests {
         let mut all = BTreeMap::<Key, Stored>::new();
         for (i, &member) in ids.iter().enumerate() {
             let endpoint = match bounds[i].upper {
-                TimeBound::Excluded(t) => Endpoint::Time(t),
-                TimeBound::Included(t) => Endpoint::Through(t),
+                TimeBound::Excluded(t) => Endpoint::Before(TimeKey(t)),
+                TimeBound::Included(t) => Endpoint::Through(TimeKey(t)),
                 TimeBound::Unbounded => Endpoint::All,
             };
             all.insert(
@@ -1688,11 +1803,11 @@ mod tests {
                 Stored::RouteNode(crate::routes::Node {
                     route,
                     key: Order { endpoint, member },
-                    range: bounds[i],
+                    range: bounds[i].into(),
                     min_lower: if i == 0 {
                         None
                     } else {
-                        Some(TimeBound::Unbounded)
+                        Some(NativeBound::Unbounded)
                     },
                     left: None,
                     right: None,
@@ -1851,10 +1966,16 @@ mod tests {
         ];
         let routes = BTreeMap::from([(route.key(), BTreeSet::from([member]))]);
         for (range, min_lower, bounded) in cases {
+            let range: NativeRange<TimeKey> = range.into();
+            let min_lower = min_lower.map(|bound| match bound {
+                Unbounded => NativeBound::Unbounded,
+                Included(at) => NativeBound::Included(TimeKey(at)),
+                Excluded(at) => NativeBound::Excluded(TimeKey(at)),
+            });
             let endpoint = match range.upper {
-                Unbounded => Endpoint::All,
-                Included(at) => Endpoint::Through(at),
-                Excluded(at) => Endpoint::Time(at),
+                NativeBound::Unbounded => Endpoint::All,
+                NativeBound::Included(at) => Endpoint::Through(at),
+                NativeBound::Excluded(at) => Endpoint::Before(at),
             };
             let queries = BTreeMap::from([(
                 member,
@@ -1898,7 +2019,7 @@ mod tests {
             n.min_lower = if min_lower.is_some() {
                 None
             } else {
-                Some(Unbounded)
+                Some(NativeBound::Unbounded)
             };
             assert_eq!(
                 check_routes(&all, &routes, &queries).unwrap_err().detail,
@@ -1918,8 +2039,8 @@ mod tests {
                 unreachable!()
             };
             n.range.lower = match range.lower {
-                Unbounded => Included(0),
-                _ => Unbounded,
+                NativeBound::Unbounded => NativeBound::Included(TimeKey(0)),
+                _ => NativeBound::Unbounded,
             };
             assert_eq!(
                 check_routes(&all, &routes, &queries).unwrap_err().detail,
@@ -1970,10 +2091,11 @@ mod tests {
                     changes.push((key.clone(), Some(Stored::RouteNode(wrong_height))));
                     if matches!(n.route, crate::routes::Route::Subscribers(_)) {
                         (n.key.endpoint, n.range.upper) = match n.key.endpoint {
-                            crate::routes::Endpoint::All => {
-                                (crate::routes::Endpoint::Time(0), TimeBound::Excluded(0))
-                            }
-                            _ => (crate::routes::Endpoint::All, TimeBound::Unbounded),
+                            crate::routes::Endpoint::All => (
+                                crate::routes::Endpoint::Before(TimeKey(0)),
+                                NativeBound::Excluded(TimeKey(0)),
+                            ),
+                            _ => (crate::routes::Endpoint::All, NativeBound::Unbounded),
                         };
                         changes.push((key.clone(), Some(Stored::RouteNode(n))));
                     }

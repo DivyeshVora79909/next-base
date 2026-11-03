@@ -1,6 +1,7 @@
 //! Isolated local calculation prototype, model tools and semantic primitives.
 
 pub mod access;
+pub mod access_index;
 pub mod algebra;
 pub mod binding;
 pub mod causal;
@@ -23,7 +24,11 @@ pub mod model;
 pub mod models;
 pub mod mutation;
 pub mod native_codec;
+pub mod native_range;
+#[cfg(test)]
+mod native_reactive_tests;
 pub mod native_slice;
+pub mod order_value;
 pub mod plan;
 pub mod query;
 mod receipts;

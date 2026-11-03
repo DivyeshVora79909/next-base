@@ -14,6 +14,15 @@ use uuid::Uuid;
 /// Bound into prepared identity when reference authorization or routing semantics change.
 pub const REFERENCE_POLICY: &str = "final-graph-reference-policy-v2-engine-incoming";
 
+/// Server-observed UTC milliseconds, not a commit sequence or business effective time.
+pub(crate) fn creation_time() -> Result<i64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|v| i64::try_from(v.as_millis()).ok())
+        .ok_or_else(|| Error::new("clock", "creation timestamp unavailable"))
+}
+
 pub fn validate_references<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     model: &Prepared<B>,
@@ -63,7 +72,7 @@ pub(crate) fn reconcile_incoming<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: 
             ws,
             &Key::Incoming(*target),
             Address::new(id, *slot),
-            crate::time_range::TimeRange::ALL,
+            crate::native_range::NativeRange::ALL,
             false,
         )?;
     }
@@ -72,7 +81,7 @@ pub(crate) fn reconcile_incoming<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: 
             ws,
             &Key::Incoming(*target),
             Address::new(id, *slot),
-            crate::time_range::TimeRange::ALL,
+            crate::native_range::NativeRange::ALL,
             true,
         )?;
     }
@@ -171,6 +180,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         .flat_map(|c| c.outputs.iter().map(|o| o.role))
         .collect();
     let mut changes = vec![];
+    let mut created_at = None;
     for command in commands {
         ws.charge("command", 1)?;
         let id = command.id();
@@ -210,11 +220,12 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                     }
                 }
                 let input = model.validate(*contract, fields)?;
+                let created_at = *created_at.get_or_insert(creation_time()?);
                 Some(ModelRecord {
                     contract: *contract,
                     tenant: context.tenant,
                     owner: owner.unwrap_or(context.actor),
-
+                    created_at,
                     version: revision,
                     input,
                     derived: None,
@@ -390,6 +401,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
     }
     crate::relationships::validate(ws, model)?;
     crate::uniqueness::reconcile_from(ws, model, &entry_records)?;
+    crate::access_index::reconcile(ws, model, &entry_records, revision)?;
     for id in ws.changed_roots() {
         if let Some(StoredValue::Root(mut root)) = ws.get(&Key::Root(id))? {
             root.revision = revision;

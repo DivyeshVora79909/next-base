@@ -4,9 +4,10 @@
 use crate::{
     binding::Binding,
     causal::ResolvedShape,
+    index::NativeIndex,
     native_codec::Address,
+    native_range::{NativeBound, RangeKey},
     native_slice::{Attempt, Error, Result},
-    time_range::TimeBound,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
@@ -15,8 +16,8 @@ struct Graph {
     outgoing: Vec<BTreeSet<usize>>,
     producers: Vec<Uuid>,
 }
-struct Index {
-    times: Vec<i64>,
+struct Index<K> {
+    times: Vec<K>,
     prefixes: Vec<usize>,
     // Ordinary iterative segment tree: leaves occupy [len, 2*len). Each
     // internal gate depends on its children. Index zero is unused.
@@ -40,8 +41,8 @@ impl Graph {
         }
         Ok(())
     }
-    fn build(
-        shapes: &[(Uuid, &ResolvedShape)],
+    fn build<K: RangeKey>(
+        shapes: &[(Uuid, &ResolvedShape<K>)],
         charge: &mut impl FnMut(&str, u64) -> Result<()>,
     ) -> Result<Self> {
         let mut graph = Self {
@@ -62,7 +63,7 @@ impl Graph {
         } else {
             BTreeMap::new()
         };
-        let mut roots: BTreeMap<Address, BTreeMap<i64, BTreeSet<usize>>> = BTreeMap::new();
+        let mut roots: BTreeMap<Address, BTreeMap<K, BTreeSet<usize>>> = BTreeMap::new();
         let mut bounded = BTreeSet::new();
         for (producer, (_, shape)) in shapes.iter().enumerate() {
             for emit in &shape.emits {
@@ -70,13 +71,13 @@ impl Graph {
                 roots
                     .entry(emit.root)
                     .or_default()
-                    .entry(emit.at)
+                    .entry(emit.at.clone())
                     .or_default()
                     .insert(producer);
             }
             for read in shape.reads.iter().filter(|read| !read.validate) {
                 charge("dependency", 1)?;
-                if read.range.lower != TimeBound::Unbounded && !read.range.is_empty() {
+                if read.range.lower != NativeBound::Unbounded && !read.range.is_empty() {
                     bounded.insert(read.root);
                 }
             }
@@ -139,33 +140,33 @@ impl Graph {
                     continue;
                 };
                 let mut comparisons = 0;
-                let end = match read.range.upper {
-                    TimeBound::Unbounded => index.times.len(),
-                    TimeBound::Included(upper) => index.times.partition_point(|at| {
+                let end = match &read.range.upper {
+                    NativeBound::Unbounded => index.times.len(),
+                    NativeBound::Included(upper) => index.times.partition_point(|at| {
                         comparisons += 1;
-                        *at <= upper
+                        at <= upper
                     }),
-                    TimeBound::Excluded(upper) => index.times.partition_point(|at| {
+                    NativeBound::Excluded(upper) => index.times.partition_point(|at| {
                         comparisons += 1;
-                        *at < upper
+                        at < upper
                     }),
                 };
-                let start = match read.range.lower {
-                    TimeBound::Unbounded => 0,
-                    TimeBound::Included(lower) => index.times.partition_point(|at| {
+                let start = match &read.range.lower {
+                    NativeBound::Unbounded => 0,
+                    NativeBound::Included(lower) => index.times.partition_point(|at| {
                         comparisons += 1;
-                        *at < lower
+                        at < lower
                     }),
-                    TimeBound::Excluded(lower) => index.times.partition_point(|at| {
+                    NativeBound::Excluded(lower) => index.times.partition_point(|at| {
                         comparisons += 1;
-                        *at <= lower
+                        at <= lower
                     }),
                 };
                 charge("dependency", comparisons)?;
                 if start >= end {
                     continue;
                 }
-                if read.range.lower == TimeBound::Unbounded {
+                if read.range.lower == NativeBound::Unbounded {
                     graph.edge(index.prefixes[end - 1], consumer, charge)?;
                     continue;
                 }
@@ -228,7 +229,7 @@ impl Graph {
 }
 pub(crate) fn order<'a, L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
-    shapes: impl Iterator<Item = (Uuid, &'a ResolvedShape)>,
+    shapes: impl Iterator<Item = (Uuid, &'a ResolvedShape<<B::Index as NativeIndex>::Key>)>,
 ) -> Result<Vec<Uuid>> {
     let shapes: Vec<_> = shapes.collect();
     let mut charge = |kind: &str, count| ws.charge(kind, count);
@@ -240,7 +241,8 @@ mod tests {
     use super::*;
     use crate::{
         causal::{Emit, Read},
-        time_range::TimeRange,
+        index::TimeKey,
+        time_range::{TimeBound, TimeRange},
     };
 
     fn reachable(edges: &[BTreeSet<usize>], start: usize) -> BTreeSet<usize> {
@@ -255,21 +257,21 @@ mod tests {
     }
     // Literal comparisons supply the oracle; do not reuse range membership,
     // index partitioning, gates or the production topological sort.
-    fn pairwise(shapes: &[(Uuid, ResolvedShape)]) -> Vec<BTreeSet<usize>> {
+    fn pairwise<K: RangeKey>(shapes: &[(Uuid, ResolvedShape<K>)]) -> Vec<BTreeSet<usize>> {
         let mut expected = vec![BTreeSet::new(); shapes.len()];
         for (consumer, (_, shape)) in shapes.iter().enumerate() {
             for read in shape.reads.iter().filter(|read| !read.validate) {
                 for (producer, (_, other)) in shapes.iter().enumerate() {
                     for emit in &other.emits {
-                        let lower = match read.range.lower {
-                            TimeBound::Unbounded => true,
-                            TimeBound::Included(at) => emit.at >= at,
-                            TimeBound::Excluded(at) => emit.at > at,
+                        let lower = match &read.range.lower {
+                            NativeBound::Unbounded => true,
+                            NativeBound::Included(at) => &emit.at >= at,
+                            NativeBound::Excluded(at) => &emit.at > at,
                         };
-                        let upper = match read.range.upper {
-                            TimeBound::Unbounded => true,
-                            TimeBound::Included(at) => emit.at <= at,
-                            TimeBound::Excluded(at) => emit.at < at,
+                        let upper = match &read.range.upper {
+                            NativeBound::Unbounded => true,
+                            NativeBound::Included(at) => &emit.at <= at,
+                            NativeBound::Excluded(at) => &emit.at < at,
                         };
                         if read.root == emit.root && lower && upper {
                             expected[producer].insert(consumer);
@@ -280,7 +282,7 @@ mod tests {
         }
         expected
     }
-    fn check(shapes: &[(Uuid, ResolvedShape)]) -> Result<Vec<Uuid>> {
+    fn check<K: RangeKey>(shapes: &[(Uuid, ResolvedShape<K>)]) -> Result<Vec<Uuid>> {
         let expected = pairwise(shapes);
         let refs: Vec<_> = shapes.iter().map(|(id, shape)| (*id, shape)).collect();
         let graph = Graph::build(&refs, &mut |_, _| Ok(())).unwrap();
@@ -319,7 +321,7 @@ mod tests {
                     .map(|range| Read {
                         slot: 31,
                         root,
-                        range,
+                        range: range.into(),
                         validate: false,
                     })
                     .collect(),
@@ -327,7 +329,7 @@ mod tests {
                     role: 11,
                     contract: 900,
                     root,
-                    at,
+                    at: TimeKey(at),
                 }],
                 publications: vec![],
             },
@@ -357,7 +359,8 @@ mod tests {
                         range: TimeRange {
                             lower: bound(draw() % 11),
                             upper: bound(draw() % 11),
-                        },
+                        }
+                        .into(),
                         validate: draw() % 5 == 0,
                     });
                 }
@@ -366,7 +369,7 @@ mod tests {
                         role: role as u16,
                         contract: 900,
                         root: Address::new(Uuid::from_u128(u128::from(draw() % 3)), 7),
-                        at: times[(draw() % 5) as usize],
+                        at: TimeKey(times[(draw() % 5) as usize]),
                     });
                 }
                 shapes.push((Uuid::from_u128(id), shape));
@@ -462,7 +465,7 @@ mod tests {
                         reads: vec![Read {
                             slot: 31,
                             root,
-                            range,
+                            range: range.into(),
                             validate: false,
                         }],
                         emits: vec![],
@@ -537,7 +540,7 @@ mod tests {
                         role: 29,
                         contract: 900,
                         root,
-                        at: i * 4 + 2,
+                        at: TimeKey(i * 4 + 2),
                     });
                     shape
                 })
@@ -566,6 +569,99 @@ mod tests {
             .err()
             .expect("prefix graph exceeds tiny work budget");
             assert_eq!(error.code, "work_limit");
+        }
+    }
+    #[test]
+    fn native_numeric_text_tuple_gates_match_literal_reachability() {
+        use crate::{
+            native_range::NativeRange,
+            order_value::{OrderAtom, OrderKey},
+        };
+        let integer = |n| OrderKey::new(vec![OrderAtom::Integer(n)]).unwrap();
+        let text = |s: &str| OrderKey::new(vec![OrderAtom::Text(s.into())]).unwrap();
+        let tuple = |n, s: &str| {
+            OrderKey::new(vec![OrderAtom::Integer(n), OrderAtom::Text(s.into())]).unwrap()
+        };
+        let domains = [
+            vec![integer(-1), integer(0), integer(2), integer(10)],
+            vec![text("a"), text("b"), text("ba"), text("z")],
+            vec![tuple(2, "a"), tuple(2, "z"), tuple(10, "a"), tuple(10, "z")],
+        ];
+        let mut random = 317u64;
+        let mut draw = || {
+            random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+            random >> 32
+        };
+        for keys in domains {
+            for _ in 0..128 {
+                let mut shapes = vec![];
+                for producer in 0..8 {
+                    let bound = |n: u64| match n % 9 {
+                        0 => NativeBound::Unbounded,
+                        n @ 1..=4 => NativeBound::Included(keys[(n - 1) as usize].clone()),
+                        n => NativeBound::Excluded(keys[(n - 5) as usize].clone()),
+                    };
+                    let root = Address::new(Uuid::from_u128(u128::from(draw() % 2)), 7);
+                    shapes.push((
+                        Uuid::from_u128(producer),
+                        ResolvedShape {
+                            reads: vec![Read {
+                                slot: 31,
+                                root,
+                                range: NativeRange {
+                                    lower: bound(draw()),
+                                    upper: bound(draw()),
+                                },
+                                validate: false,
+                            }],
+                            emits: vec![Emit {
+                                role: 11,
+                                contract: 900,
+                                root: Address::new(root.id, if draw() % 3 == 0 { 13 } else { 7 }),
+                                at: keys[(draw() % 4) as usize].clone(),
+                            }],
+                            publications: vec![],
+                        },
+                    ));
+                }
+                let _ = check(&shapes);
+            }
+            let root = Address::new(Uuid::nil(), 7);
+            let producer = |n, at: usize| {
+                (
+                    Uuid::from_u128(n),
+                    ResolvedShape {
+                        reads: vec![Read {
+                            slot: 31,
+                            root,
+                            range: NativeRange::before(keys[at].clone()),
+                            validate: false,
+                        }],
+                        emits: vec![Emit {
+                            role: 11,
+                            contract: 900,
+                            root,
+                            at: keys[at].clone(),
+                        }],
+                        publications: vec![],
+                    },
+                )
+            };
+            let before = vec![producer(1, 0), producer(2, 1)];
+            let after = vec![producer(1, 2), producer(2, 1)];
+            assert_eq!(
+                check(&before).unwrap(),
+                vec![Uuid::from_u128(1), Uuid::from_u128(2)]
+            );
+            assert_eq!(
+                check(&after).unwrap(),
+                vec![Uuid::from_u128(2), Uuid::from_u128(1)]
+            );
+            let mut union = pairwise(&before);
+            for (edges, other) in union.iter_mut().zip(pairwise(&after)) {
+                edges.extend(other);
+            }
+            assert!(reachable(&union, 0).contains(&0));
         }
     }
 }

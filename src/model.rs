@@ -128,6 +128,7 @@ pub struct Unique {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Contract {
+    pub access_indexes: Vec<crate::access_index::Declaration>,
     pub uniqueness: Vec<Unique>,
     pub code: u16,
     pub name: &'static str,
@@ -257,7 +258,11 @@ impl<B: Binding> Prepared<B> {
                     .reads
                     .iter()
                     .any(|read| !matches!(*read, "summary" | "before" | "range" | "latest" | "sum"))
-                || (index.reads.iter().any(|read| *read != "summary") && !index.time)
+                || (index
+                    .reads
+                    .iter()
+                    .any(|read| matches!(*read, "before" | "latest" | "sum"))
+                    && !index.time)
                 || (index.financial && !index.time)
                 || (index.quote && !index.time)
                 || index.quote != B::Index::supports_quote(index.code)
@@ -428,6 +433,7 @@ impl<B: Binding> Prepared<B> {
             }
         }
         let contracts: BTreeMap<_, _> = declarations.into_iter().map(|c| (c.code, c)).collect();
+        crate::access_index::validate_declarations(contracts.values())?;
         let mut publication_targets = BTreeSet::new();
         let mut relationship_validation_fields = BTreeMap::<u16, BTreeSet<&'static str>>::new();
         for contract in contracts.values() {
@@ -780,7 +786,7 @@ impl<B: Binding> Prepared<B> {
             .filter(|c| c.visibility == Visibility::Public)
             .map(|c| {
                 json!({"code":c.code,"name":c.name,"input_schema":c.schema,
-                "fields":c.fields,"published":c.published,
+                "fields":c.fields,"published":c.published,"access_indexes":c.access_indexes,
                 "predicate_fields":c.fields.iter().filter(|f|self.field_validators.contains_key(&(c.code,f.name))).map(|f|f.name).collect::<Vec<_>>(),
                 "roots":c.roots.iter().map(|r| json!({"slot":r.slot,"name":r.name,
                     "kind":r.kind,"reads":r.reads})).collect::<Vec<_>>() })
@@ -828,6 +834,7 @@ fn model_capabilities<B: Binding>() -> Value {
         "records.mutate",
         "operations.status",
         "records.page",
+        "records.order_page",
         "records.exists",
         "roots.read",
         "roots.page",
@@ -841,6 +848,11 @@ fn model_capabilities<B: Binding>() -> Value {
     let mut catalog = json!({"methods":methods,
         "transport":"JSON-RPC 2.0 over stdio or authenticated HTTP /rpc; string request IDs; no batches/notifications",
         "path":{"name":"records.by_id","order":"UUID ascending","filter":"optional public contract and one declared scalar authored-field equality"},
+        "access_order":{"method":"records.order_page","key_schema":crate::order_value::OrderKey::schema(),
+            "scope":"one explicitly declared public contract/index; k-way accessible-owner merge in one snapshot",
+            "ties":"source UUID then membership slot; bounds include/exclude complete key groups",
+            "range":"object with lower/upper; null or included/excluded full key",
+            "created_at":"trusted UTC milliseconds as canonical i64 decimal; first materialization, not commit order"},
         "limits":{"commands":64,
             "returning":32,"page_limit":32,"visit_budget":128,"receipts":1024,"request_bytes":65536},
         "cursor":"HMAC-SHA256; bound store/model/actor/query and scoped owner/contract epochs plus authority revision; unchanged scopes and true no-ops preserve cursors",
@@ -1042,6 +1054,22 @@ pub(crate) fn declarations() -> Result<Vec<Contract>> {
     let mut contracts = Vec::new();
     for &(code, name, _, schema, fields) in sources {
         let mut c = Contract {
+            access_indexes: match code {
+                4 => vec![crate::access_index::Declaration::created(401)],
+                8 => vec![
+                    crate::access_index::Declaration::created(801),
+                    crate::access_index::Declaration {
+                        code: 802,
+                        name: "effective",
+                        components: vec![crate::access_index::Component::Field {
+                            field: "at",
+                            kind: crate::order_value::OrderAtomKind::Integer,
+                        }],
+                    },
+                ],
+                12 => vec![crate::access_index::Declaration::created(1201)],
+                _ => vec![],
+            },
             uniqueness: vec![],
             code,
             name,

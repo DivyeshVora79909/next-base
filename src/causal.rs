@@ -1,31 +1,31 @@
 //! Shared resolved-shape causal settlement for compiled model bindings.
 use crate::{
     binding::{Binding, NativeInput, headers},
-    index::{IndexCode, NativeIndex},
+    index::{IndexCode, NativeIndex, TimeKey},
     indexes::standard::FINANCIAL,
     model::{Contract, Prepared, PublicationSlot, Visibility},
     mutation::reconcile_member,
     native_codec::{Address, Key, Role, StoredValue},
+    native_range::{NativeBound, NativeRange},
     native_slice::{Attempt, Context, Error, ModelChange, ModelRecord, Query, Result},
     routes::{self, Endpoint, Route},
-    time_range::{TimeBound, TimeRange},
     tree,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 #[derive(Clone, Debug)]
-pub struct Read {
+pub struct Read<K = TimeKey> {
     pub slot: u16,
     pub root: Address,
-    pub range: TimeRange,
+    pub range: NativeRange<K>,
     pub validate: bool,
 }
 #[derive(Clone, Copy, Debug)]
-pub struct Emit {
+pub struct Emit<K = TimeKey> {
     pub role: u16,
     pub contract: u16,
     pub root: Address,
-    pub at: i64,
+    pub at: K,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -40,18 +40,27 @@ pub struct PublicationValue<V> {
     pub slot: PublicationSlot,
     pub value: V,
 }
-#[derive(Clone, Debug, Default)]
-pub struct ResolvedShape {
-    pub reads: Vec<Read>,
-    pub emits: Vec<Emit>,
+#[derive(Clone, Debug)]
+pub struct ResolvedShape<K = TimeKey> {
+    pub reads: Vec<Read<K>>,
+    pub emits: Vec<Emit<K>>,
     pub publications: Vec<PublicationRead>,
+}
+impl<K> Default for ResolvedShape<K> {
+    fn default() -> Self {
+        Self {
+            reads: vec![],
+            emits: vec![],
+            publications: vec![],
+        }
+    }
 }
 /// Attempt-local authored inputs alongside the declared ordered-read topology.
 /// Parameters remain native model values; they are neither persisted nor used
 /// to discover dependencies. References and direct reverse registrations must
 /// explicitly cover the authored fields that the resolver consumes.
-pub struct Resolved<P> {
-    pub shape: ResolvedShape,
+pub struct Resolved<P, K = TimeKey> {
+    pub shape: ResolvedShape<K>,
     pub parameters: P,
 }
 pub trait ReactiveBinding: Binding {
@@ -67,7 +76,7 @@ pub trait ReactiveBinding: Binding {
         context: Context,
         id: Uuid,
         record: &ModelRecord<Self>,
-    ) -> Result<Resolved<Self::Parameters>>;
+    ) -> Result<Resolved<Self::Parameters, <Self::Index as NativeIndex>::Key>>;
     fn project_publication(
         _parent: &ModelRecord<Self>,
         _field_code: u16,
@@ -80,12 +89,16 @@ pub trait ReactiveBinding: Binding {
     fn evaluate(
         id: Uuid,
         record: &ModelRecord<Self>,
-        shape: &ResolvedShape,
+        shape: &ResolvedShape<<Self::Index as NativeIndex>::Key>,
         parameters: &Self::Parameters,
         publications: &[PublicationValue<Self::Publication>],
         values: &[<Self::Index as NativeIndex>::QueryResult],
     ) -> Result<(Self::Derived, BTreeMap<u16, i128>)>;
-    fn output_input(_producer: Uuid, _emit: &Emit, _amount: i128) -> Result<Self::Input> {
+    fn output_input(
+        _producer: Uuid,
+        _emit: &Emit<<Self::Index as NativeIndex>::Key>,
+        _amount: i128,
+    ) -> Result<Self::Input> {
         Err(Error::new(
             "model",
             "binding has no managed financial outputs",
@@ -106,7 +119,7 @@ fn validate_shape<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     model: &Prepared<B>,
     context: Context,
     record: &ModelRecord<B>,
-    shape: &ResolvedShape,
+    shape: &ResolvedShape<<B::Index as NativeIndex>::Key>,
 ) -> Result<()> {
     let contract = model.contract(record.contract)?;
     let references = record.input.references();
@@ -206,6 +219,11 @@ fn validate_shape<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
                 "resolved query uses a different authored reference",
             ));
         }
+        for bound in [&read.range.lower, &read.range.upper] {
+            if let NativeBound::Included(key) | NativeBound::Excluded(key) = bound {
+                B::Index::validate_key(root.kind, key)?;
+            }
+        }
         validate_root(
             ws,
             model,
@@ -237,6 +255,7 @@ fn validate_shape<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         if member.root_slot != emit.root.slot || member.kind != FINANCIAL {
             return Err(Error::new("model", "resolved output membership mismatch"));
         }
+        B::Index::validate_key(member.kind, &emit.at)?;
         validate_root(
             ws,
             model,
@@ -284,7 +303,7 @@ fn validate_root<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 struct Plan<B: ReactiveBinding> {
     record: Option<ModelRecord<B>>,
     old_record: Option<ModelRecord<B>>,
-    shape: ResolvedShape,
+    shape: ResolvedShape<<B::Index as NativeIndex>::Key>,
     parameters: Option<B::Parameters>,
     old_outputs: BTreeMap<u16, (Uuid, ModelRecord<B>)>,
     bindings: BTreeMap<u16, Uuid>,
@@ -299,7 +318,7 @@ fn subscriptions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     model: &Prepared<B>,
     id: Uuid,
     old: Option<&ModelRecord<B>>,
-    shape: &ResolvedShape,
+    shape: &ResolvedShape<<B::Index as NativeIndex>::Key>,
 ) -> Result<()> {
     let mut before = BTreeMap::new();
     if let Some(old) = old {
@@ -321,23 +340,23 @@ fn subscriptions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         .map(|r| {
             (
                 (Key::Subscribers(r.root), Address::new(id, r.slot)),
-                r.range,
+                r.range.clone(),
             )
         })
         .collect();
     for ((key, member), range) in &before {
         if after.get(&(key.clone(), *member)) != Some(range) {
-            routes::change(ws, key, *member, *range, false)?;
+            routes::change(ws, key, *member, range.clone(), false)?;
         }
     }
     for ((key, member), range) in &after {
         if before.get(&(key.clone(), *member)) != Some(range) {
-            routes::change(ws, key, *member, *range, true)?;
+            routes::change(ws, key, *member, range.clone(), true)?;
         }
     }
     Ok(())
 }
-fn impact(roots: &mut BTreeMap<Address, BTreeSet<i64>>, root: Address, at: i64) {
+fn impact<K: Ord>(roots: &mut BTreeMap<Address, BTreeSet<K>>, root: Address, at: K) {
     roots.entry(root).or_default().insert(at);
 }
 fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
@@ -382,7 +401,7 @@ fn read_query<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     model: &Prepared<B>,
     contract: &Contract,
     id: Uuid,
-    r: &Read,
+    r: &Read<<B::Index as NativeIndex>::Key>,
 ) -> Result<<B::Index as NativeIndex>::QueryResult> {
     let declaration = contract
         .queries
@@ -398,20 +417,26 @@ fn read_query<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         .kind;
     // Prefix sums need no non-invertible summary fold. Preserve their narrow
     // balanced search path; general windows retain the ordered range fold.
-    let result = match (declaration.operation, r.range.lower, r.range.upper) {
-        ("sum", TimeBound::Unbounded, TimeBound::Excluded(at)) => {
+    let descriptor = B::Index::descriptor(kind)?;
+    let result = match (declaration.operation, &r.range.lower, &r.range.upper) {
+        ("sum", NativeBound::Unbounded, NativeBound::Excluded(key))
+            if descriptor.financial && descriptor.time =>
+        {
+            let at = B::Index::time(kind, key)?;
             B::Index::financial_query_result(tree::prefix(ws, r.root, Some(at))?)?
         }
-        ("sum", TimeBound::Unbounded, TimeBound::Unbounded) => {
+        ("sum", NativeBound::Unbounded, NativeBound::Unbounded)
+            if descriptor.financial && descriptor.time =>
+        {
             B::Index::financial_query_result(tree::prefix(ws, r.root, None)?)?
         }
-        ("latest", TimeBound::Unbounded, TimeBound::Included(at)) => {
-            B::Index::selection_result(kind, tree::last_at_or_before(ws, r.root, at)?)?
+        ("latest", NativeBound::Unbounded, NativeBound::Included(key)) => {
+            B::Index::selection_result(kind, tree::last_key_at_or_before(ws, r.root, key)?)?
         }
         _ => B::Index::query_result(
             kind,
             declaration.operation,
-            &tree::range(ws, r.root, r.range)?,
+            &tree::range_keys(ws, r.root, &r.range.key_range())?,
         )?,
     };
     ws.put(
@@ -421,7 +446,7 @@ fn read_query<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             operation: declaration.operation.into(),
             phase: declaration.phase.into(),
             channel: declaration.channel.into(),
-            range: r.range,
+            range: r.range.clone(),
             selected: None,
             result: result.clone(),
         })),
@@ -465,8 +490,9 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             }
         }
     }
-    let mut visited_prefix: BTreeMap<Address, i64> = BTreeMap::new();
-    let mut prefix_impacts: BTreeMap<Address, BTreeSet<i64>> = BTreeMap::new();
+    let mut visited_prefix: BTreeMap<Address, <B::Index as NativeIndex>::Key> = BTreeMap::new();
+    let mut prefix_impacts: BTreeMap<Address, BTreeSet<<B::Index as NativeIndex>::Key>> =
+        BTreeMap::new();
     let mut visited_points = BTreeSet::new();
     let mut plans: BTreeMap<Uuid, Plan<B>> = BTreeMap::new();
     loop {
@@ -480,28 +506,33 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             if prefix_only {
                 // Save the points as well as their minimum: later shape repair
                 // can introduce the first bounded reader in the staged index.
-                prefix_impacts.entry(root).or_default().extend(&points);
-                let Some(&at) = points.first() else { continue };
+                prefix_impacts
+                    .entry(root)
+                    .or_default()
+                    .extend(points.iter().cloned());
+                let Some(at) = points.first().cloned() else {
+                    continue;
+                };
                 if visited_prefix
                     .get(&root)
-                    .is_some_and(|previous| *previous <= at)
+                    .is_some_and(|previous| previous <= &at)
                 {
                     continue;
                 }
                 // Reopen only the newly exposed suffix band. Through(at) sorts
                 // after Time(at), so equal-time inclusive readers are selected.
                 let upper = visited_prefix
-                    .insert(root, at)
+                    .insert(root, at.clone())
                     .map_or(std::ops::Bound::Unbounded, |previous| {
-                        std::ops::Bound::Included(Endpoint::Time(previous))
+                        std::ops::Bound::Included(Endpoint::Before(previous))
                     });
                 for original in [true, false] {
                     pending.extend(
                         routes::select(
                             ws,
                             &Key::Subscribers(root),
-                            std::ops::Bound::Excluded(Endpoint::Time(at)),
-                            upper,
+                            std::ops::Bound::Excluded(Endpoint::Before(at.clone())),
+                            upper.clone(),
                             original,
                         )?
                         .into_iter()
@@ -513,12 +544,12 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                     points.extend(previous);
                 }
                 for at in points {
-                    if !visited_points.insert((root, at)) {
+                    if !visited_points.insert((root, at.clone())) {
                         continue;
                     }
                     for original in [true, false] {
                         pending.extend(
-                            routes::stab(ws, &Key::Subscribers(root), at, original)?
+                            routes::stab(ws, &Key::Subscribers(root), &at, original)?
                                 .into_iter()
                                 .map(|address| address.id),
                         );
@@ -596,13 +627,13 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                         return Err(Error::new("corrupt_state", "role output owner"));
                     }
                     let (root, at, _) = B::output_member(&output.input)?;
-                    impact(&mut roots, root, at);
+                    impact(&mut roots, root, B::Index::time_key(FINANCIAL, at)?);
                     plan.old_outputs.insert(role, (b.output, output));
                 }
             }
         }
         for e in &plan.shape.emits {
-            impact(&mut roots, e.root, e.at);
+            impact(&mut roots, e.root, e.at.clone());
         }
         plans.insert(id, plan);
     }
@@ -773,7 +804,8 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             if input.contract() != e.contract
                 || model.validate(e.contract, &fields)? != input
                 || input.managed() != Some((id, e.role))
-                || (root, at) != (e.root, e.at)
+                || root != e.root
+                || B::Index::time_key(FINANCIAL, at)? != e.at
                 || B::Index::financial_leaf(FINANCIAL, &leaf)? != amount
             {
                 return Err(Error::new(
@@ -801,7 +833,11 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                 contract: e.contract,
                 tenant: context.tenant,
                 owner: r.owner,
-
+                created_at: p
+                    .old_outputs
+                    .get(&e.role)
+                    .map(|(_, old)| old.created_at)
+                    .map_or_else(crate::mutation::creation_time, Ok)?,
                 version: revision,
                 input,
                 derived: None,
@@ -1445,6 +1481,7 @@ mod tests {
             actor: Uuid::from_u128(2),
         };
         let record = ModelRecord::<Calculation> {
+            created_at: 0,
             contract: 10,
             tenant: context.tenant,
             owner: context.actor,
@@ -1463,7 +1500,7 @@ mod tests {
             reads: vec![Read {
                 slot: 1,
                 root: Address::new(Uuid::from_u128(99), 2),
-                range: TimeRange::ALL,
+                range: NativeRange::ALL,
                 validate: false,
             }],
             emits: vec![],

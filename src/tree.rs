@@ -12,9 +12,9 @@ use crate::{
 };
 use std::{collections::BTreeSet, ops::Bound};
 
-type NativeKey<B> = <<B as Binding>::Index as NativeIndex>::Key;
-type NativeLeaf<B> = <<B as Binding>::Index as NativeIndex>::Leaf;
-type NativeSummary<B> = <<B as Binding>::Index as NativeIndex>::Summary;
+type NativeKey<S> = <<S as TreeStore>::Index as NativeIndex>::Key;
+type NativeLeaf<S> = <<S as TreeStore>::Index as NativeIndex>::Leaf;
+type NativeSummary<S> = <<S as TreeStore>::Index as NativeIndex>::Summary;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,41 +82,84 @@ pub struct Node<I: NativeIndex> {
     pub summary: I::Summary,
 }
 
+/// Attempt-local storage for the shared linked AVL algorithm. Implementations
+/// select the physical root/node namespace while preserving the attempt's reads,
+/// staged writes and work budget.
+pub trait TreeStore {
+    type Index: NativeIndex;
+
+    fn root(&mut self, id: Address) -> Result<Option<Root<Self::Index>>>;
+    fn node(&mut self, id: Address) -> Result<Option<Node<Self::Index>>>;
+    fn put_root(&mut self, id: Address, value: Option<Root<Self::Index>>) -> Result<()>;
+    fn put_node(&mut self, id: Address, value: Option<Node<Self::Index>>) -> Result<()>;
+    fn charge(&mut self, kind: &str, count: u64) -> Result<()>;
+    fn rotated(&mut self);
+}
+
+impl<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding> TreeStore for Attempt<L, B> {
+    type Index = B::Index;
+
+    fn root(&mut self, id: Address) -> Result<Option<Root<Self::Index>>> {
+        match self.get(&Key::Root(id))? {
+            Some(StoredValue::Root(root)) => Ok(Some(root)),
+            None => Ok(None),
+            _ => Err(broken("missing root")),
+        }
+    }
+
+    fn node(&mut self, id: Address) -> Result<Option<Node<Self::Index>>> {
+        match self.get(&Key::Node(id))? {
+            Some(StoredValue::Node(node)) => Ok(Some(node)),
+            None => Ok(None),
+            _ => Err(broken("missing or cross-root node")),
+        }
+    }
+
+    fn put_root(&mut self, id: Address, value: Option<Root<Self::Index>>) -> Result<()> {
+        self.put(Key::Root(id), value.map(StoredValue::Root))
+    }
+
+    fn put_node(&mut self, id: Address, value: Option<Node<Self::Index>>) -> Result<()> {
+        self.put(Key::Node(id), value.map(StoredValue::Node))
+    }
+
+    fn charge(&mut self, kind: &str, count: u64) -> Result<()> {
+        Attempt::charge(self, kind, count)
+    }
+
+    fn rotated(&mut self) {
+        self.work.rotations += 1;
+    }
+}
+
 fn broken(detail: &str) -> Error {
     Error::new("corrupt_state", detail)
 }
 
-pub fn root<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    id: Address,
-) -> Result<Root<B::Index>> {
-    match ws.get(&Key::Root(id))? {
-        Some(StoredValue::Root(r)) => Ok(r),
+pub fn root<S: TreeStore>(ws: &mut S, id: Address) -> Result<Root<S::Index>> {
+    match ws.root(id)? {
+        Some(r) => Ok(r),
         _ => Err(broken("missing root")),
     }
 }
 
-pub fn node<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    id: Address,
-) -> Result<Node<B::Index>> {
+pub fn node<S: TreeStore>(ws: &mut S, owner: Address, id: Address) -> Result<Node<S::Index>> {
     ws.charge("node", 1)?;
-    match ws.get(&Key::Node(id))? {
-        Some(StoredValue::Node(n)) if n.root == owner => Ok(n),
+    match ws.node(id)? {
+        Some(n) if n.root == owner => Ok(n),
         _ => Err(broken("missing or cross-root node")),
     }
 }
 
-fn edit<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+fn edit<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     id: Address,
-    change: impl FnOnce(&mut Node<B::Index>),
+    change: impl FnOnce(&mut Node<S::Index>),
 ) -> Result<()> {
     let mut current = node(ws, owner, id)?;
     change(&mut current);
-    ws.put(Key::Node(id), Some(StoredValue::Node(current)))
+    ws.put_node(id, Some(current))
 }
 
 struct Child<I: NativeIndex> {
@@ -126,18 +169,18 @@ struct Child<I: NativeIndex> {
     span: Option<Span<I::Key>>,
 }
 
-fn child_info<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+fn child_info<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     parent: Address,
     child: Option<Address>,
     kind: IndexCode,
-) -> Result<Child<B::Index>> {
+) -> Result<Child<S::Index>> {
     match child {
         None => Ok(Child {
             height: 0,
             size: 0,
-            summary: B::Index::empty(kind)?,
+            summary: S::Index::empty(kind)?,
             span: None,
         }),
         Some(id) => {
@@ -155,19 +198,15 @@ fn child_info<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     }
 }
 
-fn refresh<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    id: Address,
-) -> Result<i32> {
+fn refresh<S: TreeStore>(ws: &mut S, owner: Address, id: Address) -> Result<i32> {
     let current = node(ws, owner, id)?;
     let kind = current.kind;
     let left = child_info(ws, owner, id, current.left, kind)?;
     let right = child_info(ws, owner, id, current.right, kind)?;
-    let leaf = B::Index::singleton(kind, &current.key.value, &current.leaf)?;
-    let summary = B::Index::combine(
+    let leaf = S::Index::singleton(kind, &current.key.value, &current.leaf)?;
+    let summary = S::Index::combine(
         kind,
-        &B::Index::combine(kind, &left.summary, &leaf)?,
+        &S::Index::combine(kind, &left.summary, &leaf)?,
         &right.summary,
     )?;
     let height = left
@@ -197,8 +236,8 @@ fn refresh<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     Ok(i32::from(left.height) - i32::from(right.height))
 }
 
-fn replace_parent_link<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+fn replace_parent_link<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     old: Address,
     new: Option<Address>,
@@ -222,7 +261,7 @@ fn replace_parent_link<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             return Err(broken("root head mismatch"));
         }
         header.head = new;
-        ws.put(Key::Root(owner), Some(StoredValue::Root(header)))?;
+        ws.put_root(owner, Some(header))?;
     }
     if let Some(id) = new {
         edit(ws, owner, id, |n| n.parent = parent)?;
@@ -230,11 +269,7 @@ fn replace_parent_link<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     Ok(())
 }
 
-fn rotate_left<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    x: Address,
-) -> Result<Address> {
+fn rotate_left<S: TreeStore>(ws: &mut S, owner: Address, x: Address) -> Result<Address> {
     let y = node(ws, owner, x)?
         .right
         .ok_or_else(|| broken("missing rotation child"))?;
@@ -252,15 +287,11 @@ fn rotate_left<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     edit(ws, owner, x, |n| n.parent = Some(y))?;
     refresh(ws, owner, x)?;
     refresh(ws, owner, y)?;
-    ws.work.rotations += 1;
+    ws.rotated();
     Ok(y)
 }
 
-fn rotate_right<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    x: Address,
-) -> Result<Address> {
+fn rotate_right<S: TreeStore>(ws: &mut S, owner: Address, x: Address) -> Result<Address> {
     let y = node(ws, owner, x)?
         .left
         .ok_or_else(|| broken("missing rotation child"))?;
@@ -278,15 +309,11 @@ fn rotate_right<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     edit(ws, owner, x, |n| n.parent = Some(y))?;
     refresh(ws, owner, x)?;
     refresh(ws, owner, y)?;
-    ws.work.rotations += 1;
+    ws.rotated();
     Ok(y)
 }
 
-fn balance<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    mut at: Option<Address>,
-) -> Result<()> {
+fn balance<S: TreeStore>(ws: &mut S, owner: Address, mut at: Option<Address>) -> Result<()> {
     let mut seen = BTreeSet::new();
     while let Some(id) = at {
         if !seen.insert(id) {
@@ -330,26 +357,26 @@ fn balance<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         }
         header.height = 0;
         header.size = 0;
-        header.summary = B::Index::empty(header.kind)?;
+        header.summary = S::Index::empty(header.kind)?;
         header.span = None;
     }
-    ws.put(Key::Root(owner), Some(StoredValue::Root(header)))
+    ws.put_root(owner, Some(header))
 }
 
-pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+pub fn insert<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     id: Address,
-    value: NativeKey<B>,
-    leaf: NativeLeaf<B>,
+    value: NativeKey<S>,
+    leaf: NativeLeaf<S>,
 ) -> Result<()> {
     let mut header = root(ws, owner)?;
-    B::Index::validate_key(header.kind, &value)?;
-    B::Index::validate_leaf(header.kind, &leaf)?;
+    S::Index::validate_key(header.kind, &value)?;
+    S::Index::validate_leaf(header.kind, &leaf)?;
     if id.slot == 0 || owner.slot == 0 {
         return Err(broken("invalid member/root kind"));
     }
-    if ws.get(&Key::Node(id))?.is_some() {
+    if ws.node(id)?.is_some() {
         return Err(broken("existing member identity"));
     }
     let key = FullKey {
@@ -370,7 +397,7 @@ pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         if n.kind != header.kind {
             return Err(broken("search native code mismatch"));
         }
-        B::Index::check_insert(header.kind, &key.value, &n.key.value)?;
+        S::Index::check_insert(header.kind, &key.value, &n.key.value)?;
         if key == n.key {
             return Err(broken("duplicate full key"));
         }
@@ -383,9 +410,9 @@ pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             cursor = n.right;
         }
     }
-    ws.put(
-        Key::Node(id),
-        Some(StoredValue::Node(Node {
+    ws.put_node(
+        id,
+        Some(Node {
             kind: header.kind,
             root: owner,
             key: key.clone(),
@@ -401,8 +428,8 @@ pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
                 first: key.value.clone(),
                 last: key.value.clone(),
             },
-            summary: B::Index::singleton(header.kind, &key.value, &leaf)?,
-        })),
+            summary: S::Index::singleton(header.kind, &key.value, &leaf)?,
+        }),
     )?;
     if let Some(p) = parent {
         edit(ws, owner, p, |n| {
@@ -425,18 +452,18 @@ pub fn insert<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     } else {
         header.last = Some(id);
     }
-    ws.put(Key::Root(owner), Some(StoredValue::Root(header)))?;
+    ws.put_root(owner, Some(header))?;
     balance(ws, owner, Some(id))
 }
 
-pub fn revalue<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+pub fn revalue<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     id: Address,
-    leaf: NativeLeaf<B>,
+    leaf: NativeLeaf<S>,
 ) -> Result<()> {
     let n = node(ws, owner, id)?;
-    B::Index::validate_leaf(n.kind, &leaf)?;
+    S::Index::validate_leaf(n.kind, &leaf)?;
     if n.leaf == leaf {
         return Ok(());
     }
@@ -444,11 +471,7 @@ pub fn revalue<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     balance(ws, owner, Some(id))
 }
 
-pub fn remove<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    id: Address,
-) -> Result<()> {
+pub fn remove<S: TreeStore>(ws: &mut S, owner: Address, id: Address) -> Result<()> {
     let n = node(ws, owner, id)?;
     let mut header = root(ws, owner)?;
     if let Some(p) = n.prev {
@@ -467,7 +490,7 @@ pub fn remove<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     } else {
         header.last = n.prev;
     }
-    ws.put(Key::Root(owner), Some(StoredValue::Root(header)))?;
+    ws.put_root(owner, Some(header))?;
     let start = match (n.left, n.right) {
         (None, child) | (child, None) => {
             replace_parent_link(ws, owner, id, child)?;
@@ -501,19 +524,15 @@ pub fn remove<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             start
         }
     };
-    ws.put(Key::Node(id), None)?;
+    ws.put_node(id, None)?;
     balance(ws, owner, start)
 }
 
 /// Quote selection is an explicit family capability, separate from generic
 /// ordering and from any incidental numeric fields a native leaf may contain.
-pub fn latest<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    at: i64,
-) -> Result<Option<(Uuid, u16)>> {
+pub fn latest<S: TreeStore>(ws: &mut S, owner: Address, at: i64) -> Result<Option<(Uuid, u16)>> {
     let header = root(ws, owner)?;
-    if !B::Index::supports_quote(header.kind) {
+    if !S::Index::supports_quote(header.kind) {
         return Err(Error::new(
             "unsupported_query",
             "latest requires a quote root",
@@ -523,7 +542,7 @@ pub fn latest<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         .map(|selected| {
             Ok((
                 selected.member.id,
-                B::Index::quote_leaf(header.kind, &selected.leaf)?,
+                S::Index::quote_leaf(header.kind, &selected.leaf)?,
             ))
         })
         .transpose()
@@ -531,13 +550,24 @@ pub fn latest<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 
 /// Greatest complete (business key, UUID, member slot) at or before a time.
 /// The upper cut includes every occurrence at that time, without UUID sentinels.
-pub fn last_at_or_before<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+pub fn last_at_or_before<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     at: i64,
-) -> Result<Option<Selected<B::Index>>> {
+) -> Result<Option<Selected<S::Index>>> {
     let header = root(ws, owner)?;
-    let key = B::Index::time_key(header.kind, at)?;
+    let key = S::Index::time_key(header.kind, at)?;
+    last_key_at_or_before(ws, owner, &key)
+}
+
+/// Select the last occurrence in the complete included native-key group.
+pub fn last_key_at_or_before<S: TreeStore>(
+    ws: &mut S,
+    owner: Address,
+    key: &NativeKey<S>,
+) -> Result<Option<Selected<S::Index>>> {
+    let header = root(ws, owner)?;
+    S::Index::validate_key(header.kind, key)?;
     let (mut cursor, mut parent, mut selected) = (header.head, None, None);
     let mut seen = BTreeSet::new();
     while let Some(id) = cursor {
@@ -549,7 +579,7 @@ pub fn last_at_or_before<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             return Err(broken("selection parent/code mismatch"));
         }
         parent = Some(id);
-        if n.key.value <= key {
+        if &n.key.value <= key {
             selected = Some(Selected {
                 member: id,
                 key: n.key.value,
@@ -565,17 +595,13 @@ pub fn last_at_or_before<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
 
 /// The scalar financial prefix path visits only search-path leaves and cached
 /// left sums; it never calculates unused extrema by folding full summaries.
-pub fn prefix<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    owner: Address,
-    before: Option<i64>,
-) -> Result<i128> {
+pub fn prefix<S: TreeStore>(ws: &mut S, owner: Address, before: Option<i64>) -> Result<i128> {
     let header = root(ws, owner)?;
-    let total = B::Index::financial_summary(header.kind, &header.summary)?;
+    let total = S::Index::financial_summary(header.kind, &header.summary)?;
     let Some(before) = before else {
         return Ok(total.sum);
     };
-    let boundary = B::Index::time_key(header.kind, before)?;
+    let boundary = S::Index::time_key(header.kind, before)?;
     let mut sum: i128 = 0;
     let mut cursor = header.head;
     let mut parent = None;
@@ -591,8 +617,8 @@ pub fn prefix<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         parent = Some(id);
         if current.key.value < boundary {
             let left = child_info(ws, owner, id, current.left, header.kind)?;
-            let left = B::Index::financial_summary(header.kind, &left.summary)?.sum;
-            let leaf = B::Index::financial_leaf(header.kind, &current.leaf)?;
+            let left = S::Index::financial_summary(header.kind, &left.summary)?.sum;
+            let leaf = S::Index::financial_leaf(header.kind, &current.leaf)?;
             sum = sum
                 .checked_add(left)
                 .and_then(|s| s.checked_add(leaf))
@@ -613,20 +639,19 @@ struct RangeFold<'a, K> {
 }
 
 impl<K: Ord> RangeFold<'_, K> {
-    fn visit<L, B>(
+    fn visit<S>(
         &mut self,
-        ws: &mut Attempt<L, B>,
+        ws: &mut S,
         id: Option<Address>,
         parent: Option<Address>,
         depth: u16,
-    ) -> Result<NativeSummary<B>>
+    ) -> Result<NativeSummary<S>>
     where
-        L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>,
-        B: Binding,
-        B::Index: NativeIndex<Key = K>,
+        S: TreeStore,
+        S::Index: NativeIndex<Key = K>,
     {
         let Some(id) = id else {
-            return B::Index::empty(self.kind);
+            return S::Index::empty(self.kind);
         };
         if depth >= 64 {
             return Err(broken("range path depth"));
@@ -642,20 +667,20 @@ impl<K: Ord> RangeFold<'_, K> {
         {
             return Err(broken("range parent/code/height mismatch"));
         }
-        B::Index::validate_key(self.kind, &current.key.value)?;
-        B::Index::validate_leaf(self.kind, &current.leaf)?;
-        B::Index::validate_summary(self.kind, &current.summary)?;
+        S::Index::validate_key(self.kind, &current.key.value)?;
+        S::Index::validate_leaf(self.kind, &current.leaf)?;
+        S::Index::validate_summary(self.kind, &current.summary)?;
         let Span { first, last } = &current.span;
         if !(first <= &current.key.value && &current.key.value <= last) {
             return Err(broken("range leaf outside structural span"));
         }
-        B::Index::validate_key(self.kind, first)?;
-        B::Index::validate_key(self.kind, last)?;
+        S::Index::validate_key(self.kind, first)?;
+        S::Index::validate_key(self.kind, last)?;
         if self.window.contains(first) && self.window.contains(last) {
             return Ok(current.summary);
         }
         if self.window.below(last) || self.window.above(first) {
-            return B::Index::empty(self.kind);
+            return S::Index::empty(self.kind);
         }
         // Complete business-key groups include all engine occurrence ties.
         let left_possible = !self.window.below(&current.key.value);
@@ -663,15 +688,15 @@ impl<K: Ord> RangeFold<'_, K> {
         let mut result = if left_possible {
             self.visit(ws, current.left, Some(id), depth + 1)?
         } else {
-            B::Index::empty(self.kind)?
+            S::Index::empty(self.kind)?
         };
         if self.window.contains(&current.key.value) {
-            let leaf = B::Index::singleton(self.kind, &current.key.value, &current.leaf)?;
-            result = B::Index::combine(self.kind, &result, &leaf)?;
+            let leaf = S::Index::singleton(self.kind, &current.key.value, &current.leaf)?;
+            result = S::Index::combine(self.kind, &result, &leaf)?;
         }
         if right_possible {
             let right = self.visit(ws, current.right, Some(id), depth + 1)?;
-            result = B::Index::combine(self.kind, &result, &right)?;
+            result = S::Index::combine(self.kind, &result, &right)?;
         }
         Ok(result)
     }
@@ -679,13 +704,13 @@ impl<K: Ord> RangeFold<'_, K> {
 
 /// Ordered canonical subtree coverage over native business keys. Summary
 /// algebra and the AVL never interpret a key as a timestamp.
-pub fn range_keys<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+pub fn range_keys<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
-    window: &KeyRange<NativeKey<B>>,
-) -> Result<NativeSummary<B>> {
+    window: &KeyRange<NativeKey<S>>,
+) -> Result<NativeSummary<S>> {
     let header = root(ws, owner)?;
-    B::Index::validate_summary(header.kind, &header.summary)?;
+    S::Index::validate_summary(header.kind, &header.summary)?;
     if header.height >= 64
         || header.head.is_none() != header.span.is_none()
         || header.head.is_none() != (header.height == 0)
@@ -693,18 +718,18 @@ pub fn range_keys<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         return Err(broken("range root height/population"));
     }
     let Some(Span { first, last }) = &header.span else {
-        if header.summary != B::Index::empty(header.kind)? {
+        if header.summary != S::Index::empty(header.kind)? {
             return Err(broken("nonempty summary for empty root"));
         }
-        return B::Index::empty(header.kind);
+        return S::Index::empty(header.kind);
     };
-    B::Index::validate_key(header.kind, first)?;
-    B::Index::validate_key(header.kind, last)?;
+    S::Index::validate_key(header.kind, first)?;
+    S::Index::validate_key(header.kind, last)?;
     if first > last {
         return Err(broken("unordered root span"));
     }
     if window.is_empty() || window.below(last) || window.above(first) {
-        return B::Index::empty(header.kind);
+        return S::Index::empty(header.kind);
     }
     if window.contains(first) && window.contains(last) {
         return Ok(header.summary);
@@ -720,19 +745,19 @@ pub fn range_keys<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 
 /// Exact time windows use the family's explicit monotonic time adapter. The
 /// native fold remains valid for unrelated key types without this adapter.
-pub fn range<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
+pub fn range<S: TreeStore>(
+    ws: &mut S,
     owner: Address,
     window: TimeRange,
-) -> Result<NativeSummary<B>> {
+) -> Result<NativeSummary<S>> {
     let code = root(ws, owner)?.kind;
     let map = |bound| match bound {
         TimeBound::Unbounded => Ok(Bound::Unbounded),
-        TimeBound::Included(at) => B::Index::time_key(code, at).map(Bound::Included),
-        TimeBound::Excluded(at) => B::Index::time_key(code, at).map(Bound::Excluded),
+        TimeBound::Included(at) => S::Index::time_key(code, at).map(Bound::Included),
+        TimeBound::Excluded(at) => S::Index::time_key(code, at).map(Bound::Excluded),
     };
     // Validate capability even for an unbounded or empty query.
-    B::Index::time_key(code, 0)?;
+    S::Index::time_key(code, 0)?;
     range_keys(
         ws,
         owner,

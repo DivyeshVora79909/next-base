@@ -45,6 +45,7 @@ CI builds the host before Node integration tests. See
 [storage](docs/storage-backends.md) and [deployment](docs/deployment.md)
 for backend prerequisites and lifecycle.
 
-Production BFS, optional chronological indexes, generic relationship uniqueness
-and expanded adaptive population remain roadmap work. Imported bounded acceptance
+Bounded BFS reads, catalog reference uniqueness and [declared owner order indexes](docs/ordered-access.md)
+and [bounded adaptive population](docs/c4-population.md) are implemented.
+Service/deployment gates follow the roadmap. Imported bounded acceptance
 does not establish unrestricted scale. [Provenance](PROVENANCE.json) records the import.

@@ -130,6 +130,11 @@ fn declarations() -> Vec<Contract> {
     ]
     .into_iter()
     .map(|(code, name, names, properties, references, publications, expression)| Contract {
+                access_indexes: if code == SOURCE { vec![crate::access_index::Declaration::created(101), crate::access_index::Declaration {
+                    code: 102, name: "value", components: vec![crate::access_index::Component::Field {
+                        field: "value", kind: crate::order_value::OrderAtomKind::Integer,
+                    }],
+                }] } else { vec![] },
                 uniqueness: vec![],
         code,
         name,

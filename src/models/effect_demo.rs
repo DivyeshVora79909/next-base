@@ -126,6 +126,7 @@ impl Binding for EffectDemo {
             ),
         ] {
             contracts.push(Contract {
+                access_indexes: vec![],
                 uniqueness: vec![],
                 code, name, visibility: Visibility::Public,
                 schema: json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"required":names,"properties":fields}),

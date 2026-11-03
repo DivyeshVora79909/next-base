@@ -18,10 +18,14 @@ const DECIMAL = /^(0|-?[1-9][0-9]*)$/;
  * `{ root: {id,slot}, time, leaf }` rows from a separate source oracle.
  * expectedRoots is keyed the same way and contains `{ kind }` entries. Set
  * includeObservation to return the inspect-compatible semantic rows decoded
- * from the same validated native KV bytes.
+ * from the same validated native KV bytes. Access trees always receive full
+ * structural checks, with separate accessRootCount/accessNodeCount results.
+ * Supply the matching developer catalog to derive their complete source/root
+ * inventory, including absence. Without it accessSourceMembership explicitly
+ * remains not_evaluated; structural agreement is not source membership proof.
  */
 export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BACKUP_BYTES,
-  expectedRoots, includeObservation = false, maxRows = MAX_SNAPSHOT_ROWS, maxDepth = MAX_TREE_DEPTH } = {}) {
+  expectedRoots, catalog, includeObservation = false, maxRows = MAX_SNAPSHOT_ROWS, maxDepth = MAX_TREE_DEPTH } = {}) {
   positiveBound(maxBytes, MAX_BACKUP_BYTES, 'maxBytes');
   positiveBound(maxRows, MAX_SNAPSHOT_ROWS, 'maxRows');
   positiveBound(maxDepth, MAX_TREE_DEPTH, 'maxDepth');
@@ -55,10 +59,13 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const rows = backup.payload.tables.native_kv;
   const roots = new Map();
   const nodes = new Map();
+  const accessRoots = new Map();
+  const accessNodes = new Map();
   const observation = { records: [], roots: [], queries: [], roles: [], reserved: [] };
   const nativeKeys = new Set();
   const recordsById = new Map();
   const uniqueClaims = [];
+  let metadata;
   for (const row of rows) {
     object(row, 'native KV row');
     exactKeys(row, ['key', 'value'], 'native KV row');
@@ -76,20 +83,27 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     if (decodedKey.type === 'unique') {
       requireThat(typeof value.data === 'string' && UUID.test(value.data), 'unique holder must be a canonical UUID');
     } else object(value.data, 'stored tree value');
-    if (decodedKey.type === 'root' || decodedKey.type === 'node') {
+    if (['root', 'node', 'access_root', 'access_node'].includes(decodedKey.type)) {
       requireThat(canonicalTypedValue(value) === valueText, 'root/node bytes are not canonical serde JSON');
     } else {
       requireThat(JSON.stringify(value) === valueText, 'non-tree native value bytes are not compact JSON');
     }
     if (decodedKey.type === 'record') {
       requireThat(!Object.hasOwn(value.data, 'reader'), 'obsolete source reader field');
+      if (Object.hasOwn(value.data, 'created_at')) canonicalTime(value.data.created_at);
       recordsById.set(decodedKey.id, value.data);
       observation.records.push({ id: decodedKey.id, record: value.data });
     }
+    else if (decodedKey.type === 'meta') metadata = value.data;
     else if (decodedKey.type === 'unique') uniqueClaims.push({ key: decodedKey, holder: value.data });
     else if (decodedKey.type === 'query') observation.queries.push({ query: decodedKey.address, descriptor: value.data });
     else if (decodedKey.type === 'role') observation.roles.push({ source_role: decodedKey.address, binding: value.data });
     else if (decodedKey.type === 'reserved') observation.reserved.push({ id: decodedKey.id, source_role: value.data });
+    if (decodedKey.type === 'access_root' || decodedKey.type === 'access_node') {
+      const inventory = decodedKey.type === 'access_root' ? accessRoots : accessNodes;
+      inventory.set(addressToken(decodedKey.address), { address: decodedKey.address, value: value.data });
+      continue;
+    }
     if (decodedKey.type !== 'root' && decodedKey.type !== 'node') continue;
     const token = addressToken(decodedKey.address);
     requireThat(!(decodedKey.type === 'root' ? roots : nodes).has(token), `duplicate ${decodedKey.type} address`);
@@ -130,14 +144,26 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       requireThat(recordsById.has(target), 'unique target has no source record');
     }
   }
-  requireThat(nodes.size <= MAX_TREE_NODES, 'tree node inventory exceeds its bound');
+  requireThat(nodes.size + accessNodes.size <= MAX_TREE_NODES, 'tree node inventory exceeds its bound');
   requireThat(expectedMembers === undefined || expectedMembers instanceof Map, 'expectedMembers must be a Map');
   requireThat(expectedRoots === undefined || expectedRoots instanceof Map, 'expectedRoots must be a Map');
+  const accessExpected = catalog === undefined ? undefined : sourceAccessInventory(catalog, recordsById, metadata);
+  if (accessExpected) {
+    requireThat(accessExpected.roots.size === accessRoots.size, 'source access root inventory size differs');
+    for (const root of accessRoots.keys()) requireThat(accessExpected.roots.has(root), 'source access root differs');
+    requireThat(accessExpected.members.size === accessNodes.size, 'source access membership inventory size differs');
+  }
 
   const reached = new Set();
   let visited = 0;
-  for (const [rootToken, rootRow] of roots) {
+  for (const [rootToken, rootRow, access] of [
+    ...[...roots].map(([token, row]) => [token, row, false]),
+    ...[...accessRoots].map(([token, row]) => [token, row, true]),
+  ]) {
     const root = rootRow.value;
+    const compareKey = access ? compareOrder : compareTime;
+    const inventory = access ? accessNodes : nodes;
+    if (access) requireThat(root.kind === 1 && root.summary === null && root.size > 0, 'access root kind, unit summary or nonempty shape differs');
     validateRoot(root, rootRow.address);
     const ordered = [];
     const stats = visit(root.head, null, rootRow.address, root, 0, ordered);
@@ -147,8 +173,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     requireThat(sameAddress(root.last, stats.lastAddress), 'root last link differs');
     requireThat(root.span === null ? ordered.length === 0 : ordered.length > 0, 'root span presence differs');
     if (ordered.length) {
-      requireThat(compareTime(root.span.first, stats.firstTime) === 0
-        && compareTime(root.span.last, stats.lastTime) === 0, 'root span differs');
+      requireThat(compareKey(root.span.first, stats.firstTime) === 0
+        && compareKey(root.span.last, stats.lastTime) === 0, 'root span differs');
     }
     requireThat(equalJson(root.summary, stats.summary), 'root summary differs');
     for (let index = 0; index < ordered.length; index += 1) {
@@ -156,8 +182,14 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       const node = row.value;
       requireThat(sameAddress(node.prev, ordered[index - 1]?.address ?? null), 'previous link differs');
       requireThat(sameAddress(node.next, ordered[index + 1]?.address ?? null), 'next link differs');
-      if (index) requireThat(compareFullKey(ordered[index - 1], row) < 0, 'tree keys are not strictly ordered');
-      if (expectedMembers) {
+      if (index) requireThat(compareFullKey(ordered[index - 1], row, compareKey) < 0, 'tree keys are not strictly ordered');
+      if (access && accessExpected) {
+        const expected = accessExpected.members.get(addressToken(row.address));
+        requireThat(expected !== undefined, 'access node is absent from source membership');
+        requireThat(addressToken(expected.root) === rootToken, 'source access owner/root differs');
+        requireThat(compareOrder(expected.key, row.time) === 0, 'source access key differs');
+      }
+      if (!access && expectedMembers) {
         const expected = expectedMembers.get(addressToken(row.address));
         requireThat(expected !== undefined, 'tree node is absent from independent source membership');
         requireThat(addressToken(expected.root) === rootToken, 'source membership root differs');
@@ -169,12 +201,13 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     requireThat(visited <= MAX_TREE_NODES, 'tree traversal exceeds its bound');
 
     function visit(address, parent, owner, ownerRoot, depth, inOrder) {
-      if (address === null) return emptyStats(ownerRoot.kind);
+      if (address === null) return access ? { height: 0, count: 0, firstTime: null, lastTime: null, firstAddress: null, lastAddress: null, summary: null } : emptyStats(ownerRoot.kind);
       requireThat(depth < maxDepth, 'tree path depth limit');
       const token = addressToken(address);
-      requireThat(!reached.has(token), 'tree cycle or duplicate reachability');
-      reached.add(token);
-      const row = nodes.get(token);
+      const reachedToken = `${access ? 'access' : 'domain'}:${token}`;
+      requireThat(!reached.has(reachedToken), 'tree cycle or duplicate reachability');
+      reached.add(reachedToken);
+      const row = inventory.get(token);
       requireThat(row !== undefined, 'linked tree node is missing');
       const node = row.value;
       structuralSize(node.size, false);
@@ -185,8 +218,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       requireThat(addressToken(node.parent) === (parent ? addressToken(parent) : null), 'node parent differs');
       requireThat(node.kind === ownerRoot.kind, 'node index kind differs');
       requireThat(node.key?.id === address.id && node.key?.slot === address.slot, 'node address differs from key');
-      requireThat(node.key && node.leaf && node.span, 'node key, leaf, or span is missing');
-      const time = canonicalTime(node.key.value);
+      requireThat(node.key && (access ? node.leaf === null && node.summary === null : node.leaf) && node.span, 'node key, leaf, or span is missing');
+      const time = access ? orderKey(node.key.value) : canonicalTime(node.key.value);
       const left = visit(node.left, address, owner, ownerRoot, depth + 1, inOrder);
       const current = { ...row, address, time, leaf: node.leaf };
       inOrder.push(current);
@@ -196,12 +229,12 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       requireThat(node.height === height && height < maxDepth, 'node height differs');
       const firstTime = left.count ? left.firstTime : time;
       const lastTime = right.count ? right.lastTime : time;
-      requireThat(compareTime(node.span.first, firstTime) === 0
-        && compareTime(node.span.last, lastTime) === 0, 'node span differs');
-      requireThat(compareTime(node.span.first, time) <= 0 && compareTime(time, node.span.last) <= 0,
+      requireThat(compareKey(node.span.first, firstTime) === 0
+        && compareKey(node.span.last, lastTime) === 0, 'node span differs');
+      requireThat(compareKey(node.span.first, time) <= 0 && compareKey(time, node.span.last) <= 0,
         'node key lies outside span');
-      const singleton = singletonSummary(node.kind, time, node.leaf);
-      const summary = combineSummaries(node.kind, combineSummaries(node.kind, left.summary, singleton), right.summary);
+      const singleton = access ? null : singletonSummary(node.kind, time, node.leaf);
+      const summary = access ? null : combineSummaries(node.kind, combineSummaries(node.kind, left.summary, singleton), right.summary);
       requireThat(equalJson(node.summary, summary), 'tree node summary differs');
       const count = left.count + 1 + right.count;
       requireThat(node.size === count, 'node structural size differs');
@@ -210,7 +243,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
         lastAddress: right.count ? right.lastAddress : address, summary };
     }
   }
-  requireThat(reached.size === nodes.size, 'tree node inventory has disconnected entries');
+  requireThat(reached.size === nodes.size + accessNodes.size, 'tree node inventory has disconnected entries');
   if (expectedMembers) requireThat(expectedMembers.size === nodes.size, 'source membership inventory size differs');
   if (expectedRoots) {
     for (const [token, expected] of expectedRoots) {
@@ -229,6 +262,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     }
   }
   const result = { status: 'passed', sourceMembership: expectedMembers ? 'checked' : 'not_evaluated',
+    accessSourceMembership: accessExpected ? 'checked' : 'not_evaluated', accessRootCount: accessRoots.size, accessNodeCount: accessNodes.size,
     rootCount: roots.size, nodeCount: nodes.size, nativeKvRows: rows.length, snapshotBytes: backupBytes.length };
   if (includeObservation) result.observation = Object.freeze(Object.fromEntries(
     Object.entries(observation).map(([name, values]) => [name, Object.freeze(values.map(Object.freeze))])));
@@ -242,6 +276,100 @@ function emptyStats(kind) {
       : kind === 2 ? { kind: 'quote', value: { count: 0, first: null, last: null } }
         : kind === 7 ? { count: 0, sum: '0', min: null, max: null, dimension: { kind: 'empty' } }
           : unsupportedKind(kind) };
+}
+
+// This projection reads source facts and declarations, never stored access keys
+// or writer summaries. A developer catalog must cover every retained contract.
+function sourceAccessInventory(catalog, records, metadata) {
+  object(catalog, 'access catalog');
+  requireThat(Array.isArray(catalog.contracts), 'access catalog contracts are missing');
+  requireThat(metadata && metadata.model === catalog.model, 'access catalog model differs from stored metadata');
+  requireThat(UUID.test(metadata.tenant ?? ''), 'access tenant metadata is invalid');
+  const contracts = new Map();
+  const indexCodes = new Set();
+  for (const contract of catalog.contracts) {
+    requireThat(Number.isInteger(contract.code) && contract.code > 0 && contract.code <= 65535
+      && !contracts.has(contract.code), 'access catalog contract code is invalid or duplicate');
+    contracts.set(contract.code, contract);
+    const indexes = contract.access_indexes ?? [];
+    requireThat(Array.isArray(indexes), 'access declarations must be an array');
+    const names = new Set();
+    for (const declaration of indexes) {
+      requireThat(Number.isInteger(declaration.code) && declaration.code > 0 && declaration.code <= 65535
+        && !indexCodes.has(declaration.code), 'access catalog index code is invalid or duplicate');
+      indexCodes.add(declaration.code);
+      requireThat(typeof declaration.name === 'string' && declaration.name.length && !names.has(declaration.name), 'access catalog index name is invalid or duplicate');
+      names.add(declaration.name);
+      requireThat(Array.isArray(declaration.components) && declaration.components.length > 0 && declaration.components.length <= 8, 'access declaration component bound');
+      for (const component of declaration.components) {
+        object(component, 'access component');
+        if (component.source === 'created_at') exactKeys(component, ['source'], 'created access component');
+        else {
+          exactKeys(component, ['source', 'field', 'kind'], 'field access component');
+          requireThat(component.source === 'field' && typeof component.field === 'string' && component.field.length
+            && ['integer', 'text', 'boolean', 'uuid'].includes(component.kind), 'invalid access component');
+        }
+      }
+    }
+  }
+  const roots = new Set(), members = new Map();
+  for (const [id, record] of records) {
+    const contract = contracts.get(record.contract);
+    requireThat(contract !== undefined, 'access catalog does not cover a stored source contract');
+    requireThat(record.tenant === metadata.tenant, 'source access tenant differs');
+    requireThat(UUID.test(record.owner ?? ''), 'source access owner is invalid');
+    for (const declaration of contract.access_indexes ?? []) {
+      const key = declaration.components.map(component => {
+        const kind = component.source === 'created_at' ? 'integer' : component.kind;
+        let value;
+        if (component.source === 'created_at') value = canonicalTime(record.created_at).toString();
+        else {
+          object(record.input, 'access source input');
+          requireThat(Object.hasOwn(record.input, component.field), 'declared access source field is missing');
+          value = record.input[component.field];
+          if (kind === 'integer' && Number.isSafeInteger(value)) value = String(value);
+        }
+        return { kind, value };
+      });
+      orderKey(key);
+      const root = { id: record.owner, slot: declaration.code };
+      roots.add(addressToken(root));
+      members.set(`${id}/${declaration.code}`, { root, key });
+      requireThat(members.size <= MAX_TREE_NODES, 'source access membership inventory bound');
+    }
+  }
+  return { roots, members };
+}
+
+function orderKey(value) {
+  requireThat(Array.isArray(value) && value.length > 0 && value.length <= 8, 'access key component bound');
+  for (const atom of value) {
+    object(atom, 'access key atom');
+    exactKeys(atom, ['kind', 'value'], 'access key atom');
+    if (atom.kind === 'integer') canonicalI128(atom.value, 'access integer key');
+    else if (atom.kind === 'text') requireThat(typeof atom.value === 'string' && atom.value.isWellFormed()
+      && Buffer.byteLength(atom.value, 'utf8') <= 256, 'access text key UTF-8 bound');
+    else if (atom.kind === 'boolean') requireThat(typeof atom.value === 'boolean', 'access boolean key differs');
+    else if (atom.kind === 'uuid') requireThat(typeof atom.value === 'string' && UUID.test(atom.value), 'access UUID key is not canonical');
+    else throw new TypeError('unknown access key atom kind');
+  }
+  requireThat(Buffer.byteLength(JSON.stringify(value)) <= 4096, 'access key encoded byte bound');
+  return value;
+}
+
+function compareOrder(left, right) {
+  orderKey(left); orderKey(right);
+  const kinds = ['integer', 'text', 'boolean', 'uuid'];
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const a = left[index], b = right[index];
+    if (a.kind !== b.kind) return kinds.indexOf(a.kind) - kinds.indexOf(b.kind);
+    const x = a.kind === 'integer' ? BigInt(a.value) : a.value;
+    const y = b.kind === 'integer' ? BigInt(b.value) : b.value;
+    const result = a.kind === 'text' ? Buffer.compare(Buffer.from(x, 'utf8'), Buffer.from(y, 'utf8'))
+      : x < y ? -1 : x > y ? 1 : 0;
+    if (result) return result;
+  }
+  return left.length - right.length;
 }
 
 function singletonSummary(kind, time, leaf) {
@@ -330,13 +458,13 @@ function decodeKey(bytes) {
     return { type: 'unique', contract, constraint, targets };
   }
   const expectedLength = new Set([1, 5, 6, 9]).has(tag) ? 17
-    : new Set([2, 3, 4, 7, 8, 10, 11, 12]).has(tag) ? 19 : 0;
+    : new Set([2, 3, 4, 7, 8, 10, 11, 12, 15, 16]).has(tag) ? 19 : 0;
   requireThat(expectedLength > 0 && bytes.length === expectedLength, 'invalid native point key');
   const id = formatUuid(bytes.subarray(1, 17));
   const slot = expectedLength === 19 ? bytes.readUInt16BE(17) : null;
   if (expectedLength === 19) requireThat(slot > 0, 'native address slot is zero');
   const type = ({ 1: 'record', 2: 'root', 3: 'node', 4: 'query', 5: 'incoming', 6: 'direct',
-    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node' })[tag];
+    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node', 15: 'access_root', 16: 'access_node' })[tag];
   requireThat(type !== undefined, 'invalid native point key tag');
   return { type, id, ...(expectedLength === 19 ? { address: { id, slot } } : {}) };
 }
@@ -384,8 +512,8 @@ function canonicalU16(value, label) {
 function checkI128(value, label) { requireThat(value >= -(1n << 127n) && value < (1n << 127n), `${label} exceeds i128`); }
 function compareTime(left, right) { return (typeof left === 'bigint' ? left : canonicalTime(left)) < (typeof right === 'bigint' ? right : canonicalTime(right)) ? -1
   : (typeof left === 'bigint' ? left : canonicalTime(left)) > (typeof right === 'bigint' ? right : canonicalTime(right)) ? 1 : 0; }
-function compareFullKey(left, right) {
-  const at = compareTime(left.time, right.time); if (at) return at;
+function compareFullKey(left, right, compareKey = compareTime) {
+  const at = compareKey(left.time, right.time); if (at) return at;
   const a = Buffer.from(left.address.id.replaceAll('-', ''), 'hex'), b = Buffer.from(right.address.id.replaceAll('-', ''), 'hex');
   const id = Buffer.compare(a, b); return id || left.address.slot - right.address.slot;
 }
@@ -426,24 +554,25 @@ function object(value, label) { requireThat(value !== null && typeof value === '
 function exactKeys(value, expected, label) { requireThat(Object.keys(value).sort().join('\0') === [...expected].sort().join('\0'), `${label} fields differ`); }
 function equalJson(a, b) { return canonicalJson(a) === canonicalJson(b); }
 function canonicalTypedValue(value) {
-  if (value.type === 'root') {
+  const access = value.type === 'access_root' || value.type === 'access_node';
+  if (value.type === 'root' || value.type === 'access_root') {
     const data = value.data;
     const kind = data.kind;
     exactKeys(data, ['kind', 'head', 'first', 'last', 'height', 'size', 'span', 'summary', 'revision'], 'tree root');
-    return JSON.stringify({ type: 'root', data: {
+    return JSON.stringify({ type: value.type, data: {
       kind, head: orderedAddress(data.head), first: orderedAddress(data.first), last: orderedAddress(data.last),
-      height: data.height, size: data.size, span: orderedSpan(data.span), summary: orderedSummary(kind, data.summary), revision: data.revision,
+      height: data.height, size: data.size, span: orderedSpan(data.span, access), summary: access ? data.summary : orderedSummary(kind, data.summary), revision: data.revision,
     } });
   }
   const data = value.data;
   exactKeys(data, ['kind', 'root', 'key', 'leaf', 'parent', 'left', 'right', 'prev', 'next', 'height', 'size', 'span', 'summary'], 'tree node');
   exactKeys(data.key, ['value', 'id', 'slot'], 'tree node key');
-  return JSON.stringify({ type: 'node', data: {
+  return JSON.stringify({ type: value.type, data: {
     kind: data.kind, root: orderedAddress(data.root),
-    key: { value: data.key.value, id: data.key.id, slot: data.key.slot },
-    leaf: orderedLeaf(data.kind, data.leaf), parent: orderedAddress(data.parent), left: orderedAddress(data.left),
+    key: { value: access ? orderedOrderKey(data.key.value) : data.key.value, id: data.key.id, slot: data.key.slot },
+    leaf: access ? data.leaf : orderedLeaf(data.kind, data.leaf), parent: orderedAddress(data.parent), left: orderedAddress(data.left),
     right: orderedAddress(data.right), prev: orderedAddress(data.prev), next: orderedAddress(data.next),
-    height: data.height, size: data.size, span: orderedSpan(data.span), summary: orderedSummary(data.kind, data.summary),
+    height: data.height, size: data.size, span: orderedSpan(data.span, access), summary: access ? data.summary : orderedSummary(data.kind, data.summary),
   } });
 }
 function orderedAddress(address) {
@@ -452,12 +581,13 @@ function orderedAddress(address) {
   exactKeys(address, ['id', 'slot'], 'tree address');
   return { id: address.id, slot: address.slot };
 }
-function orderedSpan(span) {
+function orderedSpan(span, access = false) {
   if (span === null) return null;
   object(span, 'tree span');
   exactKeys(span, ['first', 'last'], 'tree span');
-  return { first: span.first, last: span.last };
+  return { first: access ? orderedOrderKey(span.first) : span.first, last: access ? orderedOrderKey(span.last) : span.last };
 }
+function orderedOrderKey(value) { return orderKey(value).map(atom => ({ kind: atom.kind, value: atom.value })); }
 function orderedLeaf(kind, leaf) {
   object(leaf, 'tree leaf');
   if (kind === 1 || kind === 2) {

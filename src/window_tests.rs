@@ -152,6 +152,7 @@ fn contract(
     properties: Value,
 ) -> Contract {
     Contract {
+        access_indexes: vec![],
         uniqueness: vec![],
         code,
         name,
@@ -380,7 +381,7 @@ impl ReactiveBinding for WindowModel {
                     vec![Read {
                         slot: if validate { 32 } else { 31 },
                         root: Address::new(source, 7),
-                        range,
+                        range: (range).into(),
                         validate,
                     }]
                 } else {
@@ -391,7 +392,7 @@ impl ReactiveBinding for WindowModel {
                         role: 11,
                         contract: OUTPUT,
                         root: Address::new(target, 7),
-                        at,
+                        at: (at).into(),
                     }]
                 } else {
                     vec![]
@@ -433,7 +434,7 @@ impl ReactiveBinding for WindowModel {
             producer,
             role: emit.role,
             target: emit.root.id,
-            at: emit.at,
+            at: emit.at.0,
             amount,
         })
     }
@@ -636,7 +637,7 @@ fn check(store: &Store<WindowModel>) -> Result<Value> {
                 operation: "sum".into(),
                 phase: if *validate { "validate" } else { "calculate" }.into(),
                 channel: "amount".into(),
-                range: *range,
+                range: (*range).into(),
                 selected: None,
                 result,
             },

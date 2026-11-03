@@ -90,12 +90,12 @@ fn check(bytes: &Bytes, sources: &Sources, owners: &[Route]) {
         let Stored::RouteNode(n) = &all[&key] else {
             panic!("node type");
         };
-        assert_eq!((n.route, n.range), sources[&id]);
+        assert_eq!((n.route, TimeRange::from(n.range)), sources[&id]);
         assert_eq!(n.key.member, id);
-        let upper = match n.range.upper {
+        let upper = match TimeBound::from(n.range.upper) {
             TimeBound::Unbounded => Endpoint::All,
-            TimeBound::Included(at) => Endpoint::Through(at),
-            TimeBound::Excluded(at) => Endpoint::Time(at),
+            TimeBound::Included(at) => Endpoint::Through((at).into()),
+            TimeBound::Excluded(at) => Endpoint::Before((at).into()),
         };
         assert_eq!(n.key.endpoint, upper);
         assert!(bounds.0.is_none_or(|v| v < n.key));
@@ -104,13 +104,13 @@ fn check(bytes: &Bytes, sources: &Sources, owners: &[Route]) {
         let (rh, rc, rm) = visit(all, sources, seen, route, n.right, (Some(n.key), bounds.1));
         assert!(lh.abs_diff(rh) <= 1);
         assert_eq!(n.height, 1 + lh.max(rh));
-        let (low, high) = limits(n.range);
-        let own = (low <= high).then_some(n.range.lower);
+        let (low, high) = limits(n.range.into());
+        let own = (low <= high).then_some(TimeBound::from(n.range.lower));
         let minimum = [own, lm, rm]
             .into_iter()
             .flatten()
             .min_by_key(|v| lower_order(*v));
-        assert_eq!(n.min_lower, minimum, "{id:?}");
+        assert_eq!(n.min_lower.map(TimeBound::from), minimum, "{id:?}");
         (n.height, lc + rc + 1, minimum)
     }
     let mut seen = BTreeSet::new();
@@ -156,7 +156,7 @@ fn assert_stabs<L: FnMut(&[u8]) -> crate::native_slice::Result<Option<Vec<u8>>>>
             i64::MAX - 1,
             i64::MAX,
         ] {
-            let actual = routes::stab(ws, &route.key(), at, original).unwrap();
+            let actual = routes::stab(ws, &route.key(), &at.into(), original).unwrap();
             let unique: BTreeSet<_> = actual.iter().copied().collect();
             assert_eq!(actual.len(), unique.len());
             let expected = sources
@@ -273,7 +273,7 @@ fn empty_identity_minimum_cache_extremes_and_exact_remove_are_preserved() {
     check(&bytes, &sources, &[route]);
     let mut ws = Workspace::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 20);
     assert!(
-        routes::stab(&mut ws, &route.key(), 0, false)
+        routes::stab(&mut ws, &route.key(), &0.into(), false)
             .unwrap()
             .is_empty()
     );
@@ -314,7 +314,7 @@ fn empty_identity_minimum_cache_extremes_and_exact_remove_are_preserved() {
         let before = bytes.clone();
         let mut ws = Workspace::new(|key: &[u8]| Ok(bytes.get(key).cloned()), budget);
         assert_eq!(
-            routes::stab(&mut ws, &route.key(), 0, false)
+            routes::stab(&mut ws, &route.key(), &0.into(), false)
                 .unwrap_err()
                 .code,
             "work_limit"
@@ -334,20 +334,20 @@ fn empty_identity_minimum_cache_extremes_and_exact_remove_are_preserved() {
 
 #[test]
 fn through_endpoints_interleave_and_only_subscribers_accept_windows() {
-    let ordered = [
-        Endpoint::Time(i64::MIN),
-        Endpoint::Through(i64::MIN),
-        Endpoint::Time(-1),
-        Endpoint::Through(-1),
-        Endpoint::Time(0),
-        Endpoint::Through(0),
-        Endpoint::Time(i64::MAX),
-        Endpoint::Through(i64::MAX),
+    let ordered: [Endpoint; 9] = [
+        Endpoint::Before((i64::MIN).into()),
+        Endpoint::Through((i64::MIN).into()),
+        Endpoint::Before((-1).into()),
+        Endpoint::Through((-1).into()),
+        Endpoint::Before((0).into()),
+        Endpoint::Through((0).into()),
+        Endpoint::Before((i64::MAX).into()),
+        Endpoint::Through((i64::MAX).into()),
         Endpoint::All,
     ];
     assert!(ordered.windows(2).all(|pair| pair[0] < pair[1]));
     assert_eq!(
-        serde_json::to_value(Endpoint::Through(-1)).unwrap(),
+        serde_json::to_value(Endpoint::Through(crate::index::TimeKey(-1))).unwrap(),
         serde_json::json!({"kind":"through", "at":"-1"})
     );
     let owners = [
@@ -417,7 +417,7 @@ fn bounded_stabbing_prunes_both_sides_at_gate_population() {
     ] {
         let mut ws = Workspace::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 256);
         assert_eq!(
-            routes::stab(&mut ws, &route.key(), at, false).unwrap(),
+            routes::stab(&mut ws, &route.key(), &at.into(), false).unwrap(),
             expected
         );
         assert!(ws.work.selector_visits <= 32, "{:?}", ws.work);

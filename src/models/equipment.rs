@@ -195,6 +195,7 @@ fn declarations() -> Result<Vec<Contract>> {
             })
             .collect();
         let mut c = Contract {
+            access_indexes: vec![],
             uniqueness: vec![],
             code,
             name,
@@ -420,7 +421,7 @@ impl ReactiveBinding for Equipment {
                 reads: vec![Read {
                     slot: 31,
                     root: Address::new(pool, 7),
-                    range: crate::time_range::TimeRange::before(starts),
+                    range: (crate::time_range::TimeRange::before(starts)).into(),
                     validate: false,
                 }],
                 emits: vec![
@@ -428,13 +429,13 @@ impl ReactiveBinding for Equipment {
                         role: 11,
                         contract: 900,
                         root: Address::new(pool, 7),
-                        at: starts,
+                        at: (starts).into(),
                     },
                     Emit {
                         role: 29,
                         contract: 900,
                         root: Address::new(pool, 7),
-                        at: ends,
+                        at: (ends).into(),
                     },
                 ],
             },
@@ -480,7 +481,7 @@ impl ReactiveBinding for Equipment {
             producer,
             role: emit.role,
             pool: emit.root.id,
-            at: emit.at,
+            at: emit.at.0,
             quantity: amount,
         })
     }
@@ -572,7 +573,7 @@ fn check(store: &Store<Equipment>) -> Result<Value> {
                     operation: "sum".into(),
                     phase: "calculate".into(),
                     channel: "amount".into(),
-                    range: crate::time_range::TimeRange::before(starts),
+                    range: (crate::time_range::TimeRange::before(starts)).into(),
                     selected: None,
                     result: before,
                 },

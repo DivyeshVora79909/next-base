@@ -581,7 +581,8 @@ fn observation_report_and_native_corruptions_fail_check_startup_and_verified_res
                 }
                 StoredValue::Root(root) => root.summary.sum += 1,
                 StoredValue::Query(query) if label == "report-bounds" => {
-                    query.range.lower = rebase_semantic_proof::time_range::TimeBound::Included(1)
+                    query.range.lower =
+                        rebase_semantic_proof::native_range::NativeBound::Included(1.into())
                 }
                 StoredValue::Query(query) if label == "report-cache" => {
                     let QueryResult::Summary(summary) = &mut query.result else {
@@ -590,7 +591,8 @@ fn observation_report_and_native_corruptions_fail_check_startup_and_verified_res
                     summary.sum += 1;
                 }
                 StoredValue::Query(query) if label == "selection-bound" => {
-                    query.range.upper = rebase_semantic_proof::time_range::TimeBound::Included(11)
+                    query.range.upper =
+                        rebase_semantic_proof::native_range::NativeBound::Included(11.into())
                 }
                 StoredValue::Query(query) if label == "selection-absence" => {
                     query.result = QueryResult::Selection(None)
@@ -1085,7 +1087,7 @@ fn observation_report_query_contract_and_native_result_are_checked() {
         operation: "summary".into(),
         phase: "calculate".into(),
         channel: "statistics".into(),
-        range: TimeRange::ALL,
+        range: TimeRange::ALL.into(),
         selected: None,
         result: QueryResult::Summary(Summary::default()),
     };
@@ -1450,7 +1452,7 @@ fn latest_observation_query_variants_are_closed_and_report_bytes_are_preserved()
         operation: "latest".into(),
         phase: "calculate".into(),
         channel: "observation".into(),
-        range: TimeRange::through(10),
+        range: TimeRange::through(10).into(),
         selected: None,
         result: QueryResult::Selection(Some(value)),
     };

@@ -114,6 +114,8 @@ pub struct PublicRecordValue<B: Binding> {
     #[serde(with = "uuid_text")]
     pub id: Uuid,
     pub contract: u16,
+    #[serde(with = "native_codec::decimal")]
+    pub created_at: i64,
     #[serde(with = "uuid_text")]
     pub version: Uuid,
     pub input: B::Input,
@@ -479,6 +481,7 @@ impl<B: Binding> Store<B> {
         Some(PublicRecordValue {
             id,
             contract: record.contract,
+            created_at: record.created_at,
             version: record.version,
             input: record.input,
             derived,

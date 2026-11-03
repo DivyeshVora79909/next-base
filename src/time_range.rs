@@ -38,20 +38,6 @@ impl<'de> Deserialize<'de> for TimeBound {
     }
 }
 
-/// Cuts are positions between complete timestamp groups, not stored records.
-/// Endpoint order includes the side of a timestamp and never adds/subtracts one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Cut {
-    NegativeInfinity,
-    Time(i64, Side),
-    PositiveInfinity,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Side {
-    Before,
-    After,
-}
-
 impl TimeBound {
     pub fn schema() -> serde_json::Value {
         let time = serde_json::json!({"type":"string","pattern":"^(0|-?[1-9][0-9]*)$","x-rebase-binding":"i64","x-rebase-range":[i64::MIN.to_string(),i64::MAX.to_string()]});
@@ -60,20 +46,6 @@ impl TimeBound {
             {"type":"object","properties":{"included":time},"required":["included"],"additionalProperties":false},
             {"type":"object","properties":{"excluded":time},"required":["excluded"],"additionalProperties":false}
         ]})
-    }
-    pub(crate) fn lower_cut(self) -> Cut {
-        match self {
-            Self::Unbounded => Cut::NegativeInfinity,
-            Self::Included(at) => Cut::Time(at, Side::Before),
-            Self::Excluded(at) => Cut::Time(at, Side::After),
-        }
-    }
-    pub(crate) fn upper_cut(self) -> Cut {
-        match self {
-            Self::Unbounded => Cut::PositiveInfinity,
-            Self::Included(at) => Cut::Time(at, Side::After),
-            Self::Excluded(at) => Cut::Time(at, Side::Before),
-        }
     }
 }
 
@@ -207,8 +179,14 @@ mod tests {
         assert!(TimeRange::through(i64::MIN).contains(i64::MIN));
         assert!(TimeRange::before(i64::MIN).is_empty());
         assert!(TimeRange::ALL.contains(i64::MAX));
-        assert!(TimeBound::Included(0).lower_cut() < TimeBound::Excluded(0).lower_cut());
-        assert!(TimeBound::Excluded(0).upper_cut() < TimeBound::Included(0).upper_cut());
+        assert!(
+            crate::native_range::NativeBound::Included(crate::index::TimeKey(0)).lower_cut()
+                < crate::native_range::NativeBound::Excluded(crate::index::TimeKey(0)).lower_cut()
+        );
+        assert!(
+            crate::native_range::NativeBound::Excluded(crate::index::TimeKey(0)).upper_cut()
+                < crate::native_range::NativeBound::Included(crate::index::TimeKey(0)).upper_cut()
+        );
     }
 
     #[test]

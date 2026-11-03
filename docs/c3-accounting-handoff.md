@@ -1,3 +1,12 @@
+# C3 continuation
+
+Full C3 is implemented and verified by [ordered access](ordered-access.md) and
+[the checkpoint evidence](checkpoints/c3-ordered-access.json). Current codec is
+`native-slice-kv-13`. C4 is also accepted; E1 credentials/grants are next under
+[the concrete contract](e1-credentials.md). Preserve owner-only access, both-owner
+transfers, source-derived inventories and the absence of a population counter.
+The historical counter-removal record below remains bound to its original source.
+
 # Historical C3.1 accepted: counter removal and continuation
 
 The stored capacity counter and `Binding::Limits` API were removed in this historical source. There

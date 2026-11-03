@@ -184,6 +184,7 @@ fn contract(
     properties: Value,
 ) -> Contract {
     Contract {
+        access_indexes: vec![],
         uniqueness: vec![],
         code,
         name,
@@ -474,7 +475,7 @@ impl ReactiveBinding for ParentTax {
                         vec![Read {
                             slot: 31,
                             root: Address::new(basis, 7),
-                            range: TimeRange::before(before),
+                            range: (TimeRange::before(before)).into(),
                             validate: true,
                         }]
                     } else {
@@ -493,7 +494,7 @@ impl ReactiveBinding for ParentTax {
                         vec![Read {
                             slot: 31,
                             root: Address::new(basis, 7),
-                            range: TimeRange::ALL,
+                            range: (TimeRange::ALL).into(),
                             validate: false,
                         }]
                     } else {
@@ -529,14 +530,14 @@ impl ReactiveBinding for ParentTax {
                 reads: vec![Read {
                     slot: 31,
                     root: Address::new(basis, 7),
-                    range: TimeRange::ALL,
+                    range: (TimeRange::ALL).into(),
                     validate: false,
                 }],
                 emits: vec![Emit {
                     role: 11,
                     contract: OUTPUT,
                     root: Address::new(output, 7),
-                    at,
+                    at: (at).into(),
                 }],
             },
             parameters: Parameters::Tax { rate, rounding },
@@ -576,7 +577,7 @@ impl ReactiveBinding for ParentTax {
             producer,
             role: emit.role,
             bucket: emit.root.id,
-            at: emit.at,
+            at: emit.at.0,
             amount,
         })
     }
@@ -672,7 +673,7 @@ fn check(store: &Store<ParentTax>) -> Result<Value> {
                     operation: "sum".into(),
                     phase: "calculate".into(),
                     channel: "amount".into(),
-                    range: TimeRange::ALL,
+                    range: (TimeRange::ALL).into(),
                     selected: None,
                     result: basis_sum,
                 },
@@ -774,7 +775,7 @@ fn check(store: &Store<ParentTax>) -> Result<Value> {
                 operation: "sum".into(),
                 phase: if validate { "validate" } else { "calculate" }.into(),
                 channel: "amount".into(),
-                range: before.map_or(TimeRange::ALL, TimeRange::before),
+                range: (before.map_or(TimeRange::ALL, TimeRange::before)).into(),
                 selected: None,
                 result,
             },
@@ -855,6 +856,9 @@ fn normalize_record_tokens<'a>(records: impl Iterator<Item = &'a mut ModelRecord
         assert!(!record.version.is_nil());
         let representative = Uuid::from_u128(classes.len() as u128 + 1);
         record.version = *classes.entry(record.version).or_insert(representative);
+        // Separate stores observe different wall times; these comparisons assert
+        // final business facts and revision equivalence, not equal clock samples.
+        record.created_at = 0;
     }
 }
 fn assert_changed_command_tokens(

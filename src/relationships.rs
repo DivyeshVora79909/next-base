@@ -335,6 +335,7 @@ mod tests {
     }
     fn record(input: Input) -> ModelRecord<Ordered> {
         ModelRecord {
+            created_at: 0,
             contract: input.contract(),
             tenant: id(1),
             owner: id(2),
@@ -511,6 +512,7 @@ mod tests {
     fn unrelated_parent_body_edit_never_loads_incoming() {
         let model = Prepared::<AnnotatedModel>::load().unwrap();
         let original = ModelRecord::<AnnotatedModel> {
+            created_at: 0,
             contract: SOURCE,
             tenant: id(1),
             owner: id(2),

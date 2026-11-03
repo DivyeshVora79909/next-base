@@ -2,8 +2,8 @@
 use crate::{
     index::{IndexCode, IndexDescriptor, NativeIndex, Selected, SummaryRead, TimeKey},
     native_codec::{decimal, optional_decimal, uuid_text},
+    native_range::NativeBound,
     native_slice::{Error, Result},
-    time_range::TimeBound,
 };
 use serde::{
     Deserialize, Deserializer, Serialize,
@@ -219,11 +219,11 @@ impl NativeIndex for Statistics {
                 Self::validate_summary(STATISTICS, summary)
             }
             (QueryResult::Selection(selected), "latest")
-                if query.range.lower == TimeBound::Unbounded
-                    && matches!(query.range.upper, TimeBound::Included(_))
-                    && selected
-                        .as_ref()
-                        .is_none_or(|value| value.valid() && query.range.contains(value.time)) =>
+                if query.range.lower == NativeBound::Unbounded
+                    && matches!(query.range.upper, NativeBound::Included(_))
+                    && selected.as_ref().is_none_or(|value| {
+                        value.valid() && query.range.contains(&TimeKey(value.time))
+                    }) =>
             {
                 Ok(())
             }

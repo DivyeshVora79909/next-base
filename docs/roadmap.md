@@ -126,7 +126,15 @@ reference targets, owner-scope boundaries and full rollback on invariant failure
 Reuse [`src/mutation.rs`](../src/mutation.rs), [`src/dependency.rs`](../src/dependency.rs),
 [`src/publication_tests.rs`](../src/publication_tests.rs) and authority tests as starting witnesses.
 
-## C3 — Explicit global and domain indexes
+## C3 — Explicit global and domain indexes (accepted)
+
+[Ordered access](ordered-access.md) and [checkpoint evidence](checkpoints/c3-ordered-access.json)
+record the implemented owner-stream and native-range contract. Codec13 adds trusted creation
+metadata and separate AccessRoot/AccessNode namespaces. Public paging covers one declared
+resource/order across accessible owners; cross-resource union and visible global rank are
+not supplied. The full C3/C4 verification passed 315 Rust and 193 Node tests, none skipped,
+plus default/FDB lint and actual local FoundationDB/redb coordination and recovery controls.
+The obligations below define the accepted scope and optional workload alternatives.
 
 C3.0 preserves the historical pre-change real-adapter [contention baseline](checkpoints/c3-contention-baseline.json).
 Historical C3.1 removed the stored capacity counter and `Binding::Limits` entirely, with no
@@ -139,7 +147,7 @@ are owner/contract scoped. [C3.1 is accepted](checkpoints/c3-counter-removal.jso
 on FoundationDB 7.3.77, one local process/host: both original separate-scope creates
 and deletes committed without automatic retries; the historical reader epoch and shared-business-root
 conflict controls remain. See [results and continuation](c3-accounting-handoff.md).
-Next C3 work is chronological owner access/order streams and general non-time reactive cuts.
+C3 now implements declared chronological owner access/order streams and native non-time reactive cuts.
 Measure remaining epoch and AVL-root coordination independently; do not remove required
 guards to manufacture success or infer unrestricted capacity from counter removal.
 
@@ -168,7 +176,13 @@ workers, unknown start ACK, quota accounting, clock-only expiry, ties and delaye
 cases pass independent checks. Integrate admission with the existing dispatch-start transaction;
 do not perform a check and provider call as two unprotected steps. This feature is not in M0.
 
-## C4 — Adaptive valid population from the same catalog
+## C4 — Adaptive valid population from the same catalog (accepted)
+
+[Population semantics](c4-population.md) and [evidence](checkpoints/c4-population.json)
+cover deterministic catalog-derived proposals, tentative same-batch anchors, uniqueness,
+fanout/skew, bounded failures, validated solver hooks and original-receipt recovery. The
+full current-source suite above includes signed real-redb source-oracle/rollback checks.
+Native validation remains authoritative over hidden/concurrent facts.
 
 Use catalog rules and typed reference pools to adapt cardinality, skew and relationship fanout.
 Keep ledger/global constraints explicit; population-limit removal does not imply arbitrary valid
@@ -193,7 +207,8 @@ follow-ons, not mandatory dependencies of completing this base.
 
 The [server plan](server-execution.md) preserves existing execution/fact/application
 machinery while adding strict typed capabilities. E0 records the service contract pass;
-C1 stays the next core implementation checkpoint when implementation resumes.
+C3/C4 are accepted. E1 uses the [concrete credential contract](e1-credentials.md);
+E2/R0, A0–A2, E3, E5 and fresh release verification follow in dependency order.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |

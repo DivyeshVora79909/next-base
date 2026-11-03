@@ -72,7 +72,7 @@ impl Binding for Schedule {
     }
     fn declarations() -> Result<Vec<Contract>> {
         Ok([(11,"Window"),(12,"AlternativeWindow"),(21,"Reservation")].into_iter().map(|(code,name)| {
-            Contract {code,name,visibility:Visibility::Public,
+            Contract {access_indexes: vec![],code,name,visibility:Visibility::Public,
                 schema:json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,
                     "properties":{"kind":{"type":"integer","enum":[code]},"parent":{"type":["string","null"],"x-rebase-binding":"uuid"},"parent_kind":{"type":"integer"},"at":{"type":"integer"},"amount":{"type":"integer"},"start":{"type":"integer"},"end":{"type":"integer"},"limit":{"type":"integer"},"body":{"type":"string"}},
                     "required":["kind","parent","parent_kind","at","amount","start","end","limit","body"]}),

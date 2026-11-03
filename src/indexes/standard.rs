@@ -7,8 +7,8 @@ use crate::{
     algebra::Summary,
     index::{IndexCode, IndexDescriptor, NativeIndex, SummaryRead, TimeKey},
     native_codec::{decimal, optional_decimal, summary},
+    native_range::NativeBound,
     native_slice::{Error, Query, Result},
-    time_range::TimeBound,
 };
 
 pub const FINANCIAL: IndexCode = IndexCode::new(1).expect("nonzero index code");
@@ -177,8 +177,8 @@ impl NativeIndex for Standard {
     }
     fn validate_query(query: &Query<Self>) -> Result<()> {
         if (Self::supports_query(QUOTE, &query.operation, &query.phase, &query.channel)
-            && query.range.lower == TimeBound::Unbounded
-            && matches!(query.range.upper, TimeBound::Included(_)))
+            && query.range.lower == NativeBound::Unbounded
+            && matches!(query.range.upper, NativeBound::Included(_)))
             || (Self::supports_query(FINANCIAL, &query.operation, &query.phase, &query.channel)
                 && query.selected.is_none())
         {

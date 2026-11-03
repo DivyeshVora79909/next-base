@@ -42,6 +42,7 @@ fn graph() -> Graph {
 
 fn record(owner: u128) -> Record {
     Record {
+        created_at: 0,
         contract: 4,
         tenant: id(1),
         owner: id(owner),

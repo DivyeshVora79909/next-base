@@ -325,6 +325,7 @@ mod tests {
             right: id(11),
         });
         let source = crate::native_slice::ModelRecord::<OptionalClaims> {
+            created_at: 0,
             contract: JOIN,
             tenant: id(1),
             owner: id(2),

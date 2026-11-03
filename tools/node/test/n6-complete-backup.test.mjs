@@ -54,7 +54,8 @@ async function workflow(selector, run) {
       const record = await client.call('records.get', { model: native.scope.model, id });
       return mutate([{ op: 'update', id, if_version: record.version, set, unset: [] }]);
     };
-    await run({ native, client, mutate, update, capture, facts: () => facts });
+    const catalog = await native.catalog({ scope: 'developer' });
+    await run({ native, client, mutate, update, capture, catalog, facts: () => facts });
   } finally {
     if (native) await native.close();
     await rm(directory, { recursive: true, force: true });
@@ -215,8 +216,8 @@ test('N6 complete Measurement backup checks range summaries, ties, absent select
   });
 });
 
-test('N6 complete Quantity backup checks exact source arithmetic and requires empty physical inventories', { skip: !available && `missing ${binary}` }, async () => {
-  await workflow('quantity', async ({ mutate, capture, facts }) => {
+test('N6 complete Quantity backup checks exact source arithmetic and requires empty domain trees', { skip: !available && `missing ${binary}` }, async () => {
+  await workflow('quantity', async ({ mutate, capture, facts, catalog }) => {
     const source = randomUUID(), scale = randomUUID(), join = randomUUID();
     await mutate([
       create(source, 101, { value: '13' }),
@@ -224,12 +225,12 @@ test('N6 complete Quantity backup checks exact source arithmetic and requires em
       create(join, 309, { left: source, right: scale }),
     ]);
     const bytes = await capture();
-    const result = checkSourceBackup({ model: 'quantity', facts: facts(), backup: bytes });
+    const result = checkSourceBackup({ model: 'quantity', facts: facts(), backup: bytes, catalog });
     mustPass(result); assert.equal(result.physical.rootCount, 0); assert.equal(result.physical.nodeCount, 0);
     const altered = rewrite(bytes, value => {
       if (value.type === 'record' && value.data.derived?.quantity === '0') value.data.derived.quantity = '1';
     });
-    mustFail(checkSourceBackup({ model: 'quantity', facts: facts(), backup: altered }), 'source-derived-values');
+    mustFail(checkSourceBackup({ model: 'quantity', facts: facts(), backup: altered, catalog }), 'source-derived-values');
     const extraRoot = JSON.parse(bytes);
     extraRoot.payload.tables.native_kv.push({ key: `02${randomUUID().replaceAll('-', '')}0007`, value: Buffer.from(JSON.stringify({ type: 'root', data: {
       kind: 1, head: null, first: null, last: null, height: 0, size: 0, span: null,
@@ -237,7 +238,7 @@ test('N6 complete Quantity backup checks exact source arithmetic and requires em
     } })).toString('hex') });
     const selfConsistent = seal(extraRoot);
     assert.equal(checkBackupStructure(selfConsistent).status, 'passed');
-    mustFail(checkSourceBackup({ model: 'quantity', facts: facts(), backup: selfConsistent }), 'source-physical-membership');
+    mustFail(checkSourceBackup({ model: 'quantity', facts: facts(), backup: selfConsistent, catalog }), 'source-physical-membership');
   });
 });
 

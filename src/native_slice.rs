@@ -310,6 +310,9 @@ pub struct ModelRecord<B: Binding> {
     pub tenant: Uuid,
     #[serde(with = "uuid_text")]
     pub owner: Uuid,
+    /// Trusted source creation time in UTC milliseconds; never client input.
+    #[serde(with = "decimal")]
+    pub created_at: i64,
     #[serde(with = "uuid_text")]
     pub version: Uuid,
     pub input: B::Input,
@@ -326,7 +329,7 @@ pub struct Query<I: NativeIndex = crate::indexes::standard::Standard> {
     pub operation: String,
     pub phase: String,
     pub channel: String,
-    pub range: TimeRange,
+    pub range: crate::native_range::NativeRange<I::Key>,
     pub selected: Option<Uuid>,
     #[serde(
         serialize_with = "I::serialize_query_result",
@@ -698,17 +701,17 @@ impl<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding> Attempt<L, B> {
         }
         roots
     }
-    pub(crate) fn causal_impacts(&self) -> BTreeMap<Address, BTreeSet<i64>> {
-        let mut impacts = BTreeMap::<Address, BTreeSet<i64>>::new();
+    pub(crate) fn causal_impacts(
+        &self,
+    ) -> BTreeMap<Address, BTreeSet<<B::Index as NativeIndex>::Key>> {
+        let mut impacts = BTreeMap::<Address, BTreeSet<<B::Index as NativeIndex>::Key>>::new();
         for (key, entry) in &self.entries {
             if !matches!(key, Key::Node(_)) {
                 continue;
             }
             let logical = |v: &Option<StoredValue<B>>| match v {
                 Some(StoredValue::Node(n)) if B::Index::causal_index(n.kind) => {
-                    B::Index::time(n.kind, &n.key.value)
-                        .ok()
-                        .map(|at| (n.root, at, n.leaf.clone()))
+                    Some((n.root, n.key.value.clone(), n.leaf.clone()))
                 }
                 _ => None,
             };
@@ -1146,9 +1149,9 @@ pub(crate) fn settle_calculation_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8
                 routes::select(
                     ws,
                     &Key::Subscribers(root),
-                    std::ops::Bound::Included(Endpoint::Through(from)),
+                    std::ops::Bound::Included(Endpoint::Through(from.into())),
                     until.map_or(std::ops::Bound::Unbounded, |at| {
-                        std::ops::Bound::Excluded(Endpoint::Through(at))
+                        std::ops::Bound::Excluded(Endpoint::Through(at.into()))
                     }),
                     original,
                 )?
@@ -1193,7 +1196,7 @@ pub(crate) fn settle_calculation_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8
                     operation: "latest".into(),
                     phase: "calculate".into(),
                     channel: "rate".into(),
-                    range: TimeRange::through(at),
+                    range: TimeRange::through(at).into(),
                     selected: selected.map(|(id, _)| id),
                     result: i128::from(rate),
                 })),
@@ -1267,6 +1270,7 @@ mod tests {
         let id = Uuid::from_u128(10);
         let version = Uuid::from_u128(11);
         let record = Record {
+            created_at: 0,
             contract: 4,
             tenant: context.tenant,
             owner: context.actor,

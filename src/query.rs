@@ -223,14 +223,14 @@ fn parse_cursor(token: &str, header: &RuntimeHeader) -> Result<Cursor> {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum RootRead {
+pub enum RootRead<K = crate::index::TimeKey> {
     Summary,
     Before {
         #[serde(with = "decimal")]
         at: i64,
     },
     Range {
-        range: TimeRange,
+        range: crate::native_range::NativeRange<K>,
     },
     Latest {
         #[serde(with = "decimal")]
@@ -240,12 +240,12 @@ pub enum RootRead {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RootRequest {
+pub struct RootRequest<K = crate::index::TimeKey> {
     pub model: String,
     #[serde(with = "uuid_text")]
     pub owner: Uuid,
     pub slot: u16,
-    pub read: RootRead,
+    pub read: RootRead<K>,
 }
 
 fn next_candidate(
@@ -477,7 +477,10 @@ impl<B: Binding> Store<B> {
         )
     }
 
-    pub fn root_read(&self, request: &RootRequest) -> Result<Value> {
+    pub fn root_read(
+        &self,
+        request: &RootRequest<<B::Index as NativeIndex>::Key>,
+    ) -> Result<Value> {
         let (read, _, _) = self.read(&request.model)?;
         let scope = self.authority(&read)?;
         let table = read.open_table(KV).map_err(storage)?;
@@ -513,21 +516,30 @@ impl<B: Binding> Store<B> {
         if root.kind != declaration.kind {
             return Err(corrupt("root index differs from declaration"));
         }
-        let value = match request.read {
+        let value = match &request.read {
             RootRead::Summary => B::Index::project(root.kind, SummaryRead::Summary, &root.summary)?,
             RootRead::Before { at } => {
                 if B::Index::descriptor(root.kind)?.financial {
-                    json!({"sum": tree::prefix(&mut ws, address, Some(at))?.to_string()})
+                    json!({"sum": tree::prefix(&mut ws, address, Some(*at))?.to_string()})
                 } else {
-                    let summary = tree::range(&mut ws, address, TimeRange::before(at))?;
+                    let summary = tree::range(&mut ws, address, TimeRange::before(*at))?;
                     B::Index::project(root.kind, SummaryRead::Before, &summary)?
                 }
             }
             RootRead::Range { range } => {
-                let summary = tree::range(&mut ws, address, range)?;
+                for bound in [&range.lower, &range.upper] {
+                    match bound {
+                        crate::native_range::NativeBound::Unbounded => {}
+                        crate::native_range::NativeBound::Included(key)
+                        | crate::native_range::NativeBound::Excluded(key) => {
+                            B::Index::validate_key(root.kind, key)?
+                        }
+                    }
+                }
+                let summary = tree::range_keys(&mut ws, address, &range.key_range())?;
                 B::Index::project(root.kind, SummaryRead::Range, &summary)?
             }
-            RootRead::Latest { at } => match tree::latest(&mut ws, address, at)? {
+            RootRead::Latest { at } => match tree::latest(&mut ws, address, *at)? {
                 Some((id, rate)) => {
                     if self.project(&scope, id, ws.record(id)?).is_none() {
                         return Err(Error::new(

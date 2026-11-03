@@ -37,12 +37,12 @@ prefix needs explicit range construction, not a naive string prefix/offset.
 optional business summary: `size(empty)=0`, `size(node)=1+size(left)+size(right)`.
 Rotations and the independent checker maintain it. Root counts must agree with
 their nodes. C1.1 implements structural size and supplies a String-keyed
-`CountOnly` family with unit business summary. The current owner-only format is `native-slice-kv-12`; stores with earlier identities
+`CountOnly` family with unit business summary. The current format is `native-slice-kv-13`; stores with earlier identities
 require explicit recreation.
 Keep a separate business count only if it has different meaning or is needed by
 the algebra; avoid two conflicting authorities for the same cardinality.
 
-## Proposed resource-scoped authorized indexes
+## Resource-scoped authorized indexes
 
 Logical orders, including deterministic cross-resource ties, use owner scope:
 
@@ -55,7 +55,7 @@ the caller under the ordinary owner-graph rules. A root read grants explicitly d
 public summary data only. FULL summaries may include hidden contributors, while leaf,
 body and ID reads still require access to those records.
 
-Each tree root is anchored by `(root_record_uuid, declared_slot)`; each member address is
+Each domain tree root is anchored by `(root_record_uuid, declared_slot)`; each member address is
 `(record_uuid, membership_slot)`. Members order by the declared total order followed by
 stable record/slot ties. The root anchor and its full summary stay attached to the source
 record and root slot. The AVL `head` is only the current structural top node and can change
@@ -66,12 +66,16 @@ not infer all ancestors or all permutations.
 Caller-supplied IDs may use any supported canonical UUID format; the API does not require
 UUIDv7 or server-issued IDs. UUIDv7 is a recommendation for millisecond-prefix locality
 plus randomness. It does not provide trusted `created_at` metadata or commit order. The
-current native model does not automatically author server creation metadata; add a
-separate trusted `created_at` field when that business fact is required. It remains
+current native model authors immutable server-observed `created_at` on first
+materialization; this is not a globally monotonic timestamp. It remains
 distinct from `effective_at`. A nanoepoch alone is not unique across servers.
 
 Tenant is a strict namespace. No central tenant aggregate or counter is implicit; use an
-explicit business root when required. These access indexes are planned, not implemented.
+explicit business root when required. [C3 access indexes](ordered-access.md) implement
+one opted-in resource/order at a time across authorized owner streams. Within the fixed
+tenant store, their separate AccessRoot namespace uses principal UUID and catalog-wide
+index code, and AccessNode uses source UUID and that code. Cross-resource unions and
+tenant-only ordered roots remain optional workload choices.
 Use one declared unit and stable catalog resource identity, not mutable display names.
 
 Use one stream when one root already has the requested order. K-way merge is for
@@ -180,8 +184,9 @@ predicate. Register every parent field read as a direct dependency so changing
 the parent revalidates its dependents as well as changing/retargeting the child.
 Joint parent/child repairs must use the same staged final graph; invalid final
 state rejects the entire transaction. Local JSON Schema alone cannot enforce a
-referenced-record comparison. Bespoke reactive bindings can express such rules;
-a general catalog relation-predicate hook and creation metadata remain C2/C3 work.
+referenced-record comparison. The C2.P catalog relation hook covers explicitly declared
+parent input fields; C3 adds source creation metadata. Header-metadata projections into
+parent predicates are not inferred by either feature.
 
 A contiguous range is covered by maximal fully contained subtrees plus boundary
 nodes. "Maximal" refers to coverage, not taking a numeric maximum. Combine their
@@ -214,9 +219,10 @@ Current `routes::stab` uses upper-cut ordering and min-lower pruning. Charge act
 visited nodes plus matches; worst case may visit all registrations. Its output-
 sensitive O(log n+k) bound is not established by AVL balance alone. Nonlocal
 cascades and all-window validation require their own discovery/cost proof.
-Current Query/routing bounds are TimeRange/TimeBound even though internal ordered
-reads accept generic keys. Non-time subscriber cuts and public range schemas need
-deliberate C3 generalization; do not claim generic reactive orders implemented today.
+Current Query/routing bounds and public root ranges use NativeRange over the declared
+family key. C3 verifies numeric, string and composite bounds, independent field identities,
+old/new routes and final-graph causality. Temporal adapters retain i64 discrete gaps and
+complete-time semantics; other native domains need no timestamp coercion.
 
 ## Executable witnesses and remaining gates
 

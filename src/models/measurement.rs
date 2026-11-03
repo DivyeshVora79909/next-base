@@ -167,6 +167,7 @@ fn declarations() -> Result<Vec<Contract>> {
             .keys()
             .collect();
         let mut c = Contract {
+            access_indexes: vec![],
             uniqueness: vec![],
             code,
             name,
@@ -535,7 +536,7 @@ impl ReactiveBinding for Measurement {
                 reads: vec![Read {
                     slot,
                     root: Address::new(instrument, 7),
-                    range,
+                    range: (range).into(),
                     validate: false,
                 }],
                 ..Default::default()
@@ -841,7 +842,7 @@ fn check(store: &Store<Measurement>) -> Result<Value> {
                 operation: operation.into(),
                 phase: "calculate".into(),
                 channel: channel.into(),
-                range,
+                range: range.into(),
                 selected: None,
                 result,
             },

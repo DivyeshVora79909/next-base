@@ -100,7 +100,7 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
 count/count-only indexing is implemented in C1.1; business counts retain their
-own declared meaning. Current codec `native-slice-kv-12` requires explicit store recreation.
+own declared meaning. Current codec `native-slice-kv-13` requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
@@ -111,13 +111,15 @@ Root and owner-scope revisions fence continuation without exposing hidden member
 See [rank reads](rank-reads.md) for operational limits and the ordinary Node call.
 [Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
 
-Planned authorized indexes use resource/tenant/owner/declared-order, explicitly opted
-into per resource, with stable ID/slot ties. Lookup k-way merges accessible owner
-streams. Tenant is a strict namespace; tenant-wide aggregates require an explicit
-business root. General chronological owner/order streams remain planned C3 work. The
-current physical `owner_records` index is `(owner, contract, UUID)`; it supports
-owner-scoped record lookup. General chronological declared-order access streams remain
-C3 planned work. The model does not automatically author trusted `created_at` metadata.
+Declared access indexes now opt resources into owner-scoped creation or authored-field
+order streams. `records.order_page` merges one declared resource/index across accessible
+owners in one snapshot with candidate, work, get and byte budgets. Tenant remains the
+store's strict transaction namespace. AccessRoot/AccessNode separate principal-root
+identity from domain source-root identity; catalog-wide index codes identify resource
+and order. The UUID `owner_records` lookup remains available. Trusted immutable
+`created_at` records first materialization time, distinct from effective time or commit
+order. See [ordered access](ordered-access.md) for declarations, cursor/filter semantics,
+exact keys and independent verification.
 Each resource may also declare multiple domain indexes with time or non-time keys,
 business summaries and optional invariants. Created and effective time differ.
 Each added membership increases maintenance; unchanged projections need not be rewritten.
@@ -127,7 +129,7 @@ Avoid a universal hot counter. Optional live invalidations would publish through
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
 Stored capacity counters and `Binding::Limits` are removed, with no accounting mode
-fallback. The owner-only format uses `native-slice-kv-12` and requires explicit recreation; `Population` is source-derived read-only inventory
+fallback. The current format uses `native-slice-kv-13` and requires explicit recreation; `Population` is source-derived read-only inventory
 at open/checking, never persisted or scanned by normal mutations. Business validators,
 work/byte budgets, identity reservations and required owner/contract epochs remain.
 Historical [C3.0 evidence](checkpoints/c3-contention-baseline.json) records pre-change
@@ -138,6 +140,7 @@ conflict controls remain. See [results and continuation](c3-accounting-handoff.m
 these results do not establish multi-host performance or throughput.
 [Email/phone login](email-phone-authentication.md) is planned; current JWT verification
 and operator graph replacement do not implement identity proof or ordinary principal CRUD.
-Generic ordered reads already exist, but public root ranges and reverse subscriber
-routes still use TimeRange/TimeBound. Generic non-time range reactivity is a C3
-contract/implementation gap, not automatically supplied by Key: Ord.
+Public root ranges and reverse subscriber routes now use `NativeRange<I::Key>`.
+Native numeric, string and composite keys preserve included/excluded group boundaries,
+old/new registration repair and final-graph causality. TimeRange remains an explicit
+temporal adapter; native ordering never requires a timestamp cast.

@@ -191,6 +191,7 @@ fn reference(slot: u16, field: &'static str, targets: Vec<u16>) -> Reference {
 }
 fn contract(code: u16, name: &'static str, fields: &[&'static str], properties: Value) -> Contract {
     Contract {
+        access_indexes: vec![],
         uniqueness: vec![],
         code,
         name,
@@ -456,7 +457,7 @@ impl<const MODE: u8> ReactiveBinding for Fixture<MODE> {
             Input::Sum { bucket, at, .. } => shape.reads.push(Read {
                 slot: 31,
                 root: Address::new(bucket, 7),
-                range: TimeRange::before(at),
+                range: (TimeRange::before(at)).into(),
                 validate: false,
             }),
             Input::Copy {
@@ -479,7 +480,7 @@ impl<const MODE: u8> ReactiveBinding for Fixture<MODE> {
                         role: 7,
                         contract: OUTPUT,
                         root: Address::new(bucket, 7),
-                        at,
+                        at: (at).into(),
                     });
                 }
                 match MODE {
@@ -579,7 +580,7 @@ impl<const MODE: u8> ReactiveBinding for Fixture<MODE> {
             producer,
             role: emit.role,
             bucket: emit.root.id,
-            at: emit.at,
+            at: emit.at.0,
             amount,
         })
     }
@@ -758,7 +759,7 @@ fn check<const MODE: u8>(store: &Store<Fixture<MODE>>) -> Result<Value> {
                         operation: "sum".into(),
                         phase: "calculate".into(),
                         channel: "amount".into(),
-                        range: TimeRange::before(*at),
+                        range: (TimeRange::before(*at)).into(),
                         selected: None,
                         result: values[&id]
                             .checked_sub(*bias)
@@ -1240,12 +1241,12 @@ fn final_publication_and_financial_graph_matches_plain_enumerated_orders() {
                 role: 7,
                 contract: OUTPUT,
                 root: Address::new(id(10), 7),
-                at: 0,
+                at: (0).into(),
             });
             shapes[0].reads.push(Read {
                 slot: 31,
                 root: Address::new(id(10), 7),
-                range: TimeRange::before(10),
+                range: (TimeRange::before(10)).into(),
                 validate: false,
             });
         }

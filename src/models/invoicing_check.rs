@@ -52,7 +52,7 @@ fn add_query(
             operation: "sum".into(),
             phase: "calculate".into(),
             channel: "amount".into(),
-            range: TimeRange::before(at),
+            range: (TimeRange::before(at)).into(),
             selected: None,
             result,
         },

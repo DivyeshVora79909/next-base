@@ -248,8 +248,10 @@ export function checkSourceSnapshot({ model, facts, snapshot, roleHistory } = {}
  * roleHistory is an optional bounded identity witness: [{producer, role, output}].
  * It lists every reservation ever allocated, including currently active ones.
  * Identities come from retained committed observations, never guessed UUIDs.
+ * catalog is the matching developer catalog; it enables source-derived access
+ * memberships in addition to the model-specific business membership oracle.
  */
-export function checkSourceBackup({ model, facts, backup, roleHistory } = {}) {
+export function checkSourceBackup({ model, facts, backup, roleHistory, catalog } = {}) {
   const obligations = [];
   const add = (name, status, reason) => obligations.push({ name, status, ...(reason ? { reason } : {}) });
   let bytes, physical, snapshot, expected;
@@ -258,7 +260,7 @@ export function checkSourceBackup({ model, facts, backup, roleHistory } = {}) {
     const byteLength = typeof backup === 'string' ? Buffer.byteLength(backup, 'utf8') : backup.byteLength;
     fail(byteLength > 0 && byteLength <= 64 * 1024 * 1024, 'backup_input', 'backup byte limit');
     bytes = typeof backup === 'string' ? Buffer.from(backup, 'utf8') : Buffer.from(backup);
-    physical = checkBackupStructure(bytes, { includeObservation: true });
+    physical = checkBackupStructure(bytes, { includeObservation: true, catalog });
     snapshot = physical.observation;
     expected = evaluateSources(model, facts);
   } catch (error) {
@@ -267,6 +269,9 @@ export function checkSourceBackup({ model, facts, backup, roleHistory } = {}) {
     ]) });
   }
   const logical = checkSourceSnapshot({ model, facts, snapshot, roleHistory });
+  if (physical.accessSourceMembership === 'checked') add('source-access-membership', 'passed');
+  else if (physical.accessRootCount || physical.accessNodeCount) add('source-access-membership', 'incomplete',
+    'supply the matching developer catalog to derive complete access membership and root inventories from source facts');
   const physicalNames = new Set(['tree-node-inventory', 'tree-child-links', 'tree-heights', 'tree-leaf-order', 'tree-node-aggregates', 'root-prefix-extrema-order']);
   obligations.push(...logical.obligations.filter(row => !physicalNames.has(row.name)));
   if (model === 'equipment' && roleHistory === undefined && !obligations.some(row => row.name === 'role-history-inventory')) {
@@ -293,7 +298,7 @@ export function checkSourceBackup({ model, facts, backup, roleHistory } = {}) {
       fail(binding && binding.retired === false, 'source_membership', 'active source output role is missing');
       put(binding.output, 23, output.pool, output.at, { kind: 'financial', value: output.quantity });
     }
-    physical = checkBackupStructure(bytes, { expectedMembers, expectedRoots });
+    physical = checkBackupStructure(bytes, { expectedMembers, expectedRoots, catalog });
     add('source-physical-membership', 'passed');
     for (const name of physicalNames) if (name !== 'root-prefix-extrema-order' || model === 'equipment') add(name, 'passed');
   } catch (error) { add('source-physical-membership', 'failed', error.message); }

@@ -73,7 +73,7 @@ impl Binding for Relations {
                 properties[field] = uuid.clone();
                 references.push(Reference{slot,field,targets:vec![11],optional:true,direct_fields:vec![],validation_fields:vec![],on_delete:"reject",});
             }
-            Contract {code,name,visibility:Visibility::Public,
+            Contract {access_indexes: vec![],code,name,visibility:Visibility::Public,
                 schema:json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"properties":properties,"required":["kind","note","first","second"]}),
                 fields,published:vec![],references,
                 uniqueness:if code == 11 {vec![]} else {vec![Unique{code:1,reference_slots:if code == 22 {vec![1,2]} else {vec![1]}}]},
@@ -459,6 +459,7 @@ fn foundationdb_claim_primitive_protects_absence_and_preserves_disjointness() {
             100_000,
         );
         let source = ModelRecord {
+            created_at: 0,
             contract: 21,
             tenant: id(1),
             owner: id(2),
@@ -573,6 +574,7 @@ fn constraint_codes_namespace_identical_target_tuples_within_one_contract() {
     // Collapsing either constraint code or tuple order loses this legal state.
     for (holder, first, second) in [(200, 100, 101), (201, 101, 100)] {
         let record = ModelRecord {
+            created_at: 0,
             contract: 22,
             tenant: id(1),
             owner: id(2),
@@ -729,6 +731,7 @@ fn claim_load_failure_discards_a_partially_staged_workspace() {
         );
         for (holder, target) in [(200, 100), (201, 101)] {
             let record = ModelRecord {
+                created_at: 0,
                 contract: 21,
                 tenant: id(1),
                 owner: id(2),

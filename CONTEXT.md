@@ -1,5 +1,53 @@
 # Current checkpoint
 
+## C3 and C4 — Ordered access, native reactivity and adaptive population
+
+C3 is implemented and verified. Explicit catalog access indexes maintain linked
+owner-scoped AVL streams in the same transaction as source facts, generated outputs,
+transfers and receipts. Public ordered pages k-way merge one declared resource/index
+across currently accessible owners, with exact tagged tuple bounds, stable UUID/slot
+ties, filters, scoped cursor epochs and explicit work/get/load/response byte budgets.
+The fixed tenant store and catalog-wide access index code define the root namespace;
+there is no shared tenant aggregate or population counter. Payload-only edits skip
+unchanged memberships. Both-owner transfer rules and private-output disclosure remain.
+
+Trusted immutable `created_at` is UTC milliseconds at first materialization, distinct
+from effective time or commit order. Generated outputs retain their own timestamps.
+NativeRange over each family's key now drives public root ranges, query descriptors,
+reverse routes, dependency gates and final-graph causal discovery. Numeric, string and
+composite windows preserve complete-key boundaries and query slot identity. Explicit
+temporal adapters retain the prior i64 boundary semantics. Codec `native-slice-kv-13`
+and changed prepared identities require explicit store recreation.
+
+C4 uses the same catalog for proposal-local typed anchors, ordered tuple uniqueness,
+reference fanout/skew and declared rule checks. Bounded attempts/work expose unsatisfied
+rules and unmet counts. Optional solver candidates pass the same schema/reference/check
+path; native validation remains authoritative. Deterministic generation and exact original
+plan/receipt recovery survive rejection and unknown outcomes. No external solver or
+native population counter was introduced.
+
+Acceptance: 315 Rust all-target tests passed (0 ignored); 193 full Node tests passed
+(0 skipped) using Node 26.12.0 and the freshly built redb host. Formatting and default/FDB
+all-target Clippy with warnings denied passed. Real FoundationDB 7.3.77 on one disposable
+local process/host passed coordination/lifecycle/application/effects/predicates at
+20/14/19/27/24; sequential redb controls passed 17/10/13/27/16. New independent-owner
+original creates share no protected point dependencies; same-owner creates share two
+access roots and one required owner epoch. Original output-producing create/delete,
+reference, shared business-root, transfer/revocation/rollback and receipt controls remain.
+Source-derived native/Node checks include whole missing forests, stale ownership/rekeys,
+AVL structure, generated provenance, bounded reads, reopen and backup/restore.
+See [C3 evidence](docs/checkpoints/c3-ordered-access.json), [ordered access](docs/ordered-access.md),
+[C4 evidence](docs/checkpoints/c4-population.json) and [population](docs/c4-population.md).
+These are local correctness and measured point-write costs, not multi-host capacity
+or live-provider acceptance. Standalone SurrealKV was not rerun.
+
+Next dependency: implement [E1's concrete credential/grant contract](docs/e1-credentials.md),
+then E2 with scoped R0 admission, A0–A2 authentication and E3 objects, E5 full fake-pipeline
+recovery, and fresh committed-source release/bootstrap verification. E1 is a design
+contract only at this checkpoint. C5 live invalidations, E4 recurrence, frontend, live
+providers and TiKV remain optional/deferred. Ordinary principal-management CRUD has no
+selected implementation milestone; retain explicit operator graph provisioning.
+
 ## C2.T — Ordinary ownership transfers
 
 Update accepts optional canonical UUID `owner` metadata outside model `set`; omitted
@@ -268,19 +316,18 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
   immediate-parent predicates are accepted within their documented scopes.
   Parent/child order comparisons must register parent inputs and revalidate parent
   edits, not only child insertion. Local JSON Schema alone is insufficient.
-- C3 chronological access indexes remain pending: explicitly opted-in
-  resource/tenant/owner/order streams, k-way merged across accessible owner scopes.
-  Owner-only C2.O supersedes reader disclosure. Tenant is a strict namespace; no
-  implicit aggregate/counter. Today's public index implementation is not these trees.
-- Non-time keys already work in native ordered reads, but reactive query/subscriber
-  cuts remain TimeRange/TimeBound. C3 must generalize types/routing deliberately.
+- C3 declared owner/order access streams are accepted as described above. Read
+  one opted-in public resource/index across current owner scopes; no cross-resource
+  union, global visible rank or implicit tenant aggregate/counter is supplied.
+- Non-time native ranges now drive ordered reads and reactive query/subscriber
+  cuts. TimeRange remains an explicit temporal adapter.
 - Stored capacity accounting is removed; source-derived inventory remains read-only.
   C3.1 local real-FDB concurrency/recovery acceptance is complete. Preserve reservation
   identities and business guards. C3.1's old reader/contract epoch evidence remains tied
   to that historical source; C2.O's current direction uses owner/contract epochs.
-- C4 adaptive valid population must share the catalog, expose constraints/unsatisfied
-  rules and preserve deterministic seeds/receipts. Optional solver hooks cannot make
-  arbitrary global validity free. C5 resumable live invalidations remain optional.
+- C4 bounded adaptive population is accepted. Supplied pools/rule callbacks cannot
+  prove hidden or concurrent state valid; native atomic validation remains required.
+  C5 resumable live invalidations remain optional.
 
 ## Server extensions and evidence boundaries
 

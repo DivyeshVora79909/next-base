@@ -1,0 +1,59 @@
+{
+  "checkpoint": "C4 adaptive valid population",
+  "status": "accepted against current-source native build and full Node suite",
+  "base_commit": "53d82f44b4ce2b5fd2b60b286cdd377cef4cf091",
+  "source_sha256": {
+    "tools/node/population.mjs": "a50b52f7be9420aa4ddbce8ccf3a9da202831a425648bce9cc0582e01bcce6dd",
+    "tools/node/test/c4-population.test.mjs": "e7c33c981b55ba9987018a8734103cc41b49cccff2bd12e549089e4e012568ff",
+    "tools/node/test/c4-native-population.test.mjs": "9b9b835a370aea6238cd625baa98de76c9a5b942ee4b88343743aa96b1f873b9"
+  },
+  "independent_counterexamples_before_implementation": {
+    "tests": 7,
+    "failed": 6,
+    "already_passed": 1,
+    "gaps": [
+      "same-batch anchors",
+      "bounded fanout",
+      "adaptive retries",
+      "unsatisfied rules",
+      "solver validation",
+      "effort limits"
+    ]
+  },
+  "focused_verification": {
+    "node": "26.12.0",
+    "command": "REBASE_NODE_N3_BINARY=$PWD/target/debug/rebase-next node --test tools/node/test/c4-population.test.mjs tools/node/test/c4-native-population.test.mjs tools/node/test/population-contract.test.mjs tools/node/test/population-semantics.test.mjs tools/node/test/n3-population.test.mjs",
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0,
+    "native_binary_sha256_observed": "dfe35ec86314faea4b76bd2e5b52d757442bd169f5fe1ec3ec6ff411c5d5cb06",
+    "native_binary_provenance": "Existing local binary, not rebuilt by this Node subtask; integrator must repeat against final source build",
+    "topology": "one owned native process per disposable redb workflow, signed local HTTP requests",
+    "source_oracle": "12 authored Quantity sources; exact derived values and full backup; overflowing invalid graph rejected independently and natively with byte-equivalent backup payload"
+  },
+  "preserved": [
+    "one catalog authority",
+    "native final validation",
+    "exact original plan and receipt recovery",
+    "both-owner metadata binding",
+    "no stored population counter",
+    "explicit work and command limits"
+  ],
+  "limits": [
+    "Local generation sees supplied source pools, not hidden or concurrent native rows",
+    "Caller callbacks own runtime and external I/O bounds",
+    "No external solver dependency",
+    "No capacity, distributed topology or live-provider claim"
+  ],
+  "next": "E1 credentials and bounded grants using docs/e1-credentials.md",
+  "full_verification": {
+    "rust_passed": 315,
+    "node_passed": 193,
+    "failed": 0,
+    "skipped": 0,
+    "node_version": "26.12.0",
+    "native_binary_sha256": "fcf5728a90d25617dfc19f4d28e026ac9cc21efd4163bff6663b42ad296c6d59",
+    "node_run_sha256": "ebc6589e2110e827771ca300b7c8448c85ae26495699a12fb1bb06ca72116bf9",
+    "shared_checkpoint": "c3-ordered-access.json"
+  }
+}

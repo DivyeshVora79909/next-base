@@ -31,6 +31,9 @@ struct Trace {
     scanned_tables: BTreeSet<String>,
     outcome: String,
     commit_us: u128,
+    read_value_bytes: u64,
+    put_key_value_bytes: u64,
+    access_put_key_value_bytes: u64,
 }
 #[derive(Default)]
 struct Capture {
@@ -68,6 +71,9 @@ impl Backend for Recording {
             scanned_tables: BTreeSet::new(),
             outcome: "not_committed".into(),
             commit_us: 0,
+            read_value_bytes: 0,
+            put_key_value_bytes: 0,
+            access_put_key_value_bytes: 0,
         });
         Ok(Box::new(RecordingWrite {
             inner,
@@ -91,9 +97,10 @@ impl ReadView for RecordingWrite {
             "forbidden historical population key access",
         )?;
         let result = self.inner.get(t, k)?;
-        capture(&self.captures)?.traces[self.index]
-            .reads
-            .insert((t.name.clone(), k.to_vec()));
+        let mut captures = capture(&self.captures)?;
+        let trace = &mut captures.traces[self.index];
+        trace.reads.insert((t.name.clone(), k.to_vec()));
+        trace.read_value_bytes += result.as_ref().map_or(0, |value| value.len() as u64);
         Ok(result)
     }
     fn scan(
@@ -128,9 +135,14 @@ impl WriteView for RecordingWrite {
             "forbidden historical population key access",
         )?;
         let old = self.inner.put(t, k, v)?;
-        capture(&self.captures)?.traces[self.index]
-            .writes
-            .insert((t.name.clone(), k.to_vec()));
+        let mut captures = capture(&self.captures)?;
+        let trace = &mut captures.traces[self.index];
+        trace.writes.insert((t.name.clone(), k.to_vec()));
+        let bytes = (k.len() + v.len()) as u64;
+        trace.put_key_value_bytes += bytes;
+        if t.name == local::KV.name() && matches!(k.first(), Some(15 | 16)) {
+            trace.access_put_key_value_bytes += bytes;
+        }
         Ok(old)
     }
     fn remove(&mut self, t: &TableSpec, k: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -180,6 +192,15 @@ fn context() -> Context {
 }
 fn create<B: Binding>(db: Database) -> Result<Store<B>> {
     Store::create_backend_secured(db, Arc::new(Prepared::load()?), context())
+}
+// These controls isolate an epoch or reference predicate. Access-index
+// coordination is accepted separately with the default opted-in declarations.
+fn create_quantity_without_access(db: Database) -> Result<Store<Quantity>> {
+    let mut declarations = Quantity::declarations()?;
+    for contract in &mut declarations {
+        contract.access_indexes.clear();
+    }
+    Store::create_backend_secured(db, Arc::new(Prepared::prepare(declarations)?), context())
 }
 fn graph<B: Binding>(store: &Store<B>, codes: &[u16]) -> Result<()> {
     let mut graph = Graph::bootstrap(context())?.graph;
@@ -339,6 +360,7 @@ fn operation<B: Binding>(store: &Store<B>, start: u128, avoid: Option<&[u8]>) ->
 }
 fn trace_value(trace: &Trace) -> Value {
     json!({"attempt":trace.label,"outcome":trace.outcome,"commit_us":trace.commit_us,
+        "read_value_bytes":trace.read_value_bytes,"put_key_value_bytes":trace.put_key_value_bytes,"access_put_key_value_bytes":trace.access_put_key_value_bytes,
         "application_reads":trace.reads.iter().map(|(table,key)|json!({"table":table,"key":native_codec::hex(key)})).collect::<Vec<_>>(),
         "scanned_tables":trace.scanned_tables,
         "application_writes":trace.writes.iter().map(|(table,key)|json!({"table":table,"key":native_codec::hex(key)})).collect::<Vec<_>>()})
@@ -698,6 +720,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     cases.push("scoped-tokens-slots-and-business-state-persist-on-reopen");
     drop(reopened);
 
+    let access_order_coordination = access_order_coordination(&factory, concurrent, &mut cases)?;
     let accounting_acceptance = accounting_acceptance(&factory, concurrent, &mut cases)?;
     let epoch_control = contention_epoch_control(&factory, concurrent, &mut cases)?;
     scoped_derived(&factory, &mut cases)?;
@@ -714,6 +737,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "tracked_noop_attempts":noop_race.iter().map(trace_value).collect::<Vec<_>>(),
         "reference_schedules":references,"c3_0_accounting_acceptance":accounting_acceptance,
         "c3_0_scoped_epoch_control":epoch_control,
+        "c3_access_order_coordination":access_order_coordination,
         "c3_0_business_root_control":{"evidence":"same_root_attempts","population_written":false,"concurrent":concurrent,"shared_root":native_codec::hex(&Key::Root(crate::native_codec::Address::new(id(100),2)).encode()),"exclusive_abort_key_attribution":false},
         "independent_balances":balances,"common_application_write_keys":[],"common_surreal_guard_buckets":shared_buckets,
         "receipt_hash_starts":[crate::receipts::start_slot(&[id(3).as_bytes().as_slice(),first_op.as_bytes()].concat()),crate::receipts::start_slot(&[id(4).as_bytes().as_slice(),second_op.as_bytes()].concat())],
@@ -832,7 +856,7 @@ fn reference_schedules(
         ("g75-reference-parent-read", false),
     ] {
         let captures = Captures::default();
-        let store = create::<Quantity>(Database::new(Recording {
+        let store = create_quantity_without_access(Database::new(Recording {
             db: factory(family)?,
             captures: captures.clone(),
         }))?;
@@ -966,7 +990,7 @@ fn reference_schedules(
         });
         evidence.push(json!({"family":family,"expected_source":expected_source,
             "expected_scale":expected_scale,"expected_parent":expected_parent,
-            "protected_key":native_codec::hex(&protected.1),"source_derived_totals_unchanged":true,
+            "protected_key":native_codec::hex(&protected.1),"source_derived_totals_unchanged":true,"access_indexes":[],"model":store.model().identity(),
             "common_application_writes":[],"common_surreal_guard_buckets":[],
             "attempts":traces.iter().map(trace_value).collect::<Vec<_>>() }));
     }
@@ -984,6 +1008,7 @@ fn contention_class(table: &str, bytes: &[u8]) -> &'static str {
         }
         return match Key::decode(bytes) {
             Ok(Key::Root(_) | Key::Node(_)) => "native_business_root",
+            Ok(Key::AccessRoot(_) | Key::AccessNode(_)) => "declared_access_index",
             Ok(Key::Record(_)) => "record",
             Ok(Key::Role(_) | Key::Reserved(_)) => "output_identity",
             Ok(Key::Meta) => "model_metadata",
@@ -1233,7 +1258,7 @@ fn contention_epoch_control(
     cases: &mut Vec<&'static str>,
 ) -> Result<Value> {
     let captures = Captures::default();
-    let store = create::<Quantity>(Database::new(Recording {
+    let store = create_quantity_without_access(Database::new(Recording {
         db: factory("c30-scoped-epoch-control")?,
         captures: captures.clone(),
     }))?;
@@ -1317,5 +1342,236 @@ fn contention_epoch_control(
         "common_writes":contention_overlap(&traces[0].writes,&traces[1].writes),
         "attempt_0_point_reads_overlapping_attempt_1_writes":contention_overlap(&traces[0].reads,&traces[1].writes),
         "attempts":traces.iter().map(trace_value).collect::<Vec<_>>(),
-        "scope":"No Population write or business roots; exact shared epoch write observed. Adapter hash guards may conservatively conflict too. Sequential controls are not concurrency evidence."}))
+        "access_indexes":[],"model":store.model().identity(),
+        "scope":"Explicitly unindexed Quantity fixture: no Population write, business roots or access roots; exact shared epoch write observed. Default opted access roots are covered separately. Adapter hash guards may conservatively conflict too. Sequential controls are not concurrency evidence."}))
+}
+
+/// Original attempts publish through the selected adapter. Independent declared
+/// owner streams do not share AccessRoot or epoch writes; same-owner creations
+/// share both, so the conflict cannot be attributed exclusively to one key.
+fn access_order_coordination(
+    factory: &impl Fn(&str) -> Result<Database>,
+    concurrent: bool,
+    cases: &mut Vec<&'static str>,
+) -> Result<Value> {
+    use crate::{access_index, native_codec::Address, native_range::NativeRange};
+    let mut evidence = Vec::new();
+    for shared_owner in [false, true] {
+        let family = if shared_owner {
+            "c3-access-shared-owner"
+        } else {
+            "c3-access-independent-owners"
+        };
+        let captures = Captures::default();
+        let store = create::<Quantity>(Database::new(Recording {
+            db: factory(family)?,
+            captures: captures.clone(),
+        }))?;
+        graph(&store, &[quantity::SOURCE, quantity::SCALE, quantity::JOIN])?;
+        let left = store.session(id(3), 0)?;
+        let right = store.session(id(if shared_owner { 3 } else { 4 }), 0)?;
+        let first_op = operation(&left, 91001, None)?;
+        let second_op = operation(&right, 95001, Some(&left.receipt_key(first_op)))?;
+        let first = request(
+            &left,
+            first_op,
+            json!([{"op":"create","id":id(910),"contract":quantity::SOURCE,"fields":{"value":"2"}}]),
+        )?;
+        let second = request(
+            &right,
+            second_op,
+            json!([{"op":"create","id":id(920),"contract":quantity::SOURCE,"fields":{"value":"10"}}]),
+        )?;
+        capture(&captures)?.traces.clear();
+        label(&captures, "access-original-first")?;
+        let mut barriers = 0;
+        let mut winner = None;
+        if concurrent {
+            let outcome = left.mutate_controlled(
+                &first,
+                &mut || Ok(Uuid::new_v4()),
+                None,
+                &mut || {
+                    barriers += 1;
+                    label(&captures, "access-original-second")?;
+                    right.mutate(&second)?;
+                    winner = Some(image(&store)?);
+                    Ok(())
+                },
+                false,
+            );
+            if shared_owner {
+                require(
+                    outcome.is_err_and(|error| error.code == "transaction_conflict"),
+                    "shared opted owner streams did not conflict",
+                )?;
+                require(
+                    winner.as_ref() == Some(&image(&store)?),
+                    "access-root conflict partially published loser",
+                )?;
+            } else {
+                outcome?;
+            }
+            require(barriers == 1, "access coordination competitor count")?;
+        } else {
+            left.mutate(&first)?;
+            label(&captures, "access-original-second")?;
+            right.mutate(&second)?;
+        }
+        let traces = capture(&captures)?.traces.clone();
+        require(
+            traces.len() == 2,
+            "access coordination requires exactly original attempts",
+        )?;
+        let access = |keys: &Written, tag: Option<u8>| -> Written {
+            keys.iter()
+                .filter(|(table, key)| {
+                    table == local::KV.name()
+                        && match tag {
+                            Some(tag) => key.first() == Some(&tag),
+                            None => matches!(key.first(), Some(15 | 16)),
+                        }
+                })
+                .cloned()
+                .collect()
+        };
+        for (position, trace) in traces.iter().enumerate() {
+            no_global_writes(&trace.writes)?;
+            require(
+                trace.scanned_tables.is_empty(),
+                "access mutation scanned inventory",
+            )?;
+            let owner = if position == 0 || shared_owner { 3 } else { 4 };
+            let record = if position == 0 { 910 } else { 920 };
+            let expected: Written = [101u16, 102]
+                .into_iter()
+                .flat_map(|code| {
+                    [
+                        (
+                            local::KV.name().to_owned(),
+                            Key::AccessRoot(Address::new(id(owner), code)).encode(),
+                        ),
+                        (
+                            local::KV.name().to_owned(),
+                            Key::AccessNode(Address::new(id(record), code)).encode(),
+                        ),
+                    ]
+                })
+                .collect();
+            let actual = access(&trace.writes, None);
+            // Sequential same-owner insertion also repairs the previous member's
+            // links/cache; concurrent originals each started with empty streams.
+            if !shared_owner || concurrent || position == 0 {
+                require(
+                    actual == expected,
+                    "unexpected access membership/root write inventory",
+                )?;
+            } else {
+                require(
+                    expected.is_subset(&actual),
+                    "sequential access creation omitted declared membership",
+                )?;
+            }
+            require(
+                expected.is_subset(&trace.reads),
+                "access write lacks protected previous value or absence",
+            )?;
+            require(
+                trace.access_put_key_value_bytes > 0,
+                "access write byte measurement missing",
+            )?;
+        }
+        let shared_writes: Written = traces[0]
+            .writes
+            .intersection(&traces[1].writes)
+            .cloned()
+            .collect();
+        let shared_access = access(&shared_writes, Some(15));
+        let shared_epochs: Written = shared_writes
+            .iter()
+            .filter(|(table, _)| table == crate::query::EPOCHS.name())
+            .cloned()
+            .collect();
+        if shared_owner {
+            require(
+                shared_access.len() == 2 && shared_epochs.len() == 1,
+                "shared access roots and required owner epoch were not separately observed",
+            )?;
+        } else {
+            require(
+                shared_writes.is_empty()
+                    && traces[0].reads.is_disjoint(&traces[1].writes)
+                    && traces[1].reads.is_disjoint(&traces[0].writes),
+                "independent access scopes share protected write dependencies",
+            )?;
+        }
+        receipt(&left, &first, !(shared_owner && concurrent))?;
+        receipt(&right, &second, true)?;
+        let expected_ids = if shared_owner && concurrent {
+            vec![id(920)]
+        } else {
+            vec![id(910), id(920)]
+        };
+        let observed = store.order_page(&access_index::PageRequest {
+            model: store.model().identity().into(),
+            query: access_index::OrderQuery {
+                contract: quantity::SOURCE,
+                index: 102,
+                range: NativeRange::ALL,
+                equals: None,
+            },
+            limit: 32,
+            visit_budget: 128,
+            cursor: None,
+        })?;
+        require(
+            observed.exhausted
+                && observed
+                    .records
+                    .iter()
+                    .map(|record| record.id)
+                    .collect::<Vec<_>>()
+                    == expected_ids,
+            "access stream disagrees with literal native-number source order",
+        )?;
+        for record in &observed.records {
+            require(
+                serde_json::to_value(&record.input).map_err(local::storage)?
+                    == json!({"value":if record.id==id(910){"2"}else{"10"}}),
+                "access source value differs",
+            )?;
+        }
+        store.check_integrity()?;
+        let accepted = image(&store)?;
+        let key_values = |keys: &Written| {
+            keys.iter()
+                .map(|(table, key)| json!({"table":table,"key":native_codec::hex(key)}))
+                .collect::<Vec<_>>()
+        };
+        evidence.push(json!({
+            "scenario":family,"concurrent":concurrent,"original_attempts":2,"automatic_retries":false,
+            "declared_access_indexes":[101,102],"source_memberships_added_per_original_attempt":2,
+            "accepted_source_records":expected_ids,"accepted_access_memberships":expected_ids.len()*2,
+            "attempts":traces.iter().map(trace_value).collect::<Vec<_>>(),
+            "protected_access_reads":traces.iter().map(|trace|key_values(&access(&trace.reads,None))).collect::<Vec<_>>(),
+            "shared_access_root_writes":key_values(&shared_access),"shared_required_owner_epoch_writes":key_values(&shared_epochs),
+            "shared_other_writes":key_values(&shared_writes.difference(&shared_access).filter(|(table,_)|table!=crate::query::EPOCHS.name()).cloned().collect()),
+            "exclusive_abort_key_attribution":false,"population_key_accessed":false,"inventory_scans":false,
+            "byte_measurement":"actual adapter get result bytes and staged put key plus value bytes; excludes backend framing and conflict metadata"
+        }));
+        drop((left, right, store));
+        let reopened =
+            Store::<Quantity>::open_backend(factory(family)?, Arc::new(Prepared::load()?))?;
+        require(
+            image(&reopened)? == accepted,
+            "access coordination reopen differs",
+        )?;
+        reopened.check_integrity()?;
+        cases.push(if shared_owner {
+            "declared-access-roots-and-owner-epoch-shared-original-create-control"
+        } else {
+            "declared-access-roots-independent-original-creates-without-population-key"
+        });
+    }
+    Ok(json!(evidence))
 }

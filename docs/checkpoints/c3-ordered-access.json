@@ -1,0 +1,1357 @@
+{
+  "checkpoint": "C3 declared owner access indexes and native reactive ranges",
+  "status": "accepted with C4 after current-source native and Node verification",
+  "base_commit": "53d82f44b4ce2b5fd2b60b286cdd377cef4cf091",
+  "codec": "native-slice-kv-13",
+  "owner_policy": "owner-only-update-both-owners-accessible-delete-self-descendants-2",
+  "source_sha256": {
+    "src/access_index.rs": "e56cb558daa4f5ea677e9cd7341115efa3a6058a5cce0a1b302fb816b97565f6",
+    "src/causal.rs": "2a1de329d69b10f18e0446ae1e436dc3ab7dae538e1ec4a91a5c07c72e9fc115",
+    "src/dependency.rs": "95b33f09b224035955ae345cbc935949ce20f159c420be6a2e8b96db64028f8a",
+    "src/index.rs": "fb873b078d5089eccdc83c620ae132a5334b4890e2e43b383173a6a8331a4fd9",
+    "src/index_tests.rs": "d47d868bed10b8d455b9d24403d93aebf84a79673a870c47ada58741fb4c62ff",
+    "src/indexes/measurement.rs": "61a093a42134ee0ea90953be713c51a63c7ceb33fa377e9215f55a237acc6ed8",
+    "src/indexes/standard.rs": "fe61a27585b0247af8397d0f719ee6ae1a329c5a0d391d062864d8f84fcb648b",
+    "src/integrity.rs": "55dae5e334add35a68d4af5289b41e169803a53aded6cbe9733fbc94e024d741",
+    "src/lib.rs": "3b464bcafacce5c448c0fce76a05519415f1fa642a7e164fe315e851161c1862",
+    "src/local.rs": "1cb3c46f9f02b8c8d3bcd99bdfde1daaffa7429ce667f5ce803d77140e492149",
+    "src/model.rs": "247b329033a50015450a65238007ec83b637e86ed87ad2ae4dc38bd880bafaca",
+    "src/models/calculation_reactivity.rs": "8aa75b50cd94f1a1f53575bd0f8c61e861d4f2bbf2ade77245a8e0a20ed80f8f",
+    "src/models/effect_demo.rs": "08ede220d8027f034bfe5aa6d972f101aaafa99dadc747b9c6af51de5a5d164d",
+    "src/models/equipment.rs": "3eb74d33aab9a78d39ad04726605c13d88c42bdce4b736604df936b0e22a2882",
+    "src/models/invoicing.rs": "e3918c017f32985f019f703b93954fab10ed62519ee351d819e4b4ada9f3cecf",
+    "src/models/invoicing_check.rs": "74c873c222439c025d37b96eb3497f4ed13e94f4e1a34db83f0a60ab653e4da8",
+    "src/models/measurement.rs": "ba84601e5915844aac556e7e1574ec02957856ef7fdd581d274f41f4ae817db6",
+    "src/models/quantity.rs": "b518b5a75734d87a95d5dc59e1a57add052c28794c5f9a3b301ea977baf5a992",
+    "src/mutation.rs": "1485db314788a425c8035472a4a3469d6ffda610e85f2f44d357eafd26a67b0a",
+    "src/native_codec.rs": "c928584d8506d3e656fa4515a4a826e67ba9e0df55617629261b56c8c924d495",
+    "src/native_range.rs": "1738058ee266311d63c6e20c52e443623d1e9a02b8b4415f853ea1115e38f0dc",
+    "src/native_reactive_tests.rs": "0d50fb82f9bc57ae0efa0560ecee7f8ac1a0d2a3f5e5b79fd5b517060c667b4e",
+    "src/native_slice.rs": "0e8bc6056dc0c276a9511c913ce351c0169cad4b85b62e6a276591f6e4bc7d6c",
+    "src/order_value.rs": "ee1dbaac98a0902aa6232a48ec0b29e9e69bb35f3cf959adc860dc77e0dfc584",
+    "src/parameter_tests.rs": "a588f7722da9c58d7cd2ae1b3b3ae08b76dd1d61f8d7a739cc80611fc1a4a82c",
+    "src/publication_tests.rs": "6e5bde321786383f4eb79bc741d9ef6c2c672dba807b04076cbf5ff0972fa468",
+    "src/query.rs": "4cff3358d1b44f87524a5a95ab9b55d8945f795bf101eeee32c6090984973940",
+    "src/reference_tests.rs": "a51e120bcff73b48197fc7aac064caff15965a185e4cdabb28eb960cb276b86e",
+    "src/relationships.rs": "b9ffb68b002876c89caa74901b766c2f779bd1a7e86d9a470dd8b3519f6bfc46",
+    "src/route_tests.rs": "31fa0d4deacb72b5ab4abf44fd724880eb158dd6dd247175ea335eca2e55af6f",
+    "src/routes.rs": "d9a708983f7c3f074200f4cd4650c4786d38d2aa20072656de819a19ddeaee8b",
+    "src/rpc.rs": "311826acffd4fd4a5d953fbf3cac78953a72ed5fbdcd1250ea4b178528e2598c",
+    "src/storage/coordination_checks.rs": "7606477fdf82ef9c932cdc587ba7d1b69f2debaf42d7a40ea9eb9762c611dd2e",
+    "src/time_range.rs": "296b4082808e80960f3cf60a0083b8bb90fc620fa7a4bcb661aa0f432018f52e",
+    "src/tree.rs": "0c5b390d7768c9a9724e63b0c88739b37f9b0ca59eff9097d5c5a8eb95462bb4",
+    "src/uniqueness.rs": "10bbb6d00f5327fddff4b77801ee4a53b985821248f5ce55f56f227da11fe255",
+    "src/window_tests.rs": "d98ff01192a63f789f4e13400bf877b2afc84fa1e8a0dd726e54f70451763911",
+    "tests/access_order.rs": "51acc2a67e7e0a2e90c6ea1a9cc20b655772b102e230d29c0b5229b1b4cf18e2",
+    "tests/authority_scope.rs": "0cc7c8ed944aa194fb84a8aa1327f611c41d7e65a3ada960efe635f236f1ab79",
+    "tests/exact_values.rs": "4aee9872c91be1f81df43219caa210f407aeb4540cbfce9995c8a067c840d370",
+    "tests/measurement.rs": "c06e83a05e61ba19474ea433549c364a398862f07888c75a0144e53ab2306c3a",
+    "tests/reference_uniqueness.rs": "967990799b33942e03b20cd3b32da3b52513e050ebda4e6f9f0da139abc5c306",
+    "tests/relationship_predicates.rs": "10dcad94469c86681d21be3aa779b58218d60e8501e5375b37855e74320c21e7",
+    "tests/routes.rs": "fe98757a1d001175488ab3c1e53b403a93b67bef436e31664eafb1f02c89cd17",
+    "tools/node/oracles.mjs": "7becc636d8a73625d9d1111740412bf29e2599d5a66fa08df0b1da87ef07d6db",
+    "tools/node/population.mjs": "a50b52f7be9420aa4ddbce8ccf3a9da202831a425648bce9cc0582e01bcce6dd",
+    "tools/node/storage-check.mjs": "d7efd6b0b3463e5bb56548e45f6186f4281b9bef7b7afd5f8db92ac1a29e3897",
+    "tools/node/test/access-storage.test.mjs": "d06797e53f7a45b2757f596c2e51d5c87c31ae5f8662492670d209dcf261e632",
+    "tools/node/test/c3-native-order.test.mjs": "64814b402c04b26bb1570070ab8299b98f2de4b1d1ad299c9342a7a37abb2373",
+    "tools/node/test/c4-native-population.test.mjs": "9b9b835a370aea6238cd625baa98de76c9a5b942ee4b88343743aa96b1f873b9",
+    "tools/node/test/c4-population.test.mjs": "e7c33c981b55ba9987018a8734103cc41b49cccff2bd12e549089e4e012568ff",
+    "tools/node/test/n6-complete-backup.test.mjs": "c1638d1664c1d51585e2780dbe5f6a19a6d05a5af4429d6a809561031ea8de9a"
+  },
+  "verification": {
+    "rust": {
+      "command": "CARGO_BUILD_JOBS=4 cargo test --all-targets",
+      "passed": 315,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 40
+    },
+    "node": {
+      "version": "26.12.0",
+      "command": "npm --prefix tools/node test with REBASE_NODE_N1_BINARY through REBASE_NODE_N6_BINARY set to the fresh redb host",
+      "passed": 193,
+      "failed": 0,
+      "skipped": 0,
+      "includes_C4": true,
+      "native_binary_sha256": "fcf5728a90d25617dfc19f4d28e026ac9cc21efd4163bff6663b42ad296c6d59"
+    },
+    "format": "cargo fmt --all -- --check passed",
+    "clippy": "default and foundationdb all-targets with -D warnings passed",
+    "adapters": {
+      "foundationdb": {
+        "coordination": 20,
+        "lifecycle": 14,
+        "access_order_coordination": [
+          {
+            "accepted_access_memberships": 4,
+            "accepted_source_records": [
+              "00000000-0000-0000-0000-00000000038e",
+              "00000000-0000-0000-0000-000000000398"
+            ],
+            "attempts": [
+              {
+                "access_put_key_value_bytes": 1768,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "090000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300650000000000000000000000000000038e",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "0000000000000000000000000000038e",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-first",
+                "commit_us": 3325,
+                "outcome": "committed",
+                "put_key_value_bytes": 2840,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              },
+              {
+                "access_put_key_value_bytes": 1773,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000004",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0900000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000400000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "02d9",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000400000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "00000000000000000000000000000004006500000000000000000000000000000398",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "00000000000000000000000000000398",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000040065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "02d9",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-second",
+                "commit_us": 5837,
+                "outcome": "committed",
+                "put_key_value_bytes": 2847,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              }
+            ],
+            "automatic_retries": false,
+            "byte_measurement": "actual adapter get result bytes and staged put key plus value bytes; excludes backend framing and conflict metadata",
+            "concurrent": true,
+            "declared_access_indexes": [
+              101,
+              102
+            ],
+            "exclusive_abort_key_attribution": false,
+            "inventory_scans": false,
+            "original_attempts": 2,
+            "population_key_accessed": false,
+            "protected_access_reads": [
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0066",
+                  "table": "native_kv"
+                }
+              ],
+              [
+                {
+                  "key": "0f000000000000000000000000000000040065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000040066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980066",
+                  "table": "native_kv"
+                }
+              ]
+            ],
+            "scenario": "c3-access-independent-owners",
+            "shared_access_root_writes": [],
+            "shared_other_writes": [],
+            "shared_required_owner_epoch_writes": [],
+            "source_memberships_added_per_original_attempt": 2
+          },
+          {
+            "accepted_access_memberships": 2,
+            "accepted_source_records": [
+              "00000000-0000-0000-0000-000000000398"
+            ],
+            "attempts": [
+              {
+                "access_put_key_value_bytes": 1768,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "090000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300650000000000000000000000000000038e",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "0000000000000000000000000000038e",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-first",
+                "commit_us": 4968,
+                "outcome": "transaction_conflict",
+                "put_key_value_bytes": 2840,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              },
+              {
+                "access_put_key_value_bytes": 1773,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0900000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0191",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "00000000000000000000000000000003006500000000000000000000000000000398",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "00000000000000000000000000000398",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "0191",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-second",
+                "commit_us": 4553,
+                "outcome": "committed",
+                "put_key_value_bytes": 2847,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              }
+            ],
+            "automatic_retries": false,
+            "byte_measurement": "actual adapter get result bytes and staged put key plus value bytes; excludes backend framing and conflict metadata",
+            "concurrent": true,
+            "declared_access_indexes": [
+              101,
+              102
+            ],
+            "exclusive_abort_key_attribution": false,
+            "inventory_scans": false,
+            "original_attempts": 2,
+            "population_key_accessed": false,
+            "protected_access_reads": [
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0066",
+                  "table": "native_kv"
+                }
+              ],
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980066",
+                  "table": "native_kv"
+                }
+              ]
+            ],
+            "scenario": "c3-access-shared-owner",
+            "shared_access_root_writes": [
+              {
+                "key": "0f000000000000000000000000000000030065",
+                "table": "native_kv"
+              },
+              {
+                "key": "0f000000000000000000000000000000030066",
+                "table": "native_kv"
+              }
+            ],
+            "shared_other_writes": [],
+            "shared_required_owner_epoch_writes": [
+              {
+                "key": "000000000000000000000000000000030065",
+                "table": "query_epochs"
+              }
+            ],
+            "source_memberships_added_per_original_attempt": 2
+          }
+        ],
+        "g7_coordination_sha256": "0a885f37bfe814e4321d8cf4300363cd4ace2e471df62e8e230a39773be214cd",
+        "application": 19,
+        "effects": 27,
+        "predicates": 24,
+        "g7_application_sha256": "4c2d09fdca3efaf3422d0ecf6a7a2b37f10dae6fa3204a7e82aa309b497c9af3"
+      },
+      "redb": {
+        "coordination": 17,
+        "lifecycle": 10,
+        "access_order_coordination": [
+          {
+            "accepted_access_memberships": 4,
+            "accepted_source_records": [
+              "00000000-0000-0000-0000-00000000038e",
+              "00000000-0000-0000-0000-000000000398"
+            ],
+            "attempts": [
+              {
+                "access_put_key_value_bytes": 1768,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "090000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300650000000000000000000000000000038e",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "0000000000000000000000000000038e",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-first",
+                "commit_us": 5296,
+                "outcome": "committed",
+                "put_key_value_bytes": 2840,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              },
+              {
+                "access_put_key_value_bytes": 1773,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000004",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0900000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000400000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "02d9",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000040066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000400000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "00000000000000000000000000000004006500000000000000000000000000000398",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "00000000000000000000000000000398",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000040065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "02d9",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-second",
+                "commit_us": 5135,
+                "outcome": "committed",
+                "put_key_value_bytes": 2847,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              }
+            ],
+            "automatic_retries": false,
+            "byte_measurement": "actual adapter get result bytes and staged put key plus value bytes; excludes backend framing and conflict metadata",
+            "concurrent": false,
+            "declared_access_indexes": [
+              101,
+              102
+            ],
+            "exclusive_abort_key_attribution": false,
+            "inventory_scans": false,
+            "original_attempts": 2,
+            "population_key_accessed": false,
+            "protected_access_reads": [
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0066",
+                  "table": "native_kv"
+                }
+              ],
+              [
+                {
+                  "key": "0f000000000000000000000000000000040065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000040066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980066",
+                  "table": "native_kv"
+                }
+              ]
+            ],
+            "scenario": "c3-access-independent-owners",
+            "shared_access_root_writes": [],
+            "shared_other_writes": [],
+            "shared_required_owner_epoch_writes": [],
+            "source_memberships_added_per_original_attempt": 2
+          },
+          {
+            "accepted_access_memberships": 4,
+            "accepted_source_records": [
+              "00000000-0000-0000-0000-00000000038e",
+              "00000000-0000-0000-0000-000000000398"
+            ],
+            "attempts": [
+              {
+                "access_put_key_value_bytes": 1768,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "090000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "010000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "050000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "060000000000000000000000000000038e",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000016379",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300650000000000000000000000000000038e",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "0000000000000000000000000000038e",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "03c2",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-first",
+                "commit_us": 5040,
+                "outcome": "committed",
+                "put_key_value_bytes": 2840,
+                "read_value_bytes": 802,
+                "scanned_tables": []
+              },
+              {
+                "access_put_key_value_bytes": 3079,
+                "application_reads": [
+                  {
+                    "key": "7300000000000000000000000000000003",
+                    "table": "authority"
+                  },
+                  {
+                    "key": "686561646572",
+                    "table": "local_runtime"
+                  },
+                  {
+                    "key": "00",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0900000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "0191",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "application_writes": [
+                  {
+                    "key": "0100000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0500000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0600000000000000000000000000000398",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0f000000000000000000000000000000030066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "100000000000000000000000000000038e0066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980065",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "10000000000000000000000000000003980066",
+                    "table": "native_kv"
+                  },
+                  {
+                    "key": "0000000000000000000000000000000300000000000000000000000000017319",
+                    "table": "operations"
+                  },
+                  {
+                    "key": "00000000000000000000000000000003006500000000000000000000000000000398",
+                    "table": "owner_records"
+                  },
+                  {
+                    "key": "00000000000000000000000000000398",
+                    "table": "public_records"
+                  },
+                  {
+                    "key": "000000000000000000000000000000030065",
+                    "table": "query_epochs"
+                  },
+                  {
+                    "key": "0191",
+                    "table": "receipt_slots"
+                  }
+                ],
+                "attempt": "access-original-second",
+                "commit_us": 5252,
+                "outcome": "committed",
+                "put_key_value_bytes": 4153,
+                "read_value_bytes": 2494,
+                "scanned_tables": []
+              }
+            ],
+            "automatic_retries": false,
+            "byte_measurement": "actual adapter get result bytes and staged put key plus value bytes; excludes backend framing and conflict metadata",
+            "concurrent": false,
+            "declared_access_indexes": [
+              101,
+              102
+            ],
+            "exclusive_abort_key_attribution": false,
+            "inventory_scans": false,
+            "original_attempts": 2,
+            "population_key_accessed": false,
+            "protected_access_reads": [
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0066",
+                  "table": "native_kv"
+                }
+              ],
+              [
+                {
+                  "key": "0f000000000000000000000000000000030065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "0f000000000000000000000000000000030066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "100000000000000000000000000000038e0066",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980065",
+                  "table": "native_kv"
+                },
+                {
+                  "key": "10000000000000000000000000000003980066",
+                  "table": "native_kv"
+                }
+              ]
+            ],
+            "scenario": "c3-access-shared-owner",
+            "shared_access_root_writes": [
+              {
+                "key": "0f000000000000000000000000000000030065",
+                "table": "native_kv"
+              },
+              {
+                "key": "0f000000000000000000000000000000030066",
+                "table": "native_kv"
+              }
+            ],
+            "shared_other_writes": [
+              {
+                "key": "100000000000000000000000000000038e0065",
+                "table": "native_kv"
+              },
+              {
+                "key": "100000000000000000000000000000038e0066",
+                "table": "native_kv"
+              }
+            ],
+            "shared_required_owner_epoch_writes": [
+              {
+                "key": "000000000000000000000000000000030065",
+                "table": "query_epochs"
+              }
+            ],
+            "source_memberships_added_per_original_attempt": 2
+          }
+        ],
+        "g7_coordination_sha256": "2147521c84e08981a852a118f62c49e6ad2d39bb47174ed75be538f7c23c933f",
+        "application": 13,
+        "effects": 27,
+        "predicates": 16,
+        "g7_application_sha256": "dbd2fb8bb7ef76d8fe176b79760b23c915d2f72e92c3f2f7aaa5bef29af493c5"
+      }
+    },
+    "run_hashes": {
+      "next-base-c3-tests-final.log": "7b69974df0bafe496769973c241a6ffdc82276edda5491ed5106b6f3545ba1bc",
+      "next-base-c3-node-final.log": "ebc6589e2110e827771ca300b7c8448c85ae26495699a12fb1bb06ca72116bf9",
+      "next-base-c3-clippy.log": "75568d2f6aad94c9952df948fb8b01f0a5f497b68b12288dad055d7b418a6caf",
+      "next-base-c3-fdb-clippy.log": "4d4b9700808fa8e451efb0166c4a8771cbe77ac2d78cb4cd8fd4eaa7412c716d",
+      "next-base-c3-format.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "next-base-c3-fdb-build.log": "652dc0e37c343f3c46ee1b18c237324c87964654c249a91cbb35d6177550c28d",
+      "next-base-c3-adapters.log": "4804f2365c25150484dc0e8312941e7a6ba6c0f61900393d5b18b98a840d55a2"
+    }
+  },
+  "topology": {
+    "foundationdb": "7.3.77, one disposable local server process on one host",
+    "redb": "sequential controls on one host",
+    "surrealkv": "not rerun"
+  },
+  "counterexamples": [
+    "Prepared native descriptor wrongly rejected non-time public range reads; obsolete time-only range gate removed.",
+    "Generic derived Deserialize admitted array-form ranges; strict object-only visitor restores wire contract and rejects missing/duplicate/unknown fields.",
+    "Independent-store permutation comparisons cannot require equal wall-clock samples; business-fact/token-class comparisons exclude clock bytes, dedicated preservation tests retain timestamp obligations.",
+    "Output materialization time can differ from producer creation time; compare each output before/after transfer.",
+    "Isolated epoch/reference controls explicitly omit access indexes; new opted-in controls separately report access-root and required epoch overlap."
+  ],
+  "contracts": [
+    "Explicit per-resource access memberships; catalog-wide positive codes identify owner-root streams in the fixed tenant store.",
+    "Both-owner transfer authorization, generated ownership, current disclosure, exact cursors, rollback and original-operation recovery retained.",
+    "Native i128/string/bool/UUID tuple keys and stable UUID/slot ties; generic native subscriber/query/dependency cuts.",
+    "Independent source-derived inventories, AVL counts/links/spans and corruption checks in native and Node, including missing whole forests.",
+    "No shared population counter, universal analytics root or unprotected empty/invariant reads."
+  ],
+  "limits": [
+    "One declared public resource/index per access page; no cross-resource union or global visible/filtered rank.",
+    "Current owner/contract epochs conservatively invalidate payload-only changes; same-owner opted-in roots add coordination.",
+    "Point read/value and staged key/value byte measures exclude backend framing and do not isolate which shared key caused an abort.",
+    "No multi-host, throughput, unrestricted capacity or live-provider acceptance.",
+    "E1 services are a concrete contract, not implemented by this checkpoint; C5/E4/frontend/live providers/TiKV remain optional."
+  ],
+  "next": "C4 is accepted in the same verified checkpoint; proceed with E1 credentials and grants, then non-deferred service/auth/deployment gates."
+}

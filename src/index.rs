@@ -45,6 +45,12 @@ impl From<IndexCode> for u16 {
 #[serde(transparent)]
 pub struct TimeKey(#[serde(with = "decimal")] pub i64);
 
+impl From<i64> for TimeKey {
+    fn from(value: i64) -> Self {
+        Self(value)
+    }
+}
+
 impl TimeKey {
     pub const fn new(at: i64) -> Self {
         Self(at)
@@ -87,7 +93,13 @@ pub struct Selected<I: NativeIndex> {
 /// Family implementations are trusted pure functions. Associativity, identity
 /// and bounded arithmetic on the admitted input domain need source-oracle tests.
 pub trait NativeIndex: Clone + Debug + Eq + Send + Sync + 'static {
-    type Key: Ord + Clone + Debug + Serialize + DeserializeOwned + Send + Sync + 'static;
+    type Key: crate::native_range::RangeKey
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
     type Leaf: Clone + Debug + Eq + Serialize + DeserializeOwned + Send + Sync + 'static;
     type Summary: Clone + Debug + Eq + Serialize + DeserializeOwned + Send + Sync + 'static;
     type QueryResult: Clone + Debug + Eq + Serialize + DeserializeOwned + Send + Sync + 'static;

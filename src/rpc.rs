@@ -108,12 +108,17 @@ fn dispatch<B: Binding>(store: &Store<B>, method: &str, params: Value) -> Result
             let p: PageRequest = bind(params)?;
             serde_json::to_value(store.page(&p)?).map_err(|e| Error::new("internal", e.to_string()))
         }
+        "records.order_page" => {
+            let p: crate::access_index::PageRequest = bind(params)?;
+            serde_json::to_value(store.order_page(&p)?)
+                .map_err(|e| Error::new("internal", e.to_string()))
+        }
         "records.exists" => {
             let p: ExistsRequest = bind(params)?;
             store.exists(&p)
         }
         "roots.read" => {
-            let p: RootRequest = bind(params)?;
+            let p: RootRequest<<B::Index as crate::index::NativeIndex>::Key> = bind(params)?;
             store.root_read(&p)
         }
         "roots.page" => {

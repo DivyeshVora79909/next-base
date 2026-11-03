@@ -68,6 +68,7 @@ impl Binding for References {
     }
     fn declarations() -> Result<Vec<Contract>> {
         Ok([(11,"Alpha"),(12,"Beta"),(13,"Other")].into_iter().map(|(code,name)| Contract {
+            access_indexes: vec![],
             code, name, visibility: Visibility::Public,
             schema: json!({"$schema":model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,
                 "properties":{"kind":{"type":"integer","enum":[code]},

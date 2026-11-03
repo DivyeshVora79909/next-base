@@ -4,10 +4,11 @@ use crate::{
     causal::{Emit, ReactiveBinding, Read, Resolved, ResolvedShape},
     indexes::standard::Leaf,
     native_codec::Address,
+    native_range::NativeBound,
     native_slice::{
         Calculated, Context, Error, Input, Record, Result, Workspace, required, validate_references,
     },
-    time_range::{TimeBound, TimeRange},
+    time_range::TimeRange,
 };
 use std::collections::BTreeMap;
 use uuid::Uuid;
@@ -40,7 +41,7 @@ impl ReactiveBinding for Calculation {
                     shape.reads.push(Read {
                         slot,
                         root: Address::new(*account, 2),
-                        range: TimeRange::before(at),
+                        range: (TimeRange::before(at)).into(),
                         validate: slot == 2,
                     });
                 }
@@ -49,7 +50,7 @@ impl ReactiveBinding for Calculation {
                         role: 1,
                         contract: 12,
                         root: Address::new(*account, 2),
-                        at,
+                        at: (at).into(),
                     });
                 }
             }
@@ -64,7 +65,7 @@ impl ReactiveBinding for Calculation {
                     shape.reads.push(Read {
                         slot: i as u16 + 1,
                         root: Address::new(*root, 2),
-                        range: TimeRange::ALL,
+                        range: (TimeRange::ALL).into(),
                         validate: false,
                     });
                 }
@@ -72,14 +73,14 @@ impl ReactiveBinding for Calculation {
                     role: 1,
                     contract: 12,
                     root: Address::new(*account, 2),
-                    at: *at,
+                    at: (*at).into(),
                 });
                 if let Some(f) = feedback {
                     shape.emits.push(Emit {
                         role: 2,
                         contract: 12,
                         root: Address::new(f.account, 2),
-                        at: f.at,
+                        at: (f.at).into(),
                     });
                 }
             }
@@ -106,7 +107,7 @@ impl ReactiveBinding for Calculation {
                 (
                     Calculated::Adjustment {
                         at: match shape.reads[0].range.upper {
-                            TimeBound::Excluded(at) => at,
+                            NativeBound::Excluded(at) => at.0,
                             _ => unreachable!("adjustment read is strictly before its emission"),
                         },
                         before: values[0],
@@ -141,7 +142,7 @@ impl ReactiveBinding for Calculation {
             producer,
             role: e.role,
             account: e.root.id,
-            at: e.at,
+            at: e.at.0,
             amount,
         })
     }

@@ -121,6 +121,7 @@ impl Binding for ExactEntries {
             ),
         ] {
             let mut contract = Contract {
+                access_indexes: vec![],
                 uniqueness: vec![],
                 code,
                 name,

@@ -2,9 +2,10 @@
 //! selecting a suffix does not decode or rewrite the rest of a subscriber list.
 use crate::{
     binding::Binding,
-    native_codec::{Address, Key, StoredValue, decimal, uuid_text},
+    index::{NativeIndex, TimeKey},
+    native_codec::{Address, Key, StoredValue, uuid_text},
+    native_range::{NativeBound, NativeRange, RangeKey},
     native_slice::{Attempt, Error, Result},
-    time_range::{TimeBound, TimeRange},
 };
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, ops::Bound};
@@ -17,37 +18,37 @@ use uuid::Uuid;
     rename_all = "snake_case",
     deny_unknown_fields
 )]
-pub enum Endpoint {
-    Time(#[serde(with = "decimal")] i64),
-    Through(#[serde(with = "decimal")] i64),
+pub enum Endpoint<K = TimeKey> {
+    Before(K),
+    Through(K),
     All,
 }
 
-impl Endpoint {
-    fn bound(self) -> TimeBound {
+impl<K: Clone> Endpoint<K> {
+    fn bound(&self) -> NativeBound<K> {
         match self {
-            Self::Time(at) => TimeBound::Excluded(at),
-            Self::Through(at) => TimeBound::Included(at),
-            Self::All => TimeBound::Unbounded,
+            Self::Before(at) => NativeBound::Excluded(at.clone()),
+            Self::Through(at) => NativeBound::Included(at.clone()),
+            Self::All => NativeBound::Unbounded,
         }
     }
 }
-impl Ord for Endpoint {
+impl<K: RangeKey> Ord for Endpoint<K> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.bound().upper_cut().cmp(&other.bound().upper_cut())
     }
 }
-impl PartialOrd for Endpoint {
+impl<K: RangeKey> PartialOrd for Endpoint<K> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 /// The route's sort position is the exact upper cut of its window.
-pub fn endpoint(range: TimeRange) -> Endpoint {
-    match range.upper {
-        TimeBound::Excluded(at) => Endpoint::Time(at),
-        TimeBound::Included(at) => Endpoint::Through(at),
-        TimeBound::Unbounded => Endpoint::All,
+pub fn endpoint<K: Clone>(range: &NativeRange<K>) -> Endpoint<K> {
+    match &range.upper {
+        NativeBound::Excluded(at) => Endpoint::Before(at.clone()),
+        NativeBound::Included(at) => Endpoint::Through(at.clone()),
+        NativeBound::Unbounded => Endpoint::All,
     }
 }
 
@@ -110,45 +111,63 @@ impl Header {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Order {
-    pub endpoint: Endpoint,
+pub struct Order<K: RangeKey = TimeKey> {
+    pub endpoint: Endpoint<K>,
     pub member: Address,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Node {
+pub struct Node<K: RangeKey = TimeKey> {
     pub route: Route,
-    pub key: Order,
-    pub range: TimeRange,
+    pub key: Order<K>,
+    pub range: NativeRange<K>,
     #[serde(with = "minimum_lower")]
-    pub min_lower: Option<TimeBound>,
+    pub min_lower: Option<NativeBound<K>>,
     pub left: Option<Address>,
     pub right: Option<Address>,
     pub height: u16,
 }
-// TimeBound::Unbounded encodes as null. Wrap present values so a subtree with
-// an unbounded nonempty interval remains distinct from an all-empty subtree.
+// Unbounded encodes as null; present wrappers distinguish an unbounded
+// nonempty subtree from one with no possibly nonempty registrations.
 mod minimum_lower {
-    use super::TimeBound;
+    use super::NativeBound;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     #[derive(Serialize, Deserialize)]
     #[serde(deny_unknown_fields)]
-    struct Present {
-        bound: TimeBound,
+    struct Present<K> {
+        bound: NativeBound<K>,
     }
-    pub fn serialize<S: Serializer>(value: &Option<TimeBound>, s: S) -> Result<S::Ok, S::Error> {
-        value.map(|bound| Present { bound }).serialize(s)
+    pub fn serialize<K: Serialize, S: Serializer>(
+        value: &Option<NativeBound<K>>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        value
+            .as_ref()
+            .map(|bound| Present {
+                bound: match bound {
+                    NativeBound::Unbounded => NativeBound::Unbounded,
+                    NativeBound::Included(k) => NativeBound::Included(k),
+                    NativeBound::Excluded(k) => NativeBound::Excluded(k),
+                },
+            })
+            .serialize(s)
     }
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<TimeBound>, D::Error> {
-        Ok(Option::<Present>::deserialize(d)?.map(|v| v.bound))
+    pub fn deserialize<'de, K: Deserialize<'de>, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<NativeBound<K>>, D::Error> {
+        Ok(Option::<Present<K>>::deserialize(d)?.map(|v| v.bound))
     }
 }
-fn minimum(a: Option<TimeBound>, b: Option<TimeBound>) -> Option<TimeBound> {
+fn minimum<K: RangeKey>(
+    a: Option<NativeBound<K>>,
+    b: Option<NativeBound<K>>,
+) -> Option<NativeBound<K>> {
     match (a, b) {
         (Some(a), Some(b)) => Some(if a.lower_cut() <= b.lower_cut() { a } else { b }),
         (a, b) => a.or(b),
     }
 }
+type NativeKey<B> = <<B as Binding>::Index as NativeIndex>::Key;
 
 fn broken(detail: &str) -> Error {
     Error::new("corrupt_state", detail)
@@ -188,7 +207,7 @@ fn node<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     route: Route,
     id: Address,
     original: bool,
-) -> Result<Node> {
+) -> Result<Node<NativeKey<B>>> {
     ws.charge("route", 1)?;
     match value(ws, &route.node_key(id), original)? {
         Some(StoredValue::RouteNode(n)) if n.route == route && n.key.member == id => Ok(n),
@@ -206,8 +225,8 @@ fn height<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 }
 fn save<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
-    mut n: Node,
-) -> Result<Node> {
+    mut n: Node<NativeKey<B>>,
+) -> Result<Node<NativeKey<B>>> {
     let left = n.left.map(|id| node(ws, n.route, id, false)).transpose()?;
     let right = n.right.map(|id| node(ws, n.route, id, false)).transpose()?;
     n.height = 1 + left
@@ -215,7 +234,7 @@ fn save<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         .map_or(0, |n| n.height)
         .max(right.as_ref().map_or(0, |n| n.height));
     n.min_lower = minimum(
-        (!n.range.is_empty()).then_some(n.range.lower),
+        (!n.range.is_empty()).then_some(n.range.lower.clone()),
         minimum(
             left.and_then(|n| n.min_lower),
             right.and_then(|n| n.min_lower),
@@ -230,7 +249,7 @@ fn save<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 }
 fn rotate<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
-    mut n: Node,
+    mut n: Node<NativeKey<B>>,
     left: bool,
 ) -> Result<Address> {
     let pivot =
@@ -249,7 +268,7 @@ fn rotate<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 }
 fn balance<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
-    mut n: Node,
+    mut n: Node<NativeKey<B>>,
 ) -> Result<Address> {
     let difference =
         i32::from(height(ws, n.route, n.left)?) - i32::from(height(ws, n.route, n.right)?);
@@ -286,12 +305,13 @@ fn attach<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     route: Route,
     head: Option<Address>,
-    key: Order,
-    range: TimeRange,
+    key: Order<NativeKey<B>>,
+    range: NativeRange<NativeKey<B>>,
     depth: u16,
 ) -> Result<Address> {
     depth_check(depth)?;
     let Some(head) = head else {
+        let member = key.member;
         save(
             ws,
             Node {
@@ -304,7 +324,7 @@ fn attach<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
                 height: 1,
             },
         )?;
-        return Ok(key.member);
+        return Ok(member);
     };
     let mut n = node(ws, route, head, false)?;
     if key < n.key {
@@ -321,7 +341,7 @@ fn take_first<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     route: Route,
     head: Address,
     depth: u16,
-) -> Result<(Option<Address>, Node)> {
+) -> Result<(Option<Address>, Node<NativeKey<B>>)> {
     depth_check(depth)?;
     let mut n = node(ws, route, head, false)?;
     if let Some(left) = n.left {
@@ -337,7 +357,7 @@ fn detach<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     route: Route,
     head: Option<Address>,
-    key: Order,
+    key: Order<NativeKey<B>>,
     depth: u16,
 ) -> Result<Option<Address>> {
     depth_check(depth)?;
@@ -366,11 +386,12 @@ pub fn change<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     key: &Key,
     member: Address,
-    range: TimeRange,
+    range: impl Into<NativeRange<NativeKey<B>>>,
     add: bool,
 ) -> Result<()> {
+    let range = range.into();
     let route = Route::from_key(key)?;
-    if !matches!(route, Route::Subscribers(_)) && range != TimeRange::ALL {
+    if !matches!(route, Route::Subscribers(_)) && range != NativeRange::ALL {
         return Err(broken("non-subscriber route window"));
     }
     let mut h = header(ws, route, false)?.ok_or_else(|| broken("missing reverse route header"))?;
@@ -378,10 +399,10 @@ pub fn change<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         return Err(broken("non-subscriber bounded route count"));
     }
     let order = Order {
-        endpoint: endpoint(range),
+        endpoint: endpoint(&range),
         member,
     };
-    let bounded = u32::from(range.lower != TimeBound::Unbounded);
+    let bounded = u32::from(range.lower != NativeBound::Unbounded);
     if add {
         if ws.get(&route.node_key(member))?.is_some() {
             return Err(broken("existing registration identity"));
@@ -419,8 +440,8 @@ pub fn change<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 pub fn select<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     key: &Key,
-    lower: Bound<Endpoint>,
-    upper: Bound<Endpoint>,
+    lower: Bound<Endpoint<NativeKey<B>>>,
+    upper: Bound<Endpoint<NativeKey<B>>>,
     original: bool,
 ) -> Result<Vec<Address>> {
     let route = Route::from_key(key)?;
@@ -436,14 +457,14 @@ pub fn select<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         }
         ws.charge("select", 1)?;
         let n = node(ws, route, id, original)?;
-        let below = match lower {
-            Bound::Included(v) => n.key.endpoint < v,
-            Bound::Excluded(v) => n.key.endpoint <= v,
+        let below = match &lower {
+            Bound::Included(v) => &n.key.endpoint < v,
+            Bound::Excluded(v) => &n.key.endpoint <= v,
             Bound::Unbounded => false,
         };
-        let above = match upper {
-            Bound::Included(v) => n.key.endpoint > v,
-            Bound::Excluded(v) => n.key.endpoint >= v,
+        let above = match &upper {
+            Bound::Included(v) => &n.key.endpoint > v,
+            Bound::Excluded(v) => &n.key.endpoint >= v,
             Bound::Unbounded => false,
         };
         if !below && !above {
@@ -478,7 +499,7 @@ pub fn collect<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 pub fn stab<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     key: &Key,
-    at: i64,
+    at: &NativeKey<B>,
     original: bool,
 ) -> Result<Vec<Address>> {
     let route = Route::from_key(key)?;
@@ -488,14 +509,18 @@ pub fn stab<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     }
     let mut found = vec![];
     let mut seen = BTreeSet::new();
-    let point = TimeBound::Included(at).lower_cut();
+    let point_bound = NativeBound::Included(at.clone());
+    let point = point_bound.lower_cut();
     while let Some(id) = stack.pop() {
         if !seen.insert(id) {
             return Err(broken("reverse route traversal cycle"));
         }
         ws.charge("select", 1)?;
         let n = node(ws, route, id, original)?;
-        if n.min_lower.is_none_or(|lower| lower.lower_cut() > point) {
+        if n.min_lower
+            .as_ref()
+            .is_none_or(|lower| lower.lower_cut() > point)
+        {
             continue;
         }
         if n.range.contains(at) {
@@ -503,7 +528,7 @@ pub fn stab<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         }
         // Every upper endpoint in the left subtree is <= this endpoint.
         // A through endpoint includes `at`, while a before endpoint does not.
-        if n.key.endpoint > Endpoint::Time(at)
+        if n.key.endpoint > Endpoint::Before(at.clone())
             && let Some(left) = n.left
         {
             stack.push(left);

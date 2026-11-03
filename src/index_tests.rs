@@ -87,7 +87,7 @@ fn native_query_port_preserves_standard_scalar_wire_and_rejects_statistics() {
             operation: operation.into(),
             phase: "calculate".into(),
             channel: channel.into(),
-            range,
+            range: (range).into(),
             selected,
             result,
         };

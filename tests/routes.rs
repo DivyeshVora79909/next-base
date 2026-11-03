@@ -17,8 +17,8 @@ fn addr(n: u128, slot: u16) -> Address {
 }
 fn range(endpoint: Endpoint) -> TimeRange {
     match endpoint {
-        Endpoint::Time(at) => TimeRange::before(at),
-        Endpoint::Through(at) => TimeRange::through(at),
+        Endpoint::Before(at) => TimeRange::before(at.0),
+        Endpoint::Through(at) => TimeRange::through(at.0),
         Endpoint::All => TimeRange::ALL,
     }
 }
@@ -58,7 +58,7 @@ fn check(bytes: &Bytes, expected: &Expected, owners: &[Route]) {
             panic!("registration type");
         };
         assert_eq!((n.route, n.key.endpoint), expected[&id]);
-        assert_eq!(n.range, range(expected[&id].1));
+        assert_eq!(n.range, range(expected[&id].1).into());
         assert_eq!(n.key.member, id);
         assert_eq!(route, n.route);
         assert!(lower.is_none_or(|v| v < n.key) && upper.is_none_or(|v| n.key < v));
@@ -131,11 +131,11 @@ fn ordered_routes_preserve_old_and_new_memberships_through_rotations_and_moves()
     }
     let mut expected = Expected::new();
     let endpoints = [
-        Endpoint::Time(i64::MIN),
-        Endpoint::Time(-1),
-        Endpoint::Time(0),
-        Endpoint::Time(1),
-        Endpoint::Time(i64::MAX),
+        Endpoint::Before((i64::MIN).into()),
+        Endpoint::Before((-1).into()),
+        Endpoint::Before((0).into()),
+        Endpoint::Before((1).into()),
+        Endpoint::Before((i64::MAX).into()),
         Endpoint::All,
     ];
     for i in 0..96 {
@@ -163,14 +163,17 @@ fn ordered_routes_preserve_old_and_new_memberships_through_rotations_and_moves()
         for route in owners {
             for (lower, upper) in [
                 (Bound::Unbounded, Bound::Unbounded),
-                (Bound::Excluded(Endpoint::Time(i64::MAX)), Bound::Unbounded),
                 (
-                    Bound::Included(Endpoint::Time(0)),
-                    Bound::Excluded(Endpoint::Time(1)),
+                    Bound::Excluded(Endpoint::Before((i64::MAX).into())),
+                    Bound::Unbounded,
                 ),
                 (
-                    Bound::Excluded(Endpoint::Time(i64::MIN)),
-                    Bound::Included(Endpoint::Time(0)),
+                    Bound::Included(Endpoint::Before((0).into())),
+                    Bound::Excluded(Endpoint::Before((1).into())),
+                ),
+                (
+                    Bound::Excluded(Endpoint::Before((i64::MIN).into())),
+                    Bound::Included(Endpoint::Before((0).into())),
                 ),
             ] {
                 for (original, source) in [(true, &old), (false, &expected)] {
@@ -216,11 +219,11 @@ fn endpoint_rewrites_keep_original_snapshot_and_exact_endpoint_bounds() {
     let route = Route::Subscribers(addr(900, 2));
     let mut bytes = empty_routes(&[route]);
     let endpoints = [
-        Endpoint::Time(i64::MIN),
-        Endpoint::Time(-1),
-        Endpoint::Time(0),
-        Endpoint::Time(1),
-        Endpoint::Time(i64::MAX),
+        Endpoint::Before((i64::MIN).into()),
+        Endpoint::Before((-1).into()),
+        Endpoint::Before((0).into()),
+        Endpoint::Before((1).into()),
+        Endpoint::Before((i64::MAX).into()),
         Endpoint::All,
     ];
     let mut expected = Expected::new();
@@ -240,8 +243,8 @@ fn endpoint_rewrites_keep_original_snapshot_and_exact_endpoint_bounds() {
     // both signed extremes. Original traversal must ignore every staged relink.
     for next in [
         Endpoint::All,
-        Endpoint::Time(i64::MIN),
-        Endpoint::Time(i64::MAX),
+        Endpoint::Before((i64::MIN).into()),
+        Endpoint::Before((i64::MAX).into()),
     ] {
         let id = addr(1, 31);
         let (_, previous) = expected[&id];
@@ -333,7 +336,7 @@ fn narrow_selection_loads_only_a_balanced_path_at_gate_population() {
     let mut ws = Workspace::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 5_000_000);
     for i in 0..4096 {
         let id = addr(i + 1, 31);
-        let endpoint = Endpoint::Time(i as i64);
+        let endpoint = Endpoint::Before((i as i64).into());
         routes::change(&mut ws, &route.key(), id, range(endpoint), true).unwrap();
         expected.insert(id, (route, endpoint));
     }
@@ -347,7 +350,7 @@ fn narrow_selection_loads_only_a_balanced_path_at_gate_population() {
             routes::select(
                 &mut ws,
                 &route.key(),
-                Bound::Excluded(Endpoint::Time(at)),
+                Bound::Excluded(Endpoint::Before((at).into())),
                 Bound::Unbounded,
                 false
             )
