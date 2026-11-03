@@ -60,10 +60,12 @@ Re-evaluate current authority where existing worker/receipt contracts require it
 
 Reference repository: `/workspace/ReBase`, read-only inspiration. It is not the target.
 `designs/rebase-system/developer-blueprint.md:62` describes ordinary owner/action scope.
-`framework/authentication.surql:13-22` provides a concrete table Update permission
-checking existing ownership and a field assertion checking the proposed owner. The
-email/phone login identity fields at lines 79/120 are explicitly READONLY. Do not infer
-universal ownership mutability or full semantic parity from one ordinary-table example.
+`framework/authentication.surql:13-23` checks ownership in table permissions and
+asserts access to the proposed owner, BUT its owner field explicitly has
+`FOR update NONE`. It therefore does NOT demonstrate a permitted owner transfer.
+Email/phone login identity fields at lines 79/120 are also explicitly READONLY.
+Verify the actual generated ordinary-table clauses and their before/after behavior
+before claiming legacy parity; this small audit did not establish that runtime behavior.
 
 This audit was small, not a whole-system proof. Compare relevant legacy semantics by
 obligation: tenant/type/existence, old/new authority, reverse references/deletion,
