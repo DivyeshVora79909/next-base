@@ -42,7 +42,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const tableNames = Object.keys(backup.payload.tables).sort();
   requireThat([...REQUIRED_TABLES].every(name => tableNames.includes(name))
     && (tableNames.length === 11 || (tableNames.length === 13
-      && tableNames.includes('authority') && tableNames.includes('reader_records'))), 'backup application table inventory differs');
+      && tableNames.includes('authority') && tableNames.includes('owner_records'))), 'backup application table inventory differs');
   for (const [name, tableRows] of Object.entries(backup.payload.tables)) {
     requireThat(Array.isArray(tableRows) && tableRows.length <= maxRows, `table ${name} exceeds the bounded inventory`);
     const tableKeys = new Set();
@@ -82,6 +82,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       requireThat(JSON.stringify(value) === valueText, 'non-tree native value bytes are not compact JSON');
     }
     if (decodedKey.type === 'record') {
+      requireThat(!Object.hasOwn(value.data, 'reader'), 'obsolete source reader field');
       recordsById.set(decodedKey.id, value.data);
       observation.records.push({ id: decodedKey.id, record: value.data });
     }
@@ -97,6 +98,29 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       observation.roots.push({ root: decodedKey.address, revision: value.data.revision, summary: value.data.summary });
     }
     else nodes.set(token, { address: decodedKey.address, value: value.data });
+  }
+  // Public source records define the complete owner catalog. Managed outputs
+  // remain native records but are deliberately absent from both catalogs.
+  const expectedOwners = new Map();
+  for (const row of backup.payload.tables.public_records) {
+    exactKeys(row, ['key', 'contract'], 'public index row');
+    const idBytes = decodeHex(row.key, 'public index key');
+    requireThat(idBytes.length === 16, 'invalid public index key');
+    const record = recordsById.get(formatUuid(idBytes));
+    requireThat(record !== undefined, 'public index has no source record');
+    requireThat(Number.isInteger(row.contract) && row.contract > 0 && row.contract <= 65535
+      && record.contract === row.contract, 'public index contract differs');
+    requireThat(typeof record.owner === 'string' && UUID.test(record.owner), 'source owner is invalid');
+    const key = `${record.owner.replaceAll('-', '')}${row.contract.toString(16).padStart(4, '0')}${row.key}`;
+    expectedOwners.set(key, row.contract);
+  }
+  if (backup.payload.tables.owner_records !== undefined) {
+    const owners = backup.payload.tables.owner_records;
+    requireThat(owners.length === expectedOwners.size, 'owner index inventory size differs');
+    for (const row of owners) {
+      exactKeys(row, ['key', 'contract'], 'owner index row');
+      requireThat(expectedOwners.get(row.key) === row.contract, 'owner index differs from public source authority');
+    }
   }
   for (const claim of uniqueClaims) {
     const holder = recordsById.get(claim.holder);

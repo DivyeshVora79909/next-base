@@ -44,36 +44,3 @@ pub fn evaluation_order(fields: &[Field]) -> Result<Vec<usize>, String> {
     }
     Ok(order)
 }
-
-/// Select the first candidate that strictly dominates no other candidate.
-/// The fallback is the resource owner and participates before relation owners.
-pub fn choose_reader<T: Copy + Eq>(
-    candidates: &[T],
-    fallback: T,
-    dominates: impl Fn(T, T) -> bool,
-) -> T {
-    std::iter::once(fallback)
-        .chain(candidates.iter().copied())
-        .find(|&candidate| {
-            !std::iter::once(fallback)
-                .chain(candidates.iter().copied())
-                .any(|other| {
-                    candidate != other
-                        && dominates(candidate, other)
-                        && !dominates(other, candidate)
-                })
-        })
-        .unwrap_or(fallback)
-}
-
-#[cfg(test)]
-mod reader_tests {
-    use super::choose_reader;
-
-    #[test]
-    fn stable_minimal_survivor_and_resource_owner() {
-        assert_eq!(choose_reader(&[0, 1, 2], 0, |a, b| a == 0 && b == 2), 1);
-        assert_eq!(choose_reader(&[0], 2, |a, b| a == 0 && b == 2), 2);
-        assert_eq!(choose_reader(&[1, 1, 2], 0, |_, _| false), 0);
-    }
-}

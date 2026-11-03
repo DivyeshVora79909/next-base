@@ -37,10 +37,10 @@ derives expected records/roles/memberships/routes/queries from complete
 source observations, checks scalar equations and final causal edges including
 zero contributions, and verifies actual AVL order, links, balance, neighbours,
 exact subtree/root summaries and historical floors. It also checks authority
-scopes, complete public/reader indexes, separate population/reservation counts,
+scopes, complete public/owner indexes, separate population/reservation counts,
 bounded query epochs and the exact receipt/slot bijection.
 It calls no tree writer/rotation/settlement/query traversal. It reuses the
-independently tested summary algebra and reader-fold primitive. This is a
+independently tested summary algebra and owner-scope derivation. This is a
 current-state verifier; it cannot reconstruct the historical truth of every old
 receipt without past source history. The separate Python acceptance oracles
 still verify calculation fixture histories and rollback independently. Equipment
@@ -144,7 +144,7 @@ operator function and has no network RPC counterpart.
 
 The last verified deployment bundle, 0.6.0, uses store format
 `rebase-store-4` and native codec `native-slice-kv-4`. Current source uses store
-format `rebase-store-10`, native codec `native-slice-kv-9`, effect codec
+format `rebase-store-10`, native codec `native-slice-kv-12`, effect codec
 `rebase-effects-4` and API 4; its store header, model identity and configured
 model limits must match. One store holds one selected
 compiled model.
@@ -170,7 +170,7 @@ normal mutations do not scan inventory. Domain writes have no global mutation se
 | Record `version` / command `if_version` | Canonical nonnil UUID for equality-only compare-and-set. Changed records get a fresh mutation token; unchanged records retain theirs. |
 | Root `revision` | Canonical nonnil UUID identifying that root's current stored state. |
 | Mutation/cancellation result `revision` | Fresh UUID for the committed operation, retained unchanged by its receipt. A genuine no-op has a new result token while unchanged records/roots keep theirs. |
-| Page/exists `revision` | Lowercase SHA-256 digest of selected reader/contract epochs and, for secured stores, the authority administration revision. |
+| Page/exists `revision` | Lowercase SHA-256 digest of selected owner/contract epochs and, for secured stores, the authority administration revision. |
 | Access `revision` / `if_revision` | Canonical decimal string counter for graph administration only. Domain mutations do not advance it. |
 | Execution `revision` / cancellation `if_revision` | Ordered per-execution decimal-string fence; distinct from the cancellation result UUID. |
 
@@ -182,7 +182,7 @@ semantics are described in the [operation reference](local-prototype.md#query-an
 The current compiled bindings have static behavior revisions recorded in
 [compiled models](compiled-models.md). Computed model identity also includes
 resolved declarations, schemas and configured limits. The current native codec
-is `native-slice-kv-8`. Stores with older codec or model identities are
+is `native-slice-kv-12`. Stores with older codec or model identities are
 rejected; there is no automatic migration. New compatible stores are required
 when either identity changes.
 

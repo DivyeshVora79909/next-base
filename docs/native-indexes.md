@@ -52,8 +52,8 @@ reject. No unit conversion is implicit.
 
 An Instrument owns root slot 7, `observations`, using native index code 7. Each
 Observation joins it through membership slot 17. Observations reference an
-Instrument, and their reader follows the declared reference-owner policy.
-Both consumers inherit their reader through the same reference and declare
+Instrument. Owner-only access does not infer ownership through that reference; root/member
+read permission follows the declared root and record owners. Both consumers declare
 their direct dependency on the Instrument's authored unit. They have no root,
 membership or private output. Current compiled models set no population ceiling;
 configured work, request, storage and inventory limits remain independent bounds.

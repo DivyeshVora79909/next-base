@@ -46,9 +46,13 @@ do not impose that policy on every workstation. Keep user updates concise.
 ## Correctness to preserve
 
 - Resolve signed tenant/subject and current authority in transaction scope.
-  Owner controls writes; reader controls disclosure. Check client actions and
-  reference access. Trusted balancing/derivation may touch hidden records but
-  cannot disclose them or authorize extra client mutations.
+  Records have an owner only. Read/Create/Update require same tenant, the action,
+  and owner accessibility (self, strict descendants, and direct group parents only).
+  Direct tenant-parent records are excluded from ordinary scope; tenant-grant inheritance
+  remains a separate legacy rule. Delete permits self or strict descendants only. Admin
+  actions do not widen ordinary scope. Create may specify canonical UUID `owner` (default
+  actor), authorized against the requested owner; Update cannot change owner. Trusted balancing/derivation may validate
+  hidden records but cannot disclose them or authorize extra client mutations.
 - Stage source, typed references, memberships, summaries, dependency effects,
   authority repairs, receipts and applicable effect intent; commit once.
   Preserve final-graph causality, zero-output dependencies and exact arithmetic.

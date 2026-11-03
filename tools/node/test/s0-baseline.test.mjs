@@ -17,13 +17,13 @@ function uuid5(name){const bytes=createHash('sha1').update(Buffer.from('6ba7b812
 const files=[{path:'src/test.rs',sha256:'a'.repeat(64)}];
 const source={kind:'working-tree',baseCommit:'b'.repeat(40),binarySha256:'c'.repeat(64),probeInputSha256:hash(`src/test.rs\0${'a'.repeat(64)}\n`),probeInputCount:1,probeInputs:structuredClone(files)};
 const options={manifest,manifestBytes,inputBytes,traceSchema,source};
-const work=()=>Object.fromEntries(['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','reader_checks','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'].map(k=>[k,0]));
+const work=()=>Object.fromEntries(['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'].map(k=>[k,0]));
 function run(){
   const corpus=inputs.corpora[0],derived=deriveS0Action(corpus,'prefix'),root={id:corpus.nByRoot[0].owner,slot:2},member={id:derived.beforeMembers[0].id,slot:1};
   const revision='dddddddd-dddd-4ddd-8ddd-dddddddddddd',summary={kind:'financial',value:derived.beforeRoots[0].summary};
   const key=(tag,id,slot)=>`${tag.toString(16).padStart(2,'0')}${id.replaceAll('-','')}${slot===undefined?'':slot.toString(16).padStart(4,'0')}`;
   const row=(key,type,data)=>{const decoded={type,data};return{key,value:Buffer.from(JSON.stringify(decoded)).toString('hex'),decoded};};
-  const rows=corpus.setupCommands.map(command=>row(key(1,command.id),'record',{contract:command.contract,tenant:corpus.tenant,owner:corpus.actor,reader:corpus.actor,version:revision,input:command.fields,derived:null}));
+  const rows=corpus.setupCommands.map(command=>row(key(1,command.id),'record',{contract:command.contract,tenant:corpus.tenant,owner:corpus.actor,version:revision,input:command.fields,derived:null}));
   rows.push(row(key(2,root.id,root.slot),'root',{kind:1,head:member,first:member,last:member,height:1,size:1,span:{first:'0',last:'0'},summary,revision}));
   rows.push(row(key(3,member.id,member.slot),'node',{kind:1,root,key:{value:'0',id:member.id,slot:1},leaf:{kind:'financial',value:'1'},parent:null,left:null,right:null,prev:null,next:null,height:1,size:1,span:{first:'0',last:'0'},summary}));
   const snapshot={complete:true,tables:['native_kv'],rows};
@@ -73,7 +73,7 @@ test('S0 posting revalue checks both financial memberships and quote membership 
     const rows=records.map(record=>{
       const amounts=financial.filter(member=>member.id===record.id);
       const recordDerived=record.contract===6?{native_minor:amounts.find(m=>m.slot===1).amount,reporting_minor:amounts.find(m=>m.slot===2).amount}:null;
-      return encode(nativeKey(1,record.id),{type:'record',data:{contract:record.contract,tenant:corpus.tenant,owner:corpus.actor,reader:corpus.actor,version:recordRevision,input:record.fields,derived:recordDerived}});
+      return encode(nativeKey(1,record.id),{type:'record',data:{contract:record.contract,tenant:corpus.tenant,owner:corpus.actor,version:recordRevision,input:record.fields,derived:recordDerived}});
     });
     const trees=[{kind:2,owner:corpus.setupCommands.find(c=>c.contract===2).id,slot:1,members:corpus.setupCommands.filter(c=>c.contract===3).map(c=>({id:c.id,slot:3,time:c.fields.at,leaf:{kind:'quote',value:c.fields.rate}})),summaryKind:'quote'}];
     for(const root of roots)trees.push({kind:1,owner:root.owner,slot:root.slot,members:financial.filter(member=>member.owner===root.owner&&member.rootSlot===root.slot).map(member=>({id:member.id,slot:member.slot,time:member.key,leaf:{kind:'financial',value:member.amount}})),summaryKind:'financial',summary:root.summary});

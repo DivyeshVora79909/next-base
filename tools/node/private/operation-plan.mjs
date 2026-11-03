@@ -15,6 +15,17 @@ export function validateOperationDraft(draft) {
     || !Array.isArray(draft.returning) || draft.returning.length > 32) {
     throw rpcError('invalid_plan', 'Draft requires model, 1-64 commands, up to 32 returning IDs, and optional fixture metadata');
   }
+  for (const command of draft.commands) {
+    const keys = command?.op === 'create' ? ['op', 'id', 'contract', 'fields']
+      : command?.op === 'update' ? ['op', 'id', 'if_version', 'set', 'unset']
+        : command?.op === 'delete' ? ['op', 'id', 'if_version'] : null;
+    if (!isObject(command) || keys === null
+      || !keys.every(key => Object.hasOwn(command, key))
+      || Object.keys(command).some(key => !keys.includes(key) && !(command.op === 'create' && key === 'owner'))) {
+      throw rpcError('invalid_plan', 'Invalid mutation command fields');
+    }
+    if (Object.hasOwn(command, 'owner')) validateUuid(command.owner, 'create.owner');
+  }
   for (const id of draft.returning) validateUuid(id, 'returning ID');
   if (new Set(draft.returning).size !== draft.returning.length) throw rpcError('invalid_plan', 'Duplicate returning ID');
   encodeJson(draft, MAX_REQUEST_BYTES);

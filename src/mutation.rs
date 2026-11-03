@@ -184,7 +184,10 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         }
         let new = match command {
             Command::Create {
-                contract, fields, ..
+                contract,
+                owner,
+                fields,
+                ..
             } => {
                 let declaration = model.contract(*contract)?;
                 if declaration.visibility == Visibility::Engine
@@ -210,8 +213,8 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                 Some(ModelRecord {
                     contract: *contract,
                     tenant: context.tenant,
-                    owner: context.actor,
-                    reader: context.actor,
+                    owner: owner.unwrap_or(context.actor),
+
                     version: revision,
                     input,
                     derived: None,
@@ -374,9 +377,8 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             }
         }
     }
-    // Trusted settlement and reader repair do not authorize client mutations.
-    // Resolve readers first, then authorize only the original client commands
-    // against their final records and references.
+    // Trusted settlement does not authorize client mutations. Authorize only
+    // the original client commands against their final records and references.
     finalize(ws, revision)?;
     for (command, change) in commands.iter().zip(&changes) {
         let current = ws.record(change.id)?;
@@ -477,6 +479,7 @@ mod tests {
         };
         let id = Uuid::from_u128(3);
         let create = || Command::Create {
+            owner: None,
             id,
             contract: SOURCE,
             fields: json!({"value":"1"}),

@@ -62,8 +62,8 @@ The response includes `owner`, `slot` and an opaque UUID root `revision`.
 Compare revision tokens only for equality; no global store revision is returned.
 Its `value` contains `count`, `sum`, `complete_min`, `first` and `last`; amounts
 and timestamps are decimal strings, while `first` and `last` are null
-for an empty result. The server applies the same current root-owner and reader
-authority checks as other root reads. The client cannot provide a comparator,
+for an empty result. The server requires Read action and owner accessibility for the root. The declared public
+summary may include hidden contributors; this grants no leaf/body/ID reads. The client cannot provide a comparator,
 function or undeclared predicate. Count is a bounded JSON integer. The minimum
 is relative to a zero starting balance for the selected window. Quote roots do
 not expose financial ranges.

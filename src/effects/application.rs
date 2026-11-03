@@ -145,27 +145,7 @@ impl<B: Binding> Store<B> {
                     }
                     Ok(())
                 },
-                &mut |ws, revision| {
-                    if self.secured {
-                        let ids = ws.changed_records();
-                        let mut dominance = BTreeMap::new();
-                        crate::security::repair_readers(
-                            ws,
-                            self.model(),
-                            ids,
-                            revision,
-                            &mut |owners, fallback| {
-                                crate::security::stored_reader(
-                                    &write,
-                                    owners,
-                                    fallback,
-                                    &mut dominance,
-                                )
-                            },
-                        )?;
-                    }
-                    Ok(())
-                },
+                &mut |_, _| Ok(()),
             )?;
 
             (ws.finish()?, settled.revision)

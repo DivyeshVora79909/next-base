@@ -285,7 +285,6 @@ mod tests {
                 contract.calculations.clear();
                 contract.calculation_order.clear();
                 for relation in &mut contract.references {
-                    relation.reader = false;
                     relation.targets = vec![SOURCE];
                     relation.validation_fields = vec!["value"];
                 }
@@ -339,7 +338,6 @@ mod tests {
             contract: input.contract(),
             tenant: id(1),
             owner: id(2),
-            reader: id(2),
             version: id(3),
             input,
             derived: None,
@@ -516,7 +514,6 @@ mod tests {
             contract: SOURCE,
             tenant: id(1),
             owner: id(2),
-            reader: id(2),
             version: id(3),
             input: Annotated {
                 input: Input::Source { value: 1 },

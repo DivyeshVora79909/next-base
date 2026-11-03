@@ -187,7 +187,6 @@ fn reference(slot: u16, field: &'static str, targets: Vec<u16>) -> Reference {
         direct_fields: vec![],
         validation_fields: vec![],
         on_delete: "reject",
-        reader: false,
     }
 }
 fn contract(code: u16, name: &'static str, fields: &[&'static str], properties: Value) -> Contract {

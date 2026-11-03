@@ -124,7 +124,7 @@ success, erase a blocked diagnostic or repeat an applied result.
 
 `effects.status {model, execution_id}` returns safe request/outcome, source,
 target, numeric execution revision, schedule, phase, application, budgets, diagnostic and provider
-key to a current Account reader; unavailable rows return `null`. Remote phase
+key to a current owner-accessible Account; unavailable rows return `null`. Remote phase
 and application are separate: `succeeded` can be `pending`, `blocked` or `applied`.
 Offline checks also report blocked/uncertain counts, expired leases and oldest
 eligible age.
@@ -162,7 +162,7 @@ Limits: 64 unresolved /256 retained executions, 1,024 facts, 1 KiB requests,
 8 MiB accounted private bytes. Each
 nonterminal execution reserves one fact slot and 4 KiB for its terminal result;
 discretionary observations cannot spend another row's reserve. Applications use
-the existing 200,000-unit engine budget, invariants and reader/index repair.
+the existing 200,000-unit engine budget, invariants and owner/index maintenance.
 Duplicate facts consume no second slot. Contradictory terminal facts remain
 conflict evidence and cannot overwrite applied success.
 

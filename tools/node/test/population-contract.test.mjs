@@ -97,6 +97,9 @@ test('binding validates complete plans and rejects mutation and reordered receip
   });
   const rows = await propose(clean, {});
   const boundPlan = planFor(rows, '66666666-6666-4666-8666-666666666666');
+  const changedOwner = structuredClone(boundPlan);
+  changedOwner.request.commands[0].owner = target.actor;
+  assert.throws(() => { clean.pending.plan = changedOwner; }, error => error.code === 'plan_mismatch');
   clean.pending.plan = boundPlan;
   const reversed = [...rows.returning].reverse();
   assert.throws(() => accept(clean, rows, boundPlan, {

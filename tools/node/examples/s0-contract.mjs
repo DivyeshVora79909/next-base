@@ -230,9 +230,9 @@ export function deriveS0Action(corpus, actionId) {
 }
 
 export function checkS0Work(trace, work) {
-  const fields = ['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','reader_checks','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'];
+  const fields = ['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'];
   requireThat(work && Object.keys(work).length === fields.length && fields.every(field => Number.isSafeInteger(work[field]) && work[field] >= 0), 'Work requires exact bounded counters');
-  const charged = ['command_visits','route_entries','selector_visits','node_visits','key_loads','staged_patches','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','reader_checks','inventory_visits','allocations'];
+  const charged = ['command_visits','route_entries','selector_visits','node_visits','key_loads','staged_patches','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','inventory_visits','allocations'];
   const total = charged.reduce((sum, field) => sum + BigInt(work[field]), 0n);
   requireThat(total === BigInt(work.work_units), 'Work charged total mismatch');
   for (const [field, counter] of Object.entries({key_loads:'attemptLoadAttempts',loaded_bytes:'attemptLoadedValueBytes',node_visits:'nodeVisits',selector_visits:'selectorVisits'})) requireThat(work[field] === trace.counters[counter], `Work ${field} differs from trace`);

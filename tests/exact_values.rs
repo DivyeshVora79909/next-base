@@ -165,7 +165,6 @@ impl Binding for ExactEntries {
                     direct_fields: vec![],
                     validation_fields: vec![],
                     on_delete: "reject",
-                    reader: true,
                 });
                 contract.memberships.push(Membership {
                     slot: 13,

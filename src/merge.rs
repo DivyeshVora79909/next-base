@@ -5,7 +5,7 @@ pub type OrderKey = (i64, u128);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Entry {
     pub key: OrderKey,
-    pub reader: u16,
+    pub owner: u16,
 }
 
 #[derive(Debug)]

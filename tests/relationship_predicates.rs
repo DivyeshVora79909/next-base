@@ -77,7 +77,7 @@ impl Binding for Schedule {
                     "properties":{"kind":{"type":"integer","enum":[code]},"parent":{"type":["string","null"],"x-rebase-binding":"uuid"},"parent_kind":{"type":"integer"},"at":{"type":"integer"},"amount":{"type":"integer"},"start":{"type":"integer"},"end":{"type":"integer"},"limit":{"type":"integer"},"body":{"type":"string"}},
                     "required":["kind","parent","parent_kind","at","amount","start","end","limit","body"]}),
                 fields:["kind","parent","parent_kind","at","amount","start","end","limit","body"].into_iter().enumerate().map(|(i,name)| InputField {code:i as u16+1,name,mutable:name!="kind"}).collect(),
-                references:if code==21 { vec![Reference {slot:1,field:"parent",targets:vec![11,12],optional:true,direct_fields:vec![],validation_fields:vec!["start","end","limit"],on_delete:"reject",reader:false}] } else {vec![]},
+                references:if code==21 { vec![Reference {slot:1,field:"parent",targets:vec![11,12],optional:true,direct_fields:vec![],validation_fields:vec!["start","end","limit"],on_delete:"reject",}] } else {vec![]},
                 published:vec![],uniqueness:vec![],roots:vec![],memberships:vec![],queries:vec![],publication_inputs:vec![],outputs:vec![],calculations:vec![],calculation_order:vec![],rules:vec![],schema_source:"tests/relationship_predicates.rs",behavior_source:"tests/relationship_predicates.rs"}
         }).collect())
     }

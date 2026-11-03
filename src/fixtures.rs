@@ -60,6 +60,7 @@ fn prepare(model: &PreparedModel, mut recipe: Recipe, namespace: Uuid) -> Result
             id,
             contract,
             fields,
+            ..
         } = command
         else {
             return Err(error("a seed recipe contains only authored creates"));

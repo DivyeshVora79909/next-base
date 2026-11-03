@@ -268,7 +268,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>) -> Result<Value> {
     let apply = candidate(&store, first, WorkClass::Apply)?;
     for (name, abort) in [
         ("application-first-native-write-abort", 1),
-        ("application-native-public-reader-abort", usize::MAX - 5),
+        ("application-native-public-owner-abort", usize::MAX - 5),
         ("application-fact-revision-abort", usize::MAX - 4),
         ("application-due-abort", usize::MAX - 2),
         ("application-execution-abort", usize::MAX - 1),

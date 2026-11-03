@@ -27,12 +27,12 @@ use crate::{
 pub(crate) const EPOCHS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("query_epochs");
 pub(crate) const MAX_EPOCHS: usize = crate::binding::MAX_INVENTORY_ROWS;
 
-fn epoch_key(reader: Uuid, contract: u16) -> Vec<u8> {
-    [reader.as_bytes().as_slice(), &contract.to_be_bytes()].concat()
+fn epoch_key(owner: Uuid, contract: u16) -> Vec<u8> {
+    [owner.as_bytes().as_slice(), &contract.to_be_bytes()].concat()
 }
 
 /// Epochs follow public projections, including derived-only edits and both
-/// partitions when a reader moves. No-op batches write no epochs.
+/// partitions when a owner moves. No-op batches write no epochs.
 pub(crate) fn publish_epochs<B: Binding>(
     write: &WriteTransaction,
     model: &Prepared<B>,
@@ -53,18 +53,18 @@ pub(crate) fn publish_epochs<B: Binding>(
                     return Err(corrupt("query epoch record type"));
                 };
                 if model.contract(record.contract)?.visibility == Visibility::Public {
-                    changed.insert((record.reader, record.contract));
+                    changed.insert((record.owner, record.contract));
                 }
             }
         }
     }
     if !changed.is_empty() {
         let mut epochs = write.open_table(EPOCHS)?;
-        for (reader, contract) in changed {
+        for (owner, contract) in changed {
             // The port's insert protects the previous value/absence. Equal
             // partition edits serialize even when their records are disjoint.
             epochs.insert(
-                epoch_key(reader, contract).as_slice(),
+                epoch_key(owner, contract).as_slice(),
                 Uuid::new_v4().as_bytes().as_slice(),
             )?;
         }
@@ -79,8 +79,8 @@ pub(crate) fn scope_revision(
     secured: bool,
     batch: crate::storage::BatchGetOptions,
 ) -> Result<String> {
-    if scope.accessible.len().saturating_mul(codes.len()) > crate::access::MAX_READER_STREAMS {
-        return Err(Error::new("work_limit", "reader partition setup limit"));
+    if scope.accessible.len().saturating_mul(codes.len()) > crate::access::MAX_OWNER_STREAMS {
+        return Err(Error::new("work_limit", "owner partition setup limit"));
     }
     if batch.max_keys == 0 {
         return Err(Error::new("invalid_input", "epoch batch width"));
@@ -95,10 +95,10 @@ pub(crate) fn scope_revision(
     let keys: Vec<_> = scope
         .accessible
         .iter()
-        .flat_map(|&reader| {
+        .flat_map(|&owner| {
             codes
                 .iter()
-                .map(move |&contract| epoch_key(reader, contract))
+                .map(move |&contract| epoch_key(owner, contract))
         })
         .collect();
     for chunk in keys.chunks(batch.max_keys) {
@@ -336,24 +336,24 @@ impl<B: Binding> Store<B> {
             None
         };
         let index = read.open_table(PUBLIC).map_err(storage)?;
-        let readers = if self.secured {
-            Some(read.open_table(crate::security::READERS).map_err(storage)?)
+        let owners = if self.secured {
+            Some(read.open_table(crate::security::OWNERS).map_err(storage)?)
         } else {
             None
         };
         let mut streams = vec![];
         let mut partitions = vec![];
-        if let Some(index) = &readers {
-            for &reader in &scope.accessible {
+        if let Some(index) = &owners {
+            for &owner in &scope.accessible {
                 for &code in &codes {
                     let lower = match after {
-                        Some(id) => Bound::Excluded(crate::security::reader_key(reader, code, id)),
+                        Some(id) => Bound::Excluded(crate::security::owner_key(owner, code, id)),
                         None => {
-                            Bound::Included(crate::security::reader_key(reader, code, Uuid::nil()))
+                            Bound::Included(crate::security::owner_key(owner, code, Uuid::nil()))
                         }
                     };
                     let upper =
-                        Bound::Included(crate::security::reader_key(reader, code, Uuid::max()));
+                        Bound::Included(crate::security::owner_key(owner, code, Uuid::max()));
                     streams.push(
                         index
                             .range::<&[u8]>((
@@ -362,7 +362,7 @@ impl<B: Binding> Store<B> {
                             ))
                             .map_err(storage)?,
                     );
-                    partitions.push(Some(reader));
+                    partitions.push(Some(owner));
                 }
             }
         } else {
@@ -407,8 +407,8 @@ impl<B: Binding> Store<B> {
             let raw = ws
                 .record(id)?
                 .ok_or_else(|| corrupt("missing indexed record"))?;
-            if partitions[stream].is_some_and(|reader| reader != raw.reader) {
-                return Err(corrupt("reader index partition"));
+            if partitions[stream].is_some_and(|owner| owner != raw.owner) {
+                return Err(corrupt("owner index partition"));
             }
             let record = self
                 .project(&scope, id, Some(raw))
@@ -505,7 +505,7 @@ impl<B: Binding> Store<B> {
             RootRead::Range { .. } => "range",
             RootRead::Latest { .. } => "latest",
         };
-        if !declaration.reads.contains(&kind) {
+        if !declaration.reads.contains(&"summary") || !declaration.reads.contains(&kind) {
             return Err(Error::new("unsupported_query", "undeclared root operation"));
         }
         let address = Address::new(request.owner, request.slot);
@@ -562,10 +562,10 @@ mod epoch_batch_tests {
         let write = db.begin_write().unwrap();
         {
             let mut table = write.open_table(EPOCHS).unwrap();
-            for (reader, contract, token) in [(2, 4, 11), (3, 8, 12)] {
+            for (owner, contract, token) in [(2, 4, 11), (3, 8, 12)] {
                 table
                     .insert(
-                        epoch_key(Uuid::from_u128(reader), contract),
+                        epoch_key(Uuid::from_u128(owner), contract),
                         Uuid::from_u128(token).as_bytes().as_slice(),
                     )
                     .unwrap();
@@ -588,11 +588,11 @@ mod epoch_batch_tests {
             actor: Uuid::from_u128(2),
         });
         scope.accessible.insert(Uuid::from_u128(3));
-        // The pre-batch wire contract: sorted reader/code key then token (or nil).
+        // The pre-batch wire contract: sorted owner/code key then token (or nil).
         let mut expected = Sha256::new();
         expected.update(b"rebase-query-scope-1\0");
-        for (reader, contract, token) in [(2, 4_u16, 11), (2, 8, 0), (3, 4, 0), (3, 8, 12)] {
-            expected.update(Uuid::from_u128(reader).as_bytes());
+        for (owner, contract, token) in [(2, 4_u16, 11), (2, 8, 0), (3, 4, 0), (3, 8, 12)] {
+            expected.update(Uuid::from_u128(owner).as_bytes());
             expected.update(contract.to_be_bytes());
             expected.update(Uuid::from_u128(token).as_bytes());
         }

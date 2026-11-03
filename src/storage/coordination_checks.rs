@@ -187,9 +187,8 @@ fn graph<B: Binding>(store: &Store<B>, codes: &[u16]) -> Result<()> {
         graph.principals.push(Principal {
             id: id(person),
             kind: PrincipalKind::User,
-            // Admin-authored derived records must select their referenced user
-            // as the minimal reader. Keep users as peers below the admin owner;
-            // being an administrator alone does not imply authority ancestry.
+            // Give the administrative actor an explicit owner branch while
+            // keeping the users in separate data partitions.
             parents: vec![id(2)],
             active: true,
             credential_epoch: 0,
@@ -374,10 +373,9 @@ fn check_actor(store: &Store<Calculation>, record: Uuid, actor: Uuid, amount: &s
         return Err(failure("actor record type"));
     };
     require(
-        observed.reader == actor
-            && observed.owner == actor
+        observed.owner == actor
             && serde_json::to_value(observed.input).map_err(local::storage)?["amount"] == amount,
-        "reader partition or authored amount differs",
+        "owner partition or authored amount differs",
     )
 }
 
@@ -475,7 +473,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "same-ID replay changed independent results",
     )?;
     store.check_integrity()?;
-    cases.push("independent-populated-business-roots-distinct-readers-and-slots");
+    cases.push("independent-populated-business-roots-distinct-owners-and-slots");
     cases.push("complete-independent-write-sets-no-meta-population-or-header-write");
     cases.push("original-id-replay-preserves-all-application-tables");
 
@@ -510,7 +508,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "genuine no-op rewrote domain or query epochs",
     )?;
     left.page(&left_cursor)?;
-    cases.push("scoped-cursor-survives-other-reader-other-contract-and-genuine-noop");
+    cases.push("scoped-cursor-survives-other-owner-other-contract-and-genuine-noop");
     let local_edit = request(
         &left,
         id(21003),
@@ -520,7 +518,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     changed(&left, &left_cursor)?;
     left.page(&account_cursor)?;
     root(&left, id(100), "9")?;
-    cases.push("same-reader-contract-change-invalidates-only-affected-cursor");
+    cases.push("same-owner-contract-change-invalidates-only-affected-cursor");
 
     // Distinct existing source IDs compete on one already-populated invariant
     // root. Neither attempt needs a population counter or output reservation.
@@ -720,7 +718,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "independent_balances":balances,"common_application_write_keys":[],"common_surreal_guard_buckets":shared_buckets,
         "receipt_hash_starts":[crate::receipts::start_slot(&[id(3).as_bytes().as_slice(),first_op.as_bytes()].concat()),crate::receipts::start_slot(&[id(4).as_bytes().as_slice(),second_op.as_bytes()].concat())],
         "genuine_noop":trace_value(&noop_trace),"table_inventory":local::table_names(true),
-        "limitations":["Independent output-producing creates and output-retiring deletes commit in different reader partitions and business roots without global accounting coordination.","The write recorder delegates actual adapter transactions. SurrealKV adds its documented per-table hash guard keys; this witness selects disjoint buckets, while collisions and ranges can still cause conservative conflicts.","redb runs sequential controls because it serializes native writers. In-process reopen is not process or replicated-node failover.","One scoped reader/contract epoch still coordinates changes in that query partition. No throughput or general capacity claim is made."]}),
+        "limitations":["Independent output-producing creates and output-retiring deletes commit in different owner partitions and business roots without global accounting coordination.","The write recorder delegates actual adapter transactions. SurrealKV adds its documented per-table hash guard keys; this witness selects disjoint buckets, while collisions and ranges can still cause conservative conflicts.","redb runs sequential controls because it serializes native writers. In-process reopen is not process or replicated-node failover.","One scoped owner/contract epoch still coordinates changes in that query partition. No throughput or general capacity claim is made."]}),
     )
 }
 
@@ -743,15 +741,12 @@ fn scoped_derived(
         json!([{"op":"create","id":id(20),"contract":quantity::SOURCE,"fields":{"value":"6"}}]),
     )?)?;
     let scale = |record, parent| json!({"op":"create","id":record,"contract":quantity::SCALE,"fields":{"parent":parent,"factor":{"numerator":"1","denominator":"2"},"rounding":"exact"}});
-    store.mutate(&request(
-        &store,
+    left.mutate(&request(
+        &left,
         id(30003),
-        json!([
-            scale(id(30), id(10)),
-            scale(id(31), id(10)),
-            scale(id(40), id(20))
-        ]),
+        json!([scale(id(30), id(10)), scale(id(31), id(10))]),
     )?)?;
+    right.mutate(&request(&right, id(30007), json!([scale(id(40), id(20))]))?)?;
     let a = page(&left, quantity::SCALE)?;
     let b = page(&right, quantity::SCALE)?;
     let before = left
@@ -773,7 +768,7 @@ fn scoped_derived(
     )?;
     changed(&left, &a)?;
     right.page(&b)?;
-    cases.push("derived-only-publication-invalidates-reader-contract-cursor");
+    cases.push("derived-only-publication-invalidates-owner-contract-cursor");
 
     let a = page(&left, quantity::SCALE)?;
     let b = page(&right, quantity::SCALE)?;
@@ -783,15 +778,15 @@ fn scoped_derived(
         json!([update(&store, id(31), json!({"parent":id(20)}))?]),
     )?)?;
     changed(&left, &a)?;
-    changed(&right, &b)?;
+    right.page(&b)?;
     require(
-        left.get(left.model().identity(), id(31))?.is_none()
-            && right
-                .get(right.model().identity(), id(31))?
+        right.get(right.model().identity(), id(31))?.is_none()
+            && left
+                .get(left.model().identity(), id(31))?
                 .is_some_and(|r| r.derived.as_ref().is_some_and(|d| d["quantity"] == "3")),
-        "reader move exposed wrong projection",
+        "owner move exposed wrong projection",
     )?;
-    cases.push("reader-move-invalidates-old-and-new-partition-cursors");
+    cases.push("owner-move-invalidates-old-and-new-partition-cursors");
 
     let stable = page(&left, quantity::SCALE)?;
     let before = image(&store)?;
@@ -981,7 +976,7 @@ fn reference_schedules(
 // Post-removal acceptance uses original attempts over independent business scopes.
 fn contention_class(table: &str, bytes: &[u8]) -> &'static str {
     if table == "query_epochs" {
-        return "reader_contract_epoch";
+        return "owner_contract_epoch";
     }
     if table == local::KV.name() {
         if bytes == [13] {
@@ -1026,9 +1021,9 @@ fn equipment_inventory(
         if live {
             let source = &snapshot.records[&id(producer)];
             require(
-                source.reader == id(if producer < 200 { 3 } else { 4 })
+                source.owner == id(if producer < 200 { 3 } else { 4 })
                     && source.derived.as_ref().is_some_and(|d| d.allocated == 2),
-                "C3 allocation/reader",
+                "C3 allocation/owner",
             )?;
         }
         for (role, at, quantity) in [(11, 10, -2), (29, 20, 2)] {
@@ -1188,7 +1183,7 @@ fn accounting_acceptance(
                 .filter(|(table, key)| {
                     matches!(
                         contention_class(table, key),
-                        "reader_contract_epoch" | "native_business_root"
+                        "owner_contract_epoch" | "native_business_root"
                     )
                 })
                 .cloned()
@@ -1317,7 +1312,7 @@ fn contention_epoch_control(
         "C3 epoch control has other shared writes",
     )?;
     store.check_integrity()?;
-    cases.push("c3.0-same-reader-contract-existing-source-epoch-control");
+    cases.push("c3.0-same-owner-contract-existing-source-epoch-control");
     Ok(json!({"concurrent":concurrent,"automatic_retries":false,
         "common_writes":contention_overlap(&traces[0].writes,&traces[1].writes),
         "attempt_0_point_reads_overlapping_attempt_1_writes":contention_overlap(&traces[0].reads,&traces[1].writes),

@@ -1,4 +1,4 @@
-//! Shared application persistence. Engine data, reader indexes and receipts share
+//! Shared application persistence. Engine data, owner indexes and receipts share
 //! one adapter transaction. Public API entrypoints never enable fixture mode.
 
 use std::{collections::BTreeSet, fs::OpenOptions, path::Path, sync::Arc};
@@ -295,7 +295,7 @@ impl<B: Binding> Store<B> {
             crate::effects::create_tables(&write)?;
             if secured {
                 crate::security::store_graph(&write, &crate::access::Graph::bootstrap(context)?)?;
-                write.open_table(crate::security::READERS)?;
+                write.open_table(crate::security::OWNERS)?;
             }
             let header = RuntimeHeader::fresh();
             write
@@ -600,8 +600,13 @@ impl<B: Binding> Store<B> {
                 false,
                 &mut |ws, command, old, new| {
                     let action = match command {
-                        Command::Create { contract, .. } => {
-                            if !scope.grants.allows(*contract, Action::Create) {
+                        Command::Create {
+                            contract, owner, ..
+                        } => {
+                            let owner = owner.unwrap_or(self.context.actor);
+                            if !scope.grants.allows(*contract, Action::Create)
+                                || !scope.accessible.contains(&owner)
+                            {
                                 return Err(crate::access::denied());
                             }
                             Action::Create
@@ -613,6 +618,9 @@ impl<B: Binding> Store<B> {
                         return Err(crate::access::denied());
                     }
                     if let Some(new) = new {
+                        if !scope.can_write(new, action) {
+                            return Err(crate::access::denied());
+                        }
                         self.model.public_contract(new.contract)?;
                         self.model.validate(
                             new.contract,
@@ -647,27 +655,7 @@ impl<B: Binding> Store<B> {
                     }
                     Ok(())
                 },
-                &mut |ws, revision| {
-                    if self.secured {
-                        let ids = ws.changed_records();
-                        let mut dominance = std::collections::BTreeMap::new();
-                        crate::security::repair_readers(
-                            ws,
-                            &self.model,
-                            ids,
-                            revision,
-                            &mut |owners, fallback| {
-                                crate::security::stored_reader(
-                                    &write,
-                                    owners,
-                                    fallback,
-                                    &mut dominance,
-                                )
-                            },
-                        )?;
-                    }
-                    Ok(())
-                },
+                &mut |_ws, _revision| Ok(()),
             )?;
 
             let mut records = vec![];
@@ -730,7 +718,7 @@ impl<B: Binding> Store<B> {
         Ok(json!({"status":"committed","replayed":false,"result":disclosed}))
     }
 
-    /// Publish the one engine attempt and its public/reader indexes in the
+    /// Publish the one engine attempt and its public/owner indexes in the
     /// caller's transaction. Typed effect application uses this same writer.
     pub(crate) fn publish_native(
         &self,
@@ -745,7 +733,7 @@ impl<B: Binding> Store<B> {
             for (i, (key, value)) in batch.iter().enumerate() {
                 if let Key::Record(id) = Key::decode(key)? {
                     if self.secured {
-                        crate::security::update_reader_index(
+                        crate::security::update_owner_index(
                             write,
                             &table,
                             &self.model,
@@ -985,19 +973,19 @@ fn observe_tables(
     }
     tables.insert(PUBLIC.name().into(), json!(rows));
     if secured {
-        let table = index(crate::security::READERS)?;
+        let table = index(crate::security::OWNERS)?;
         let mut rows = vec![];
         for (i, row) in table.iter().map_err(storage)?.enumerate() {
             if i >= crate::binding::MAX_INVENTORY_ROWS {
                 return Err(Error::new(
                     "work_limit",
-                    "reader index observation incomplete",
+                    "owner index observation incomplete",
                 ));
             }
             let (key, code) = row.map_err(storage)?;
             rows.push(json!({"key":native_codec::hex(key.value()),"contract":code.value()}));
         }
-        tables.insert("reader_records".into(), json!(rows));
+        tables.insert("owner_records".into(), json!(rows));
     }
     Ok(
         json!({"format":if secured {"rebase-authorized-observation-1"} else {"rebase-local-observation-1"},"complete":true,"tables":tables}),
@@ -1121,7 +1109,7 @@ pub(crate) fn table_names(secured: bool) -> Vec<String> {
     ];
     names.extend(crate::effects::TABLES.iter().map(|(table, _)| table.name()));
     if secured {
-        names.extend(["authority", "reader_records"]);
+        names.extend(["authority", "owner_records"]);
     }
     names.sort();
     names.into_iter().map(str::to_owned).collect()

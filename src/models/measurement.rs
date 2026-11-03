@@ -214,7 +214,6 @@ fn declarations() -> Result<Vec<Contract>> {
                 },
                 validation_fields: vec![],
                 on_delete: "reject",
-                reader: true,
             });
             if code == 211 {
                 c.memberships.push(Membership {

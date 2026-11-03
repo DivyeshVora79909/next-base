@@ -143,7 +143,6 @@ fn reference(slot: u16, field: &'static str, target: u16) -> Reference {
         direct_fields: vec![],
         validation_fields: vec![],
         on_delete: "reject",
-        reader: false,
     }
 }
 fn contract(

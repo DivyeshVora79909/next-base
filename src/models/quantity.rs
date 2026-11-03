@@ -110,7 +110,6 @@ fn reference(slot: u16, field: &'static str) -> Reference {
         direct_fields: vec![],
         validation_fields: vec![],
         on_delete: "reject",
-        reader: true,
     }
 }
 

@@ -76,7 +76,7 @@ impl Binding for References {
                 "required":["kind","first","second","action"]}),
             fields: ["kind","first","second","action"].into_iter().enumerate().map(|(i,name)| InputField {code:i as u16+1,name,mutable:name!="kind"}).collect(),
             references: [(1,"first"),(2,"second")].into_iter().map(|(slot,field)| Reference {
-                slot,field,targets:vec![11,12],optional:true,direct_fields:vec![],validation_fields:vec![],on_delete:"reject",reader:false,
+                slot,field,targets:vec![11,12],optional:true,direct_fields:vec![],validation_fields:vec![],on_delete:"reject",
             }).collect(),
             published:vec![],uniqueness:vec![],roots:vec![],memberships:vec![],queries:vec![],publication_inputs:vec![],outputs:vec![],calculations:vec![],calculation_order:vec![],rules:vec![],schema_source:"src/reference_tests.rs",behavior_source:"src/reference_tests.rs",
         }).collect())

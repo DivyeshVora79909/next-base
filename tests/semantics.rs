@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use rebase_semantic_proof::{
     algebra::Summary,
     merge::{self, Entry, Exists},
-    plan::{Field, choose_reader, evaluation_order},
+    plan::{Field, evaluation_order},
     staging::Overlay,
 };
 
@@ -131,39 +131,29 @@ fn declaration_order_never_overrides_actual_field_dependencies() {
 }
 
 #[test]
-fn scalar_reader_includes_owner_and_preserves_first_minimal_choice() {
-    let dominates = |a, b| [(1, 2), (2, 3), (1, 3), (1, 4)].contains(&(a, b));
-    assert_eq!(choose_reader(&[1, 2, 3], 9, dominates), 9);
-    assert_eq!(choose_reader(&[1, 2, 3], 1, dominates), 3);
-    assert_eq!(choose_reader(&[3, 4], 1, dominates), 3);
-    assert_eq!(choose_reader(&[4, 3], 1, dominates), 4);
-    assert_eq!(choose_reader(&[], 9, dominates), 9);
-}
-
-#[test]
 fn merge_preserves_authorized_order_ties_and_budgeted_existence() {
     let first = [
         Entry {
             key: (0, 1),
-            reader: 1,
+            owner: 1,
         },
         Entry {
             key: (2, 5),
-            reader: 1,
+            owner: 1,
         },
     ];
     let second = [
         Entry {
             key: (0, 2),
-            reader: 3,
+            owner: 3,
         },
         Entry {
             key: (1, 3),
-            reader: 3,
+            owner: 3,
         },
         Entry {
             key: (3, 6),
-            reader: 3,
+            owner: 3,
         },
     ];
     let streams = [&first[..], &second[..]]; // An inaccessible partition is never supplied.

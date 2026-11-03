@@ -67,6 +67,38 @@ test('checks a bounded complete backup captured from the real N2 operator', { sk
   }
 });
 
+test('checks owner catalog against public source authority and excludes managed outputs', () => {
+  const owner = '22222222-2222-4222-8222-222222222222';
+  const source = { contract: 101, owner, input: {}, derived: null };
+  const rows = [
+    { key: `01${ROOT_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'record', data: source })) },
+    { key: `01${NODE_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'record', data: source })) },
+  ];
+  const backup = backupWith(rows);
+  backup.payload.tables.authority = [];
+  backup.payload.tables.public_records = [{ key: ROOT_ID.replaceAll('-', ''), contract: 101 }];
+  const ownerRow = { key: `${owner.replaceAll('-', '')}0065${ROOT_ID.replaceAll('-', '')}`, contract: 101 };
+  backup.payload.tables.owner_records = [ownerRow];
+  resign(backup);
+  assert.equal(checkBackupStructure(JSON.stringify(backup)).status, 'passed');
+  for (const mutation of [
+    b => b.payload.tables.owner_records.splice(0),
+    b => b.payload.tables.owner_records.push({ ...ownerRow, key: ownerRow.key.slice(0, 36) + NODE_ID.replaceAll('-', '') }),
+    b => { b.payload.tables.owner_records[0].key = '3'.repeat(32) + ownerRow.key.slice(32); },
+    b => { b.payload.tables.owner_records[0].contract = 102; },
+    b => { b.payload.tables.public_records[0].contract = 102; },
+    b => { b.payload.tables.public_records[0].key = '0'.repeat(32); },
+  ]) {
+    const changed = structuredClone(backup);
+    mutation(changed); resign(changed);
+    assert.throws(() => checkBackupStructure(JSON.stringify(changed)), /owner index|public index/i);
+  }
+  const obsolete = structuredClone(backup);
+  obsolete.payload.tables.native_kv[0].value = hex(JSON.stringify({ type: 'record', data: { ...source, reader: owner } }));
+  resign(obsolete);
+  assert.throws(() => checkBackupStructure(JSON.stringify(obsolete)), /obsolete source reader/i);
+});
+
 test('rejects duplicate JSON keys, invalid checksums and incomplete snapshots', () => {
   assert.throws(() => checkBackupStructure(Buffer.from('{"format":"a","format":"b"}')), /JSON|backup/i);
   const valid = backupWith(treeRows());
@@ -173,7 +205,7 @@ test('checks the complete source root inventory, including empty roots and kinds
 test('returns an inspect-compatible projection from the validated native KV parse', () => {
   const rows = treeRows();
   const record = { contract: 101, tenant: '11111111-1111-4111-8111-111111111111',
-    owner: '22222222-2222-4222-8222-222222222222', reader: '33333333-3333-4333-8333-333333333333',
+    owner: '22222222-2222-4222-8222-222222222222',
     version: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', input: { unit: 1 }, derived: null };
   const query = { source: { id: ROOT_ID, slot: 1 }, operation: 'sum', phase: 'calculate', channel: 'amount',
     range: { from: null, through: null } };

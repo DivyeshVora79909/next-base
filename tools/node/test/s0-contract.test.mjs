@@ -107,7 +107,7 @@ test('S0 commit outcomes, read-only and Work counters must match actual scopes',
   t.outcome='definite-abort';assert.throws(()=>check(t,{readOnly:false}),/outcome differs/);
   t.outcome='unknown';t.commitNs=1;assert.throws(()=>check(t,{readOnly:false}),/duration differs/);
   const missing=trace();missing.path='native-settlement';assert.throws(()=>check(missing),/requires successful commit/);
-  const work=Object.fromEntries(['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','reader_checks','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'].map(k=>[k,0]));
+  const work=Object.fromEntries(['work_units','command_visits','route_entries','selector_visits','node_visits','key_loads','loaded_bytes','staged_patches','candidates','evaluations','rotations','causal_candidates','causal_evaluations','dependency_edges','dependency_checks','graph_nodes','scheduler_visits','inventory_visits','allocations','detached_outputs','final_dirty_keys','encoded_bytes'].map(k=>[k,0]));
   Object.assign(work,{work_units:3,node_visits:1,key_loads:2,loaded_bytes:2});
   assert.equal(checkS0Work(trace(),work).status,'checked');
   assert.throws(()=>checkS0Work(trace(),{...work,work_units:2}),/charged total/);

@@ -249,7 +249,7 @@ fn surviving_references_block_target_deletion_and_rollback_the_batch() {
 }
 
 #[test]
-fn hidden_reference_creation_and_retargeting_fail_after_final_reader_repair() {
+fn hidden_reference_creation_and_retargeting_fail_in_final_graph() {
     let fixture = Fixture::new();
     let hidden_owner = fixture.admin.session(id(3), 0).unwrap();
     let actor = fixture.admin.session(id(4), 0).unwrap();
@@ -303,54 +303,19 @@ fn stale_version_does_not_disclose_or_override_missing_write_authority() {
     );
 }
 
-fn shadow_frontier_actor(fixture: &Fixture) -> Store<Quantity> {
-    // Actor A is above C; C is above C'; D is a second parent of C and
-    // remains incomparable with A. The extra path makes a source record
-    // readable at C while its recursively expanded frontier also contains D.
-    let graph = fixture
+#[test]
+fn readable_derived_record_remains_usable_when_its_source_owner_leaves_scope() {
+    let fixture = Fixture::new();
+    let mut graph = fixture
         .admin
         .access_graph(fixture.model.identity())
         .unwrap();
     let revision = graph["revision"].as_str().unwrap().parse().unwrap();
-    let mut authored: Graph = serde_json::from_value(graph["graph"].clone()).unwrap();
-    authored.principals.extend([
-        principal(5, vec![id(4), id(7)]),
-        principal(6, vec![id(5)]),
-        principal(7, vec![id(1)]),
-    ]);
-    fixture
-        .admin
-        .replace_access(&ReplaceGraph {
-            model: fixture.model.identity().into(),
-            if_revision: revision,
-            graph: authored,
-        })
-        .unwrap();
-
-    let c = fixture.admin.session(id(5), 0).unwrap();
-    let d = fixture.admin.session(id(7), 0).unwrap();
-    let c_prime = fixture.admin.session(id(6), 0).unwrap();
-    mutate(&c, json!([source(100)])).unwrap();
-    // B is owned by D and references C. Since C is below D, B's selected
-    // reader is C, so A can read B and the next C-owned record.
-    mutate(&d, json!([scale(101, 100)])).unwrap();
-    mutate(&c, json!([scale(102, 101)])).unwrap();
-    mutate(&c_prime, json!([source(103)])).unwrap();
-
-    // After D has created B, remove its parent edge to C. Reader repair keeps
-    // B at D (owner D precedes referenced owner C), while T remains at C
-    // because C precedes B's owner in T's preorder. D is now incomparable to
-    // both A and C'.
-    let current = fixture
-        .admin
-        .access_graph(fixture.model.identity())
-        .unwrap();
-    let revision = current["revision"].as_str().unwrap().parse().unwrap();
-    let mut authored: Graph = serde_json::from_value(current["graph"].clone()).unwrap();
+    let mut authored: Graph = serde_json::from_value(graph["graph"].take()).unwrap();
     authored
         .principals
         .iter_mut()
-        .find(|principal| principal.id == id(5))
+        .find(|p| p.id == id(3))
         .unwrap()
         .parents = vec![id(4)];
     fixture
@@ -361,68 +326,43 @@ fn shadow_frontier_actor(fixture: &Fixture) -> Store<Quantity> {
             graph: authored,
         })
         .unwrap();
-    assert_reader(&fixture.admin, 101, 7, SCALE);
-    assert_reader(&fixture.admin, 102, 5, SCALE);
-    fixture.admin.check_integrity().unwrap();
-    fixture.admin.session(id(4), 0).unwrap()
-}
-
-fn join(id_value: u128, left: u128, right: u128) -> Value {
-    json!({"op":"create","id":id(id_value),"contract":JOIN,"fields":{
-        "left":id(left),"right":id(right)
-    }})
-}
-
-fn assert_reader(store: &Store<Quantity>, record: u128, reader: u128, contract: u16) {
-    let expected = format!(
-        "{}{:04x}{}",
-        id(reader).simple(),
-        contract,
-        id(record).simple()
-    );
-    assert!(
-        store.observe_for_verification().unwrap()["tables"]["reader_records"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|row| row["key"] == expected)
-    );
-}
-
-#[test]
-fn final_frontier_cannot_authorize_a_child_through_a_newly_hidden_parent() {
-    let fixture = Fixture::new();
-    let actor = shadow_frontier_actor(&fixture);
-
-    // P's immediate targets are readable by A, so P may be created. Its full
-    // owner preorder is [A,C,D,C']; A and C are dominated, leaving D first.
-    mutate(&actor, json!([join(104, 102, 103)])).unwrap();
-    assert_reader(&fixture.admin, 104, 7, JOIN);
+    let source_owner = fixture.admin.session(id(3), 0).unwrap();
+    let actor = fixture.admin.session(id(4), 0).unwrap();
+    mutate(&source_owner, json!([source(100)])).unwrap();
+    mutate(&actor, json!([scale(101, 100)])).unwrap();
+    let graph = fixture
+        .admin
+        .access_graph(fixture.model.identity())
+        .unwrap();
+    let revision = graph["revision"].as_str().unwrap().parse().unwrap();
+    let mut authored: Graph = serde_json::from_value(graph["graph"].clone()).unwrap();
+    authored
+        .principals
+        .iter_mut()
+        .find(|p| p.id == id(3))
+        .unwrap()
+        .parents = vec![id(1)];
+    fixture
+        .admin
+        .replace_access(&ReplaceGraph {
+            model: fixture.model.identity().into(),
+            if_revision: revision,
+            graph: authored,
+        })
+        .unwrap();
     assert!(
         actor
-            .get(fixture.model.identity(), id(104))
+            .get(fixture.model.identity(), id(100))
             .unwrap()
             .is_none()
     );
-
+    assert_scaled(&actor, 101, "24");
+    mutate(&actor, json!([scale(102, 101)])).unwrap();
+    assert_scaled(&actor, 102, "48");
     let before = fixture.admin.observe_for_verification().unwrap();
-    assert!(mutate(&actor, json!([scale(105, 104)])).is_err());
+    assert_eq!(
+        mutate(&actor, json!([scale(103, 100)])).unwrap_err().code,
+        "forbidden"
+    );
     assert_eq!(fixture.admin.observe_for_verification().unwrap(), before);
-
-    // Staging the child first must produce the same denial after final reader
-    // repair; the temporary creation owner on P cannot authorize Q.
-    for child_first in [false, true] {
-        let fixture = Fixture::new();
-        let actor = shadow_frontier_actor(&fixture);
-        let parent = join(114, 102, 103);
-        let child = scale(115, 114);
-        let commands = if child_first {
-            json!([child, parent])
-        } else {
-            json!([parent, child])
-        };
-        let before = fixture.admin.observe_for_verification().unwrap();
-        assert_eq!(mutate(&actor, commands).unwrap_err().code, "forbidden");
-        assert_eq!(fixture.admin.observe_for_verification().unwrap(), before);
-    }
 }

@@ -311,8 +311,6 @@ pub struct ModelRecord<B: Binding> {
     #[serde(with = "uuid_text")]
     pub owner: Uuid,
     #[serde(with = "uuid_text")]
-    pub reader: Uuid,
-    #[serde(with = "uuid_text")]
     pub version: Uuid,
     pub input: B::Input,
     pub derived: Option<B::Derived>,
@@ -344,6 +342,13 @@ pub enum Command {
         #[serde(with = "uuid_text")]
         id: Uuid,
         contract: u16,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "crate::native_codec::optional_uuid_text::serialize",
+            deserialize_with = "crate::native_codec::optional_uuid_text::deserialize_present"
+        )]
+        owner: Option<Uuid>,
         fields: serde_json::Value,
     },
     Update {
@@ -462,7 +467,6 @@ pub struct Work {
     pub dependency_checks: u64,
     pub graph_nodes: u64,
     pub scheduler_visits: u64,
-    pub reader_checks: u64,
     pub inventory_visits: u64,
     pub allocations: u64,
     pub detached_outputs: u64,
@@ -513,7 +517,6 @@ impl<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding> Attempt<L, B> {
             "dependency" => self.work.dependency_checks += count,
             "graph" => self.work.graph_nodes += count,
             "schedule" => self.work.scheduler_visits += count,
-            "reader" => self.work.reader_checks += count,
             "inventory" => self.work.inventory_visits += count,
             "allocate" => self.work.allocations += count,
             _ => return Err(Error::new("internal", "unknown work counter")),
@@ -984,8 +987,10 @@ pub fn settle_with_ids<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
         commands,
         allocate,
         false,
-        &mut |_, _, old, _| {
-            if old.is_some_and(|r| r.owner != context.actor) {
+        &mut |_, command, old, _| {
+            if old.is_some_and(|r| r.owner != context.actor)
+                || matches!(command, Command::Create { owner: Some(owner), .. } if *owner != context.actor)
+            {
                 Err(Error::new("forbidden", "source authority"))
             } else {
                 Ok(())

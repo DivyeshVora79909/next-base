@@ -82,7 +82,7 @@ local tooling, but submitted mutations still pass native validation and current
 authority checks.
 
 Public reads use fresh graph scopes from the same snapshot as their data. Query
-cursors are tied to their reader/contract epochs and authority revision. A
+cursors are tied to their owner/contract epochs and authority revision. A
 changed public derivation or relevant authority graph invalidates affected
 cursors; scalar residual predicates still consume visit budget. See
 [local model semantics](local-prototype.md) and [storage](storage.md) for the

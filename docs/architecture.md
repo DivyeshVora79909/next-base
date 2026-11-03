@@ -13,16 +13,22 @@ E-series acceptance; ordinary async functions are not durable execution records.
 subject and time bounds. [`server.rs`](../src/server.rs) authenticates transport ingress;
 TLS terminates at the configured trusted deployment boundary. A subject identifies a principal,
 not an owner supplied by an untrusted claim. JWT verification does not grant a client scope.
-[`access.rs`](../src/access.rs) prepares the tenant principal DAG and separates record owner
-from reader: contract action plus owner accessibility controls writes; Read plus reader
-accessibility controls disclosure. Current DAG grants have specific bounded semantics,
-not arbitrary transitive ACL intersection. Ordinary accessibility is self, strict descendants
-and direct group/tenant parents; admin grants do not widen ordinary data scope. Operator
-control-plane administration remains separate. C2.R selects the first minimal owner
-from the resource and its reader-marked source hierarchy, in stable catalog order.
-Mutation/admin repair and independent checking follow the same declared meaning;
-managed outputs inherit their producer. The shared reader-policy revision is bound
-into every prepared model identity. See [C2.R](roadmap.md#c2r--owner-inclusive-minimal-reader-policy-before-c14).
+[`access.rs`](../src/access.rs) prepares the tenant principal DAG. The current direction is breaking owner-only access: ModelRecord has an owner and no reader field,
+and Reference has no reader flag. Read/Create/Update require the action, same tenant,
+and owner accessibility (self, strict descendants, and direct group parents only).
+Direct tenant-parent records are excluded from ordinary data scope; tenant-grant
+inheritance remains an independent legacy rule. Delete permits self or strict descendants
+only. Admin actions do not widen ordinary data scope. Create may specify `owner` as a
+canonical UUID, defaulting to actor when omitted; requested owners must be accessible,
+which enables group-owned sharing. Update cannot change owner. C2.O acceptance is complete;
+see the [checkpoint](checkpoints/c2-owner-only.json). Verification passed 284 Rust
+all-target tests (0 ignored), all 174 full Node tests (0 skipped), formatting, and
+default/FDB all-target Clippy with `-D warnings`. The prior C2.R
+reader inference/repair policy is historical and superseded. Privileged settlement and
+cascades may validate hidden records but cannot grant client access or extra mutations.
+Root reads authorize explicitly declared public summaries only; FULL summaries may
+include hidden contributors, without granting leaf, body or ID reads. See the current
+[roadmap](roadmap.md).
 
 [`security.rs`](../src/security.rs) loads current persisted authority and credential epochs
 inside transaction scope. Authority changes and operation-context fencing are separate from
@@ -34,7 +40,7 @@ That internal privilege does not authorize extra client edits or disclose hidden
 Action/old-owner checks run before binding or version diagnostics. All authored
 records and their headers are staged before typed reference existence/type/tenant
 checks, so a valid forward reference does not depend on command order. After model
-settlement, reader repair resolves final authority before new/retargeted client
+settlement, owner-scope resolution resolves final authority before new/retargeted client
 references are authorized. Only explicit client commands receive this authorization;
 internal derivation does not acquire client privileges. The shared reference-policy
 revision participates in prepared model identity. This does not permit causal
@@ -43,7 +49,7 @@ feedback or defer external side effects into the transaction.
 [`staging.rs`](../src/staging.rs) and the native workspace hold attempt-local reads and patches.
 Ordinary functions receive explicit state; they need no hidden process-global workflow context.
 [`storage.rs`](../src/storage.rs) defines protected transactional reads/scans and one commit.
-Source changes, references, indexes, calculations, reader repairs, receipts and applicable effect
+Source changes, references, indexes, calculations, owner-index repairs, receipts and applicable effect
 intent publish together. A helper must not publish intermediate writes. Point-overlay no-op
 elimination does not remove conflict guards or protected empty-range reads.
 When commit outcome is uncertain, timeout/cancellation alone does not prove rollback: use
@@ -57,7 +63,7 @@ Known precommit validation rejection publishes nothing. External delivery follow
 and model identity; public/developer catalogs are projections of this authority.
 [`binding.rs`](../src/binding.rs) supplies compiled native semantics. Keep new query,
 population and authorization declarations attached to that catalog rather than parallel schemas.
-Typed references have stable slots, target types, optionality and dependency/reader roles.
+Typed references have stable slots, target types, optionality and dependency roles; they carry no reader flag.
 The engine automatically maintains Incoming reverse indexes for ordinary source
 mutations and causal managed-output transitions, including late ordinary settlement
 edits. Bindings retain their Direct/Subscribers invalidation policies; they must not
@@ -72,7 +78,7 @@ Old releases precede final acquisitions, so joint retargets depend on the final 
 See [relationship semantics](relationships.md) for scope, optionality, costs and
 independent inventory checking. Endpoint deletion still follows declared reject
 rules. Reuse a cardinality root instead when it fully expresses a distinct invariant;
-do not duplicate coordination without a reason. Reader choice remains explicit.
+do not duplicate coordination without a reason. Owner assignment remains explicit.
 `Reference.validation_fields` and the pure `Binding::validate_relationships` hook
 cover own-input/immediate-parent rules without a second expression language.
 Final incoming references select affected children on parent edits; unchanged
@@ -95,14 +101,17 @@ Arbitrary aggregates or authority graphs do not inherit a universal logarithmic 
 The count-pruned batched reader supplies trusted rank windows (C1.3) and authorized
 occurrence pages (C1.4). Node hydration and cursor epoch guards use same-snapshot
 batches; declared member permission still requires per-record disclosure checks.
-Root and scope revisions fence continuation without exposing hidden member IDs.
+Root and owner-scope revisions fence continuation without exposing hidden member IDs.
 See [rank reads](rank-reads.md) for operational limits and the ordinary Node call.
 [Prototype evidence](https://github.com/DivyeshVora79909/research/tree/0986b06d120b18713f76fec26b71faa5c40c60b6/parallel-read-foundationdb) is separate from application acceptance.
 
-Planned authorized indexes use resource/tenant/reader-or-owner/declared-order,
-explicitly opted into per resource, with stable ID/slot ties. Merge current authorized
-reader streams for reads; owner and reader are distinct policies. Tenant-only
-analytics indexes are optional for measured workloads. These are not yet implemented.
+Planned authorized indexes use resource/tenant/owner/declared-order, explicitly opted
+into per resource, with stable ID/slot ties. Lookup k-way merges accessible owner
+streams. Tenant is a strict namespace; tenant-wide aggregates require an explicit
+business root. General chronological owner/order streams remain planned C3 work. The
+current physical `owner_records` index is `(owner, contract, UUID)`; it supports
+owner-scoped record lookup. General chronological declared-order access streams remain
+C3 planned work. The model does not automatically author trusted `created_at` metadata.
 Each resource may also declare multiple domain indexes with time or non-time keys,
 business summaries and optional invariants. Created and effective time differ.
 Each added membership increases maintenance; unchanged projections need not be rewritten.
@@ -112,9 +121,9 @@ Avoid a universal hot counter. Optional live invalidations would publish through
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
 Stored capacity counters and `Binding::Limits` are removed, with no accounting mode
-fallback. Codec is `native-slice-kv-11`; `Population` is source-derived read-only inventory
+fallback. The owner-only format uses `native-slice-kv-12` and requires explicit recreation; `Population` is source-derived read-only inventory
 at open/checking, never persisted or scanned by normal mutations. Business validators,
-work/byte budgets, identity reservations and required reader/contract epochs remain.
+work/byte budgets, identity reservations and required owner/contract epochs remain.
 Historical [C3.0 evidence](checkpoints/c3-contention-baseline.json) records pre-change
 Population coupling. [C3.1 evidence](checkpoints/c3-counter-removal.json) accepts
 separate-scope original creates/deletes committing without automatic retries on

@@ -173,9 +173,6 @@ mod tests {
                 c.publication_inputs.clear();
                 c.calculations.clear();
                 c.calculation_order.clear();
-                for r in &mut c.references {
-                    r.reader = false;
-                }
                 if c.code == JOIN {
                     c.uniqueness = vec![Unique {
                         code: 7,
@@ -331,7 +328,6 @@ mod tests {
             contract: JOIN,
             tenant: id(1),
             owner: id(2),
-            reader: id(2),
             version: id(3),
             input,
             derived: None,

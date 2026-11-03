@@ -6,7 +6,7 @@ use crate::{
     model::Prepared,
     native_codec::{self, Key, StoredValue},
     native_slice::{Error, Meta, Result},
-    security::{AUTHORITY, READERS},
+    security::{AUTHORITY, OWNERS},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -224,8 +224,8 @@ impl<B: Binding> Store<B> {
         write.open_table(PUBLIC).map_err(local::storage)?;
         if self.secured {
             write.delete_table(AUTHORITY).map_err(local::storage)?;
-            write.delete_table(READERS).map_err(local::storage)?;
-            write.open_table(READERS).map_err(local::storage)?;
+            write.delete_table(OWNERS).map_err(local::storage)?;
+            write.open_table(OWNERS).map_err(local::storage)?;
         }
         let meta = Meta {
             model: self.model().identity().into(),
@@ -415,7 +415,7 @@ fn import_image(write: &WriteTransaction, image: &Observation) -> Result<()> {
             }
         }
     }
-    for def in [PUBLIC, READERS] {
+    for def in [PUBLIC, OWNERS] {
         let Some(rows) = image.tables.get(def.name()) else {
             continue;
         };

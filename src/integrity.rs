@@ -334,7 +334,7 @@ pub(crate) struct Snapshot<'a, B: Binding> {
     pub(crate) expected_keys: BTreeSet<Key>,
     pub(crate) routes: BTreeMap<Key, BTreeSet<Address>>,
     public: BTreeMap<Vec<u8>, u16>,
-    readers: BTreeMap<Vec<u8>, u16>,
+    owners: BTreeMap<Vec<u8>, u16>,
 }
 impl<'a, B: Binding> Snapshot<'a, B> {
     pub(crate) fn load(store: &'a Store<B>) -> Result<Self> {
@@ -423,7 +423,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
 
         let mut counts: BTreeMap<_, u64> = store.model().contracts().map(|c| (c.code, 0)).collect();
         let mut public = BTreeMap::new();
-        let mut readers = BTreeMap::new();
+        let mut owners = BTreeMap::new();
         let mut expected_keys = BTreeSet::from([Key::Meta]);
         let mut routes = BTreeMap::<Key, BTreeSet<Address>>::new();
         for (&id, r) in &records {
@@ -453,8 +453,8 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             }
             if contract.visibility == Visibility::Public {
                 public.insert(id.as_bytes().to_vec(), r.contract);
-                readers.insert(
-                    crate::security::reader_key(r.reader, r.contract, id),
+                owners.insert(
+                    crate::security::owner_key(r.owner, r.contract, id),
                     r.contract,
                 );
             }
@@ -478,69 +478,11 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             }
             if let Some(graph) = &graph {
                 require(graph.scopes.contains_key(&r.owner), "principal owner")?;
-                // Reconstruct the full source hierarchy rather than trusting any
-                // persisted reader or the writer's candidate discovery/selection.
-                let mut root = id;
-                let mut producers = BTreeSet::new();
-                loop {
-                    require(producers.insert(root), "managed producer cycle")?;
-                    let source = records
-                        .get(&root)
-                        .ok_or_else(|| local::corrupt("missing producer"))?;
-                    let Some((producer, _)) = source.input.managed() else {
-                        break;
-                    };
-                    root = producer;
-                }
-                let mut pending = vec![root];
-                let mut visited = BTreeSet::new();
-                let mut owners = Vec::new();
-                let mut unique_owners = BTreeSet::new();
-                while let Some(source) = pending.pop() {
-                    if !visited.insert(source) {
-                        continue;
-                    }
-                    let source = records
-                        .get(&source)
-                        .ok_or_else(|| local::corrupt("missing reader source"))?;
-                    require(source.tenant == meta.tenant, "reader source tenant")?;
-                    require(graph.scopes.contains_key(&source.owner), "principal owner")?;
-                    if unique_owners.insert(source.owner) {
-                        owners.push(source.owner);
-                    }
-                    let references = source.input.references();
-                    let declaration = store.model().contract(source.contract)?;
-                    // Reverse the complete adjacency before using a LIFO stack:
-                    // root first, then declaration order, then field occurrence.
-                    let mut children = Vec::new();
-                    for relation in declaration.references.iter().filter(|r| r.reader) {
-                        children.extend(
-                            references
-                                .iter()
-                                .filter(|(_, _, slot)| *slot == relation.slot)
-                                .map(|(target, _, _)| *target),
-                        );
-                    }
-                    pending.extend(children.into_iter().rev());
-                }
-                let expected = owners
-                    .iter()
-                    .copied()
-                    .find(|&candidate| {
-                        !owners
-                            .iter()
-                            .copied()
-                            .any(|other| candidate != other && graph.dominates(candidate, other))
-                    })
-                    .ok_or_else(|| local::corrupt("empty reader frontier"))?;
-                require(r.reader == expected, "declared reader")?;
             } else {
-                require(
-                    r.owner == meta.actor && r.reader == meta.actor,
-                    "local owner/reader",
-                )?;
+                require(r.owner == meta.actor, "local owner")?;
             }
         }
+
         let bindings: BTreeMap<_, _> = all
             .iter()
             .filter_map(|(key, value)| match (key, value) {
@@ -592,8 +534,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                     require(
                         output.contract == declaration.contract
                             && output.input.managed() == Some((role.id, role.slot))
-                            && output.owner == producer.owner
-                            && output.reader == producer.reader,
+                            && output.owner == producer.owner,
                         "managed output provenance/authority",
                     )?;
                 }
@@ -706,7 +647,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             expected_keys,
             routes,
             public,
-            readers,
+            owners,
         })
     }
     pub(crate) fn finish(
@@ -764,7 +705,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             nodes,
             graph,
             public,
-            readers,
+            owners,
             ..
         } = self;
         expected_keys.extend(check_routes(all, &routes, &queries)?);
@@ -863,7 +804,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
         require(actual == *public, "public identity index")?;
         if store.secured {
             let index = read
-                .open_table(crate::security::READERS)
+                .open_table(crate::security::OWNERS)
                 .map_err(local::storage)?;
             let actual = index
                 .iter()
@@ -873,16 +814,16 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                         .map_err(local::storage)
                 })
                 .collect::<Result<BTreeMap<_, _>>>()?;
-            require(actual == *readers, "reader index inventory")?;
+            require(actual == *owners, "owner index inventory")?;
         }
         // Epochs are sparse and retained after a partition becomes empty. Their
-        // entire inventory must still be bounded by declared readers/contracts;
+        // entire inventory must still be bounded by declared owners/contracts;
         // every current public partition must have a nonnil epoch.
         let epoch_table = read
             .open_table(crate::query::EPOCHS)
             .map_err(local::storage)?;
         let mut epochs = BTreeSet::new();
-        let reader_count = graph.as_ref().map_or(1, |g| g.scopes.len());
+        let owner_count = graph.as_ref().map_or(1, |g| g.scopes.len());
         let contract_count = store
             .model()
             .contracts()
@@ -894,15 +835,15 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 key.value().len() == 18 && value.value().len() == 16,
                 "query epoch shape",
             )?;
-            let reader = Uuid::from_slice(&key.value()[..16])
-                .map_err(|_| local::corrupt("query epoch reader"))?;
+            let owner = Uuid::from_slice(&key.value()[..16])
+                .map_err(|_| local::corrupt("query epoch owner"))?;
             let contract = u16::from_be_bytes(key.value()[16..].try_into().unwrap());
             let token =
                 Uuid::from_slice(value.value()).map_err(|_| local::corrupt("query epoch token"))?;
             require(
                 graph
                     .as_ref()
-                    .map_or(reader == meta.actor, |g| g.scopes.contains_key(&reader))
+                    .map_or(owner == meta.actor, |g| g.scopes.contains_key(&owner))
                     && store
                         .model()
                         .contract(contract)
@@ -912,7 +853,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
             )?;
             epochs.insert(key.value().to_vec());
             require(
-                epochs.len() <= reader_count * contract_count,
+                epochs.len() <= owner_count * contract_count,
                 "query epoch population",
             )?;
         }
@@ -923,7 +864,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                 .is_ok_and(|c| c.visibility == Visibility::Public)
         }) {
             let key = [
-                record.reader.as_bytes().as_slice(),
+                record.owner.as_bytes().as_slice(),
                 &record.contract.to_be_bytes(),
             ]
             .concat();
@@ -1378,8 +1319,7 @@ pub(crate) fn check_calculation(store: &Store<Calculation>) -> Result<Value> {
                         at,
                         amount,
                     }
-                    && r.owner == producer.owner
-                    && r.reader == producer.reader,
+                    && r.owner == producer.owner,
                 "managed output shape/authority",
             )?;
             outputs.insert(binding.output);
@@ -1465,8 +1405,8 @@ mod tests {
             .unwrap()
             .slot;
         let (epoch_key, epoch_token) = bytes("query_epochs", 0);
-        let mut unknown_reader = epoch_key.clone();
-        unknown_reader[..16].copy_from_slice(Uuid::from_u128(999).as_bytes());
+        let mut unknown_owner = epoch_key.clone();
+        unknown_owner[..16].copy_from_slice(Uuid::from_u128(999).as_bytes());
         let mut unknown_contract = epoch_key.clone();
         unknown_contract[16..].copy_from_slice(&u16::MAX.to_be_bytes());
         let mut changes = vec![
@@ -1503,7 +1443,7 @@ mod tests {
                 epoch_key,
                 Some(Uuid::nil().as_bytes().to_vec()),
             ),
-            ("query_epochs", unknown_reader, Some(epoch_token.clone())),
+            ("query_epochs", unknown_owner, Some(epoch_token.clone())),
             ("query_epochs", unknown_contract, Some(epoch_token)),
             ("authority", crate::security::REVISION.to_vec(), None),
             ("native_kv", vec![13], Some(vec![0])),

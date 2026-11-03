@@ -12,16 +12,15 @@ use uuid::Uuid;
 use crate::{
     native_codec::uuid_text,
     native_slice::{Context, Error, ModelRecord, Result},
-    plan::choose_reader,
 };
 
 pub const MAX_PRINCIPALS: usize = 128;
 pub const MAX_PARENTS: usize = 8;
-pub const MAX_READER_STREAMS: usize = 1280;
-/// Shared persisted-reader meaning, included in every prepared model identity.
-pub const READER_POLICY: &str = "source-owner-first-minimal-preorder-1";
+pub const MAX_OWNER_STREAMS: usize = 1280;
+/// Owner-only disclosure and action-specific mutation authority.
+pub const OWNER_POLICY: &str = "owner-only-read-create-update-accessible-delete-self-descendants-1";
 /// Ordinary resource scope is independent of administrative action grants.
-pub const SCOPE_POLICY: &str = "self-descendants-direct-group-tenant-parents-1";
+pub const SCOPE_POLICY: &str = "owner-only-self-descendants-direct-group-parents-2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -123,14 +122,18 @@ impl Scope {
         self.active
             && record.tenant == self.tenant
             && self.grants.allows(record.contract, Action::Read)
-            && self.accessible.contains(&record.reader)
+            && self.accessible.contains(&record.owner)
     }
 
     pub fn can_write<B: Binding>(&self, record: &ModelRecord<B>, action: Action) -> bool {
         self.active
             && record.tenant == self.tenant
             && self.grants.allows(record.contract, action)
-            && self.accessible.contains(&record.owner)
+            && if action == Action::Delete {
+                record.owner == self.actor || self.descendants.contains(&record.owner)
+            } else {
+                self.accessible.contains(&record.owner)
+            }
     }
 }
 
@@ -238,11 +241,14 @@ impl Graph {
             accessible.insert(p.id);
             for &parent in &p.parents {
                 let node = nodes[&parent];
-                if matches!(node.kind, PrincipalKind::Group | PrincipalKind::Tenant) {
+                if node.kind == PrincipalKind::Group {
                     accessible.insert(parent);
-                    if node.active && p.kind == PrincipalKind::User {
-                        grants.extend(&node.grants);
-                    }
+                }
+                if matches!(node.kind, PrincipalKind::Group | PrincipalKind::Tenant)
+                    && node.active
+                    && p.kind == PrincipalKind::User
+                {
+                    grants.extend(&node.grants);
                 }
             }
             scopes.insert(
@@ -277,9 +283,5 @@ impl PreparedGraph {
         self.descendants
             .get(&ancestor)
             .is_some_and(|d| d.contains(&descendant))
-    }
-
-    pub fn reader(&self, owners: &[Uuid], fallback: Uuid) -> Uuid {
-        choose_reader(owners, fallback, |a, b| self.dominates(a, b))
     }
 }

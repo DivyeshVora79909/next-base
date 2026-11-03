@@ -21,9 +21,9 @@ The inspector is an offline snapshot with expandable details and no network
 connection. Its local developer view includes private records and role bindings.
 
 The workflow creates fourteen authored sources and five private outputs, then
-moves two prefix readers atomically. The published values change as follows:
+moves two prefix query inputs atomically. The published values change as follows:
 
-| Publication | Initial | After moving the readers |
+| Publication | Initial | After changing the query inputs |
 | --- | ---: | ---: |
 | A | 30 | 20 |
 | Left = 2 × A | 60 | 40 |
@@ -51,7 +51,7 @@ The binary selects one of its compiled bindings;
 there is no runtime behavior loader. Model identity binds resolved declarations
 and schemas to the binding's explicit behavior contract and codec. Build bytes,
 HTML/CSS and source-location labels do not define data compatibility.
-Current source uses `rebase-store-10`, `native-slice-kv-8`, `rebase-effects-4`
+Current source uses `rebase-store-10`, `native-slice-kv-12`, `rebase-effects-4`
 and API 4. Model identity includes configured limits and explicit behavior
 identity. No older store or saved operation is reinterpreted by this API; old
 stores are rejected without automatic migration. Historically, version
@@ -146,7 +146,9 @@ one source. All arithmetic remains on the engine; values stay strings.
 
 The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and [N2 Equipment example](../tools/node/examples/n2-equipment-workflow.mjs) show current native and client composition.
 
-One `records.mutate` is atomic. Create supplies `op`, `id`, `contract`, `fields`;
+One `records.mutate` is atomic. Create supplies `op`, `id`, `contract`, `fields` and may
+supply optional canonical UUID `owner`; omission defaults to the actor. A requested owner
+must be accessible, which enables group-owned sharing. Update cannot change owner;
 update supplies `op`, `id`, `if_version`, `set`, `unset`; delete supplies `op`,
 `id`, `if_version`. A command may refer to earlier creations in that mutation.
 Forward references reject. Every source ID may occur in only one command.
@@ -187,15 +189,15 @@ need one final empty continuation to establish exhaustion.
 
 Cursors are HMAC authenticated and bind the store, model, actor/tenant, exact
 query, last visited public ID and scoped query `revision`. This revision is a
-64-character lowercase SHA-256 digest of the selected reader/contract epochs,
+64-character lowercase SHA-256 digest of the selected owner/contract epochs,
 including absent partitions, plus the numeric authority administration revision
 for secured stores. The bounded epoch vector is represented by this one signed
 field; cursors retain the 4,096-byte limit. Limit/budget may change when resuming.
 
 Changes to a selected public partition invalidate the cursor with `query_changed`,
-including derived-only changes and either side of a reader move. An actual
+including derived-only changes and either side of an owner-scope move. An actual
 authority graph change invalidates secured cursors. A genuine no-op, receipt
-replay or mutation outside the selected reader/contract scope preserves it.
+replay or mutation outside the selected owner/contract scope preserves it.
 Changes within a selected partition may invalidate even if the particular
 filter's result would stay equal. Cursors survive unchanged reopen. Each page
 uses one fresh snapshot; this is not a frozen multi-request export. Neither the
@@ -247,7 +249,7 @@ work-limit rollback rather than assuming every full-population edit can commit.
 The historical local observer is privileged and used only for disposable acceptance stores.
 Its complete application-table images include test-store signing material; it
 is absent from RPC and from the normal inspector. The checker independently
-derives sources/outputs, every subtree, public index membership and receipt
+derives sources/outputs, every subtree, public and owner index membership and receipt
 results/content hashes. Earlier native corpora cover the wider causal and original
 settlement matrix at their recorded source revisions; their commands are in the
 research result papers. Keep their numeric-version fixtures and dated evidence

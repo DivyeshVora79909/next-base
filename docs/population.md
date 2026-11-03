@@ -17,7 +17,9 @@ contract schemas, builds reproducible generators from a seed and keeps explicit
 strategies separate from generated values. A proposal uses the current
 operation context and caller-supplied relationships; the helper does not infer
 authority from generated records. The server checks final records and all
-cross-record rules transactionally.
+cross-record rules transactionally. Create may request an owner UUID; omission assigns
+the actor as owner, and the server checks access to a requested owner. Update cannot
+change owner.
 
 Keep the proposal, exact operation plan and receipt together. A plan captures
 its model, store, tenant, actor, credential epoch, context, operation ID and

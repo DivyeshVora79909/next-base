@@ -290,7 +290,7 @@ fn cursor_is_integrity_only_contains_no_member_identity_and_rejects_substitution
     );
 }
 #[test]
-fn member_payload_reader_and_authority_changes_fence_continuation() {
+fn member_payload_and_authority_changes_fence_continuation() {
     let f = fixture();
     let mut graph: Graph = serde_json::from_value(
         f.store.access_graph(f.store.model().identity()).unwrap()["graph"].clone(),
@@ -378,7 +378,7 @@ fn member_payload_reader_and_authority_changes_fence_continuation() {
         .root_page(&r, &RootPagePolicy::default())
         .unwrap()
         .cursor;
-    assert!(left.get(left.model().identity(), id(61)).unwrap().is_some());
+    assert!(left.get(left.model().identity(), id(61)).unwrap().is_none());
     assert!(
         right
             .get(right.model().identity(), id(61))
@@ -397,7 +397,7 @@ fn member_payload_reader_and_authority_changes_fence_continuation() {
         right
             .get(right.model().identity(), id(61))
             .unwrap()
-            .is_some()
+            .is_none()
     );
     assert_eq!(
         user.root_read(&root_request).unwrap()["revision"],
@@ -678,4 +678,63 @@ fn validated_populations_of_50_100_and_1000_page_in_authored_order() {
         assert_eq!(actual, expected);
         f.store.check_integrity().unwrap();
     }
+}
+
+#[test]
+fn published_root_includes_hidden_owner_contributions_without_disclosing_members() {
+    let f = fixture();
+    // The ancestor can reference the child-owned account, but the child cannot
+    // read records owned by its user parent.
+    mutate(
+        &f.store,
+        json!([{"op":"create","id":id(90),"contract":8,
+            "fields":{"account":id(10),"at":"3","amount":"7"}}]),
+    );
+    let user = f.store.session(id(3), 0).unwrap();
+    assert!(user.get(user.model().identity(), id(90)).unwrap().is_none());
+    let root = user
+        .root_read(&rebase_semantic_proof::query::RootRequest {
+            model: user.model().identity().into(),
+            owner: id(10),
+            slot: 2,
+            read: rebase_semantic_proof::query::RootRead::Summary,
+        })
+        .unwrap();
+    let ancestor_root = f
+        .store
+        .root_read(&rebase_semantic_proof::query::RootRequest {
+            model: f.store.model().identity().into(),
+            owner: id(10),
+            slot: 2,
+            read: rebase_semantic_proof::query::RootRead::Summary,
+        })
+        .unwrap();
+    assert_eq!(root, ancestor_root);
+    assert_eq!(root["value"]["sum"], "13");
+    let mut r = request(&user);
+    r.limit = 1;
+    r.candidate_budget = 1;
+    let mut found = Vec::new();
+    loop {
+        let page = user.root_page(&r, &RootPagePolicy::default()).unwrap();
+        assert_eq!(page.total, 5);
+        found.extend(page.occurrences.into_iter().map(|o| o.record.id));
+        if page.exhausted {
+            break;
+        }
+        r.cursor = page.cursor;
+        assert!(r.cursor.is_some());
+    }
+    assert_eq!(found, vec![id(20), id(21), id(22)]);
+    // A peer cannot read even the root summary.
+    let peer = f.store.session(id(4), 0).unwrap();
+    assert!(
+        peer.root_read(&rebase_semantic_proof::query::RootRequest {
+            model: peer.model().identity().into(),
+            owner: id(10),
+            slot: 2,
+            read: rebase_semantic_proof::query::RootRead::Summary,
+        })
+        .is_err()
+    );
 }

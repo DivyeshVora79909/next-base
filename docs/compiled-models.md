@@ -70,7 +70,7 @@ resolution, so a parent edit and child retarget observe the same final authored
 values in either command order. The parameter bundle is attempt-local: it needs
 no Serde schema, stored copy, global cache or `Default` value for deleted records.
 Typed source references resolve after all proposed records are
-staged; authorized target access uses their repaired final readers. Forward creation
+staged; authorized target access uses final owner accessibility. Forward creation
 references are supported without permitting causal feedback or dangling targets.
 
 Keep published parent calculations out of authored parameters: a parent may
@@ -103,7 +103,7 @@ the shared reactive engine discovers affected work from old and new routes,
 detaches old managed outputs, builds the final dependency graph, rejects cycles,
 evaluates in dependency order and reconciles private output identities. Model
 validation runs against the settled state before the shared transaction publishes
-root/source tokens, reader indexes, query epochs, receipt allocations and receipts
+root/source tokens, owner indexes, query epochs, receipt allocations and receipts
 atomically over the selected storage backend.
 
 The native `Meta` contains immutable model/codec/tenant/bootstrap identity.
@@ -111,14 +111,14 @@ The native `Meta` contains immutable model/codec/tenant/bootstrap identity.
 it is not persisted or passed to settlement. Settlement uses a fresh UUID mutation
 token. Changed records and roots receive the token, while unchanged state retains
 its prior token. Declared roots still guard their shared invariants. Identity
-reservations and shared reader/contract query partitions can coordinate separate
+reservations and shared owner/contract query partitions can coordinate separate
 updates; model hooks must not invent a global mutation sequence or a backend-
 specific calculation path. [Storage contracts](storage.md#data-identity-and-upgrades)
 distinguish these tokens from administration/execution counters.
 
 Requested source writes and new links require client authority. Declared managed
 outputs and repairs run under engine authority; the public API rejects writes
-to private contracts. Owner and reader remain distinct. The model hooks are
+to private contracts. Records have one owner and no reader field; reference declarations carry no reader flag. The model hooks are
 trusted compiled code with workspace access, not a sandbox for untrusted authors.
 They must preserve tenant, reference, routing and invariant obligations.
 
@@ -142,7 +142,7 @@ revisions below record the new stored query/index identities.
 Calculation and equipment provide independent checkers. The equipment checker derives
 allocations and event histories from authored sources, then compares managed
 outputs, publications, queries and memberships. Shared snapshot checking verifies
-exact key inventory, role reservations, authority/reader indexes, real tree links,
+exact key inventory, role reservations, authority/owner indexes, real tree links,
 caches, population counts, scoped epochs and the exact receipt/slot bijection.
 A second fixture alone would not establish this boundary:
 equipment uses separate native types and sparse contract, root, member, query and
@@ -194,7 +194,7 @@ source-file presentation paths do not define stored semantics. Bump behavior
 identity when bindings, formulas, causality or invariants change, and codec/store
 versions when those formats change. Earlier proof evidence remains dated.
 Current source uses store format `rebase-store-10`, native codec
-`native-slice-kv-8`, effect codec `rebase-effects-4` and API 4. Its compiled
+`native-slice-kv-12`, effect codec `rebase-effects-4` and API 4. Its compiled
 behavior identities remain `rebase-calculation-contract-7`,
 `equipment-reservations-6`, `invoice-assessments-6`,
 `dimensioned-measurements-4`, `effect-demo-ingress-4` and `quantity-flow-2`.

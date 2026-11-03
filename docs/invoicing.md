@@ -68,7 +68,7 @@ an Issue with a surviving share rejects. Both records remain within the existing
 Use `connect` from the public Node barrel for authenticated plans; the [IssueShare example](../tools/node/examples/n6-issue-share.mjs) shows the separate bounded rounding workflow.
 
 Creating or retargeting a share requires current read access to its new Issue.
-An already materialized share follows its own Read permission and reader route;
+An already materialized share follows its own Read action and owner accessibility;
 revoking Issue Read alone does not redact it. Revoking Share Read removes it from
 ordinary reads/pages and receipt disclosure. Internal recalculation through an
 unchanged reference keeps the existing engine-authority policy.

@@ -37,53 +37,45 @@ prefix needs explicit range construction, not a naive string prefix/offset.
 optional business summary: `size(empty)=0`, `size(node)=1+size(left)+size(right)`.
 Rotations and the independent checker maintain it. Root counts must agree with
 their nodes. C1.1 implements structural size and supplies a String-keyed
-`CountOnly` family with unit business summary. The native codec is now
-`native-slice-kv-9`; stores with the old identity must be recreated explicitly.
+`CountOnly` family with unit business summary. The current owner-only format is `native-slice-kv-12`; stores with earlier identities
+require explicit recreation.
 Keep a separate business count only if it has different meaning or is needed by
 the algebra; avoid two conflicting authorities for the same cardinality.
 
 ## Proposed resource-scoped authorized indexes
 
-Logical orders, including deterministic cross-resource ties, are:
+Logical orders, including deterministic cross-resource ties, use owner scope:
 
-- Readable: `(resource_kind, tenant, reader, declared_order, record_id, slot)`.
-- Owned: `(resource_kind, tenant, owner, declared_order, record_id, slot)` when needed.
+- Owned: `(resource_kind, tenant, owner, declared_order, record_id, membership_slot)`.
 
-Every participating resource explicitly registers the relevant definitions;
-`declared_order` may be creation, effective time or another native total order.
-Read scope follows reader visibility; ownership and visibility are distinct.
-Equal projections may reuse an index only when their scope/query guarantees agree.
-Do not create duplicate memberships simply to give an access path another name.
-These declarations are not automatically applied to private worker/tree records.
-Created time is immutable, server-authored creation metadata, distinct from
-business effective time, dispatch admission and completion. General resource
-created-at metadata and these indexes are not yet implemented.
-Use one declared unit and stable catalog resource identity, not a mutable display
-name. Created time is not automatically cross-server commit order.
+Every participating resource explicitly registers definitions; `declared_order` may
+be creation, effective time or another native total order. ModelRecord has an owner
+only, and Reference has no reader flag. Reads merge streams for owners accessible to
+the caller under the ordinary owner-graph rules. A root read grants explicitly declared
+public summary data only. FULL summaries may include hidden contributors, while leaf,
+body and ID reads still require access to those records.
 
-"Global" is within a declared transaction/model domain. Independent stores cannot
-share one atomic index merely by using the same tenant UUID. Define a valid root
-namespace for tenant/principal scopes: authority DAG principals are not automatically
-interchangeable with model records owning today's roots. Validate address collisions,
-scope existence, root retirement and declaration coverage in C2/C3.
+Each tree root is anchored by `(root_record_uuid, declared_slot)`; each member address is
+`(record_uuid, membership_slot)`. Members order by the declared total order followed by
+stable record/slot ties. The root anchor and its full summary stay attached to the source
+record and root slot. The AVL `head` is only the current structural top node and can change
+on rotations without moving the root or its summary. One parent and one child root
+participation still permits composites: use a tuple of root grouping and sort fields. Do
+not infer all ancestors or all permutations.
 
-Physical roots may encode constant resource/tenant/reader-or-owner prefixes rather
-than repeat them in every node key. Tenant is a strict authority/store namespace;
-cross-tenant graph edges and references remain invalid. A matching UUID in another
-tenant grants no access and cannot address a root in this snapshot.
-Resolve the current authorized principal closure, select streams for the requested
-resource/order and merge those streams. Reader roots serve reads; owner roots are
-not a substitute when disclosure follows a different reader. A tenant-only ordered
-index is optional for a measured workload, not a default second global tree. It may
-still help when enumerating many streams costs more than filtering one scan.
-Tenant-wide roots share write ancestors; resource/reader partitions reduce some
-contention. Stored capacity counters are removed; measure remaining epoch guards and
-additional trees before claiming independent writers. Source-derived inventory statistics
-are read-only and do not add mutation coordination. Domain integrity roots remain independently
-declared; these access paths do not replace their validators.
+Caller-supplied IDs may use any supported canonical UUID format; the API does not require
+UUIDv7 or server-issued IDs. UUIDv7 is a recommendation for millisecond-prefix locality
+plus randomness. It does not provide trusted `created_at` metadata or commit order. The
+current native model does not automatically author server creation metadata; add a
+separate trusted `created_at` field when that business fact is required. It remains
+distinct from `effective_at`. A nanoepoch alone is not unique across servers.
+
+Tenant is a strict namespace. No central tenant aggregate or counter is implicit; use an
+explicit business root when required. These access indexes are planned, not implemented.
+Use one declared unit and stable catalog resource identity, not mutable display names.
 
 Use one stream when one root already has the requested order. K-way merge is for
-multiple sorted reader/resource/root streams: heap heads use the same total order
+multiple sorted owner/resource/root streams: heap heads use the same total order
 under one snapshot, then advance the smallest. Initialization is at least O(K),
 with seek work per stream; merging k candidates adds O(k log K) heap work.
 Cache each stream's head within the request, advance only the popped stream and
@@ -93,8 +85,8 @@ Bind cursor to query, full ordering key and current scope/revision semantics.
 A shared last-key cursor can suffice when every stream can reseek and duplicate/
 filter rules are defined; per-stream cursor state is not mandatory by default.
 
-Owner is not reader, and an index key grants no permission. Contract grants,
-revocation, private records and residual predicates still affect eligibility.
+An index key grants no permission by itself. Action grants, current owner accessibility,
+private records and residual predicates still affect eligibility.
 Count/rank of raw memberships is not count/rank of visible filtered rows. Bound
 stream setup, candidate visits, bytes and output; do not promise logarithmic rank
 selection over an arbitrary authorized union. Count-only root revision does not

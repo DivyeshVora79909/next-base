@@ -10,7 +10,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-11";
+pub const CODEC: &str = "native-slice-kv-12";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -114,6 +114,13 @@ pub mod optional_uuid_text {
                 Ok(value)
             })
             .transpose()
+    }
+
+    /// An omitted field may default, but a present field must name a UUID.
+    pub fn deserialize_present<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Uuid>, D::Error> {
+        super::uuid_text::deserialize(deserializer).map(Some)
     }
 }
 

@@ -70,7 +70,7 @@ or disable it for store-backed revocation on the next request. Reactivation
 requires a higher epoch. An already authorized overlapping read may finish.
 
 Reads use fresh graph scopes from the same snapshot as their data. Writes protect
-that authority in the serialized redb transaction. Reader/contract partitions
+that authority in the serialized redb transaction. Owner/contract partitions
 are merged in UUID order, with at most 1280 opened streams; no unauthorized
 contract is used as a candidate source. Scalar residual predicates still consume
 visit budget. Any committed domain or graph mutation invalidates cursors.

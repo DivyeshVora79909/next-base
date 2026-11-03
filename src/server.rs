@@ -595,7 +595,7 @@ mod tests {
         // Remove every table only from this test's random isolated namespace.
         let write = resetter.db.begin_write().unwrap();
         for name in crate::local::table_names(true) {
-            if name == "public_records" || name == "reader_records" {
+            if name == "public_records" || name == "owner_records" {
                 write
                     .delete_table(crate::storage::TableDefinition::<&[u8], u16>::new(&name))
                     .unwrap();

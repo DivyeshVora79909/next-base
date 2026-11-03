@@ -57,11 +57,11 @@ is separate from source-derived read-only inventory statistics. No stored capaci
 counter or binding population-cap API remains. Identity reservations still protect
 collisions; business roots and required query epochs may coordinate writes.
 
-Public query epochs are scoped to `(reader, contract)`. Changes in one such
+Public query epochs are scoped to `(owner, contract)`. Changes in one such
 partition coordinate even when their business roots differ. Cursors digest the
 selected epochs plus the numeric authority administration revision. True no-ops
 and edits outside that scope preserve cursors; changed public derivations and
-old/new readers on a move invalidate affected scopes. Any actual authority graph
+old/new owner scopes on a move invalidate affected scopes. Any actual authority graph
 change invalidates secured cursors. The digest is one signed 64-character SHA-256 field,
 so the full epoch vector need not fit inside the 4,096-byte cursor bound.
 
@@ -73,7 +73,7 @@ only read the archive/reset header; cleanup protects and compares the complete
 backup digest before clearing receipts and slots and advancing context expiry.
 
 The disjoint-root conformance case updates already-populated business roots in
-distinct reader partitions and receipt slots. It requires real FoundationDB
+distinct owner partitions and receipt slots. It requires real FoundationDB
 transactions and records the absence of a shared written coordination key. This
 case does not measure unrestricted throughput or make creates, shared roots,
 same-partition queries or effect-runtime quotas independent. Business-root

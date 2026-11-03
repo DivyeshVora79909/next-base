@@ -172,7 +172,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     effect.mutate(&seed)?;
     let dispatch = |record| json!([{"op":"create","id":record,"contract":205,"fields":{"account":id(100),"units":"3","execute_at":null,"not_after":null}}]);
     for (name, abort) in [
-        ("native-public-reader-abort", 2),
+        ("native-public-owner-abort", 2),
         ("effect-execution-abort", usize::MAX - 1),
         ("effect-due-abort", usize::MAX - 2),
         ("effect-runtime-abort", usize::MAX - 3),
@@ -257,7 +257,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     for name in [
         "native_kv",
         "public_records",
-        "reader_records",
+        "owner_records",
         "authority",
         "operations",
         "local_runtime",

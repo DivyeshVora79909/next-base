@@ -40,12 +40,11 @@ fn graph() -> Graph {
     graph
 }
 
-fn record(owner: u128, reader: u128) -> Record {
+fn record(owner: u128) -> Record {
     Record {
         contract: 4,
         tenant: id(1),
         owner: id(owner),
-        reader: id(reader),
         version: id(100),
         input: Input::Account { native_unit: 1 },
         derived: None,
@@ -53,52 +52,50 @@ fn record(owner: u128, reader: u128) -> Record {
 }
 
 #[test]
-fn administrative_actions_do_not_expand_ordinary_owner_or_reader_scope() {
+fn administrative_actions_do_not_expand_ordinary_owner_scope() {
     let prepared = graph().prepare().unwrap();
     let admin = &prepared.scopes[&id(2)];
     assert!(admin.grants.admin);
-    assert_eq!(admin.accessible, BTreeSet::from([id(1), id(2), id(4)]));
-    for target in [1, 2, 4] {
-        let source = record(target, target);
+    assert_eq!(admin.accessible, BTreeSet::from([id(2), id(4)]));
+    for target in [2, 4] {
+        let source = record(target);
         assert!(admin.can_read(&source));
-        for action in [Action::Create, Action::Update, Action::Delete] {
+        for action in [Action::Create, Action::Update] {
             assert!(admin.can_write(&source, action));
         }
     }
-    for target in [3, 5, 6] {
-        let source = record(target, target);
+    for target in [1, 3, 5, 6] {
+        let source = record(target);
         assert!(!admin.can_read(&source));
         for action in [Action::Create, Action::Update, Action::Delete] {
             assert!(!admin.can_write(&source, action));
         }
     }
-    // Ownership permits mutation but never independently permits disclosure.
-    assert!(!admin.can_read(&record(2, 3)));
-    assert!(admin.can_write(&record(2, 3), Action::Update));
-    assert!(admin.can_read(&record(3, 2)));
-    assert!(!admin.can_write(&record(3, 2), Action::Update));
-    let mut foreign = record(2, 2);
+    assert!(!admin.can_write(&record(1), Action::Delete));
+    assert!(admin.can_write(&record(2), Action::Delete));
+    assert!(admin.can_write(&record(4), Action::Delete));
+    let mut foreign = record(2);
     foreign.tenant = id(9);
     assert!(!admin.can_read(&foreign));
     assert!(!admin.can_write(&foreign, Action::Update));
     let mut inactive = admin.clone();
     inactive.active = false;
-    assert!(!inactive.can_read(&record(2, 2)));
-    assert!(!inactive.can_write(&record(2, 2), Action::Update));
+    assert!(!inactive.can_read(&record(2)));
+    assert!(!inactive.can_write(&record(2), Action::Update));
 }
 
 #[test]
-fn only_direct_group_and_tenant_parents_supply_scope_and_user_grants() {
+fn only_direct_groups_supply_parent_scope_while_tenants_still_supply_grants() {
     let mut graph = graph();
     graph.principals[0]
         .grants
         .contracts
         .insert(4, BTreeSet::from([Action::Read]));
     let group = graph.principals.iter_mut().find(|p| p.id == id(5)).unwrap();
-    group
-        .grants
-        .contracts
-        .insert(4, BTreeSet::from([Action::Update]));
+    group.grants.contracts.insert(
+        4,
+        BTreeSet::from([Action::Read, Action::Update, Action::Delete]),
+    );
     graph.principals.extend([
         principal(7, PrincipalKind::Group, &[5], Grants::default()),
         principal(8, PrincipalKind::User, &[7], Grants::default()),
@@ -108,25 +105,23 @@ fn only_direct_group_and_tenant_parents_supply_scope_and_user_grants() {
     let user_child = &prepared.scopes[&id(4)];
     assert_eq!(user_child.accessible, BTreeSet::from([id(4)]));
     assert!(!user_child.grants.admin);
-    assert!(!user_child.can_read(&record(2, 2)));
-    assert!(!user_child.can_write(&record(4, 4), Action::Update));
+    assert!(!user_child.can_read(&record(2)));
+    assert!(!user_child.can_write(&record(4), Action::Update));
     let group_child = &prepared.scopes[&id(6)];
     assert_eq!(group_child.accessible, BTreeSet::from([id(5), id(6)]));
-    assert!(group_child.can_write(&record(5, 3), Action::Update));
-    assert!(!group_child.can_read(&record(5, 5)));
-    assert!(!group_child.can_write(&record(5, 5), Action::Delete));
+    assert!(group_child.can_write(&record(5), Action::Update));
+    assert!(group_child.can_read(&record(5)));
+    assert!(!group_child.can_write(&record(5), Action::Delete));
     // Group grants do not flow transitively through another group.
     for actor in [7, 8] {
         assert!(!prepared.scopes[&id(actor)].grants.allows(4, Action::Update));
     }
     let direct_both = &prepared.scopes[&id(9)];
-    assert!(direct_both.can_read(&record(1, 1)));
-    assert!(direct_both.can_write(&record(5, 3), Action::Update));
-    assert!(!direct_both.can_write(&record(1, 1), Action::Delete));
-    assert_eq!(
-        direct_both.accessible,
-        BTreeSet::from([id(1), id(5), id(9)])
-    );
+    assert!(!direct_both.can_read(&record(1)));
+    assert!(direct_both.grants.allows(4, Action::Read));
+    assert!(direct_both.can_write(&record(5), Action::Update));
+    assert!(!direct_both.can_write(&record(1), Action::Delete));
+    assert_eq!(direct_both.accessible, BTreeSet::from([id(5), id(9)]));
 }
 
 #[test]
@@ -138,8 +133,8 @@ fn inactive_direct_parent_supplies_no_inherited_actions() {
     let prepared = graph.prepare().unwrap();
     let scope = &prepared.scopes[&id(6)];
     assert!(!scope.grants.admin);
-    assert!(!scope.can_read(&record(5, 5)));
-    assert!(!scope.can_write(&record(5, 5), Action::Update));
+    assert!(!scope.can_read(&record(5)));
+    assert!(!scope.can_write(&record(5), Action::Update));
 }
 
 #[test]
@@ -159,10 +154,10 @@ fn inherited_administration_grants_actions_without_sibling_scope() {
     let scope = &prepared.scopes[&id(6)];
     assert!(scope.grants.admin);
     assert_eq!(scope.accessible, BTreeSet::from([id(5), id(6)]));
-    assert!(scope.can_read(&record(5, 5)));
-    assert!(scope.can_write(&record(6, 6), Action::Update));
-    assert!(!scope.can_read(&record(7, 7)));
-    assert!(!scope.can_write(&record(7, 7), Action::Update));
+    assert!(scope.can_read(&record(5)));
+    assert!(scope.can_write(&record(6), Action::Update));
+    assert!(!scope.can_read(&record(7)));
+    assert!(!scope.can_write(&record(7), Action::Update));
 }
 
 #[test]
@@ -201,7 +196,7 @@ fn graph_administration_remains_available_with_a_strict_tenant_fence() {
         })
         .unwrap();
     let ordinary = graph().prepare().unwrap();
-    assert!(!ordinary.scopes[&id(2)].can_read(&record(3, 3)));
+    assert!(!ordinary.scopes[&id(2)].can_read(&record(3)));
     // Admin can edit a sibling's authority even though its ordinary records are hidden.
     let mut next = graph();
     next.principals

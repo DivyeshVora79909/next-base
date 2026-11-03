@@ -791,7 +791,7 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                 contract: e.contract,
                 tenant: context.tenant,
                 owner: r.owner,
-                reader: r.reader,
+
                 version: revision,
                 input,
                 derived: None,
@@ -1063,6 +1063,7 @@ mod tests {
         let creates = sources
             .iter()
             .map(|(id, input)| Command::Create {
+                owner: None,
                 id: *id,
                 contract: input.contract(),
                 fields: serde_json::to_value(input).unwrap(),
@@ -1153,7 +1154,7 @@ mod tests {
             contract: 10,
             tenant: context.tenant,
             owner: context.actor,
-            reader: context.actor,
+
             version: Uuid::from_u128(1),
             input: Input::Basis {
                 sources: vec![Uuid::from_u128(3)],

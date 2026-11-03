@@ -354,7 +354,6 @@ fn reference(
         direct_fields,
         validation_fields: vec![],
         on_delete: "reject",
-        reader: field == "invoice" || field == "target",
     }
 }
 fn root(slot: u16, name: &'static str) -> RootDeclaration {
@@ -663,8 +662,7 @@ fn declarations() -> Result<Vec<Contract>> {
                 ];
             }
             821 => {
-                let mut issue = reference(1, "issue", vec![211], vec![]);
-                issue.reader = true;
+                let issue = reference(1, "issue", vec![211], vec![]);
                 c.references.push(issue);
                 c.publication_inputs.push(PublicationInput {
                     slot: PublicationSlot(1),

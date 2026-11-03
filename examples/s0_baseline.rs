@@ -307,7 +307,7 @@ fn clear(db: &Database) -> Result<()> {
     drop(read);
     let write = db.begin_write()?;
     for table in tables {
-        if matches!(table.as_str(), "public_records" | "reader_records") {
+        if matches!(table.as_str(), "public_records" | "owner_records") {
             write.delete_table(TableDefinition::<&[u8], u16>::new(&table))?;
         } else {
             write.delete_table(TableDefinition::<&[u8], &[u8]>::new(&table))?;

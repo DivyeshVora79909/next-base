@@ -18,8 +18,8 @@ No separate population schema, registration function or command parser is needed
 For each constraint, two different source records of the same contract cannot
 have the same ordered target tuple. `(A, B)` differs from `(B, A)`; repeated targets
 inside one tuple are allowed. Different contracts or constraint codes have independent
-claim spaces. The store's tenant namespace supplies tenant isolation; owner/reader
-do not partition uniqueness. Put a cross-class exclusive relationship in a shared
+claim spaces. The store's tenant namespace supplies tenant isolation; owner scopes do not partition
+uniqueness. Put a cross-class exclusive relationship in a shared
 claim resource when that is the actual business invariant.
 Uniqueness enforces an upper cardinality bound; it does not require every target
 to have a partner. Mandatory companion existence needs a separate final-graph rule.
@@ -54,8 +54,7 @@ ordinary deletion outside the command lifecycle. The independent checker
 continues deriving expected Incoming memberships from complete source facts.
 See [C2.A evidence](checkpoints/c2-automatic-incoming.json).
 
-The shared mutation path first stages and settles the final source graph, repairs
-readers and authorizes explicit client reference changes. It then examines every
+The shared mutation path first stages and settles the final source graph, resolves final owner scopes and authorizes explicit client reference changes. It then examines every
 changed record, including changes made by settlement rather than client commands.
 It verifies old claims against their original source, releases all changed old
 claims, and acquires final claims. Swaps, cycles of retargets and delete/reuse work
@@ -75,7 +74,8 @@ work budget. It is not free or universally constant time. One physical claim key
 uses `7 + 16 * arity` native bytes, before adapter namespace overhead; backend key
 and transaction limits still apply. No-constraint models skip reconciliation.
 
-Storage identity is `native-slice-kv-10`. Old stores require explicit recreation;
+This historical C2.U checkpoint used `native-slice-kv-10`; current owner-only stores use
+`native-slice-kv-12`. Old stores require explicit recreation;
 there is no compatibility migration. Complete native integrity checking independently
 rebuilds every expected claim from source and compares exact key/holder inventory,
 including missing and extra rows. Node `checkBackupStructure` checks framing,
@@ -87,7 +87,7 @@ See [checkpoint evidence](checkpoints/c2-reference-uniqueness.json) and
 [executable cases](../tests/reference_uniqueness.rs). The ignored FoundationDB
 test requires `NEXT_BASE_FDB_CLUSTER` and an explicit ignored-test run. It proves
 the claim primitive's same-key conflict and disjoint-key independence on a real
-adapter, without population or reader epochs. It is not multi-host performance
+adapter, without population or owner epochs. It is not multi-host performance
 evidence or a full application concurrency campaign.
 
 # Pure parent/child rules
@@ -96,7 +96,7 @@ Declare authored parent fields on each reference with
 `reference.validation_fields = vec!["start", "end", "limit"]`, then implement the
 ordinary compiled `Binding::validate_relationships(input, parents)` function.
 Each `RelationInput` has the reference `slot`, target UUID and a `Map<String, Value>`
-containing exactly the declared fields. No storage, allocator, owner/reader headers,
+containing exactly the declared fields. No storage, allocator, owner headers,
 derived values or external service handle is supplied. Own authored input remains
 native and typed. Optional absent references supply no entry. Polymorphic references
 require every admitted target contract to declare the requested fields.
@@ -127,7 +127,7 @@ authored rule. It does not trust the writer's candidate selection. Domain reject
 rolls back all staged state. Client diagnostics retain the error class but redact
 rule details, which could contain hidden parent/child data. A semantic policy revision
 and all declarations participate in prepared identity; old model identities require
-explicit recreation. The physical codec remains `native-slice-kv-10`.
+explicit recreation. The physical codec in that historical checkpoint was `native-slice-kv-10`.
 
 See [C2.P evidence](checkpoints/c2-relationship-predicates.json) and the
 [scheduling example/tests](../tests/relationship_predicates.rs). This slice covers

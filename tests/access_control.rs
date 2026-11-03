@@ -138,7 +138,6 @@ fn prepared_scopes_match_independent_path_search_and_preserve_diamonds() {
                     false
                 })
                 .map(id)
-                .chain([id(1)])
                 .collect();
             assert_eq!(
                 prepared.scopes[&id(actor)].accessible,
@@ -189,12 +188,10 @@ fn direct_group_access_inherits_grants_without_granting_siblings() {
     assert!(scope.accessible.contains(&id(6)));
     assert!(!scope.accessible.contains(&id(5)));
     assert!(scope.grants.allows(8, Action::Create));
-    assert_eq!(prepared.reader(&[id(3), id(4)], id(2)), id(3)); // incomparable: retain first
-    assert_eq!(prepared.reader(&[id(6), id(4)], id(2)), id(4)); // strict descendant replaces
 }
 
 #[test]
-fn reader_partition_cursors_survive_disjoint_changes_and_fence_both_sides_of_moves() {
+fn owner_partition_cursors_survive_disjoint_changes_and_fence_own_payload_edits() {
     let dir = Directory::new();
     let model = Arc::new(PreparedModel::load().unwrap());
     let admin = LocalStore::create_secured(
@@ -220,12 +217,12 @@ fn reader_partition_cursors_survive_disjoint_changes_and_fence_both_sides_of_mov
             ))
             .unwrap();
     }
-    admin.mutate(&mutation(&admin, 102, json!([
-        {"op":"create","id":id(40),"contract":8,"fields":{"account":id(10),"at":"0","amount":"1"}},
-        {"op":"create","id":id(41),"contract":8,"fields":{"account":id(10),"at":"1","amount":"1"}},
-        {"op":"create","id":id(50),"contract":8,"fields":{"account":id(20),"at":"0","amount":"1"}},
-        {"op":"create","id":id(51),"contract":8,"fields":{"account":id(20),"at":"1","amount":"1"}}
-    ]), json!([]))).unwrap();
+    for (owner, account, first, operation) in [(&left, 10, 40, 102), (&right, 20, 50, 105)] {
+        owner.mutate(&mutation(owner, operation, json!([
+            {"op":"create","id":id(first),"contract":8,"fields":{"account":id(account),"at":"0","amount":"1"}},
+            {"op":"create","id":id(first+1),"contract":8,"fields":{"account":id(account),"at":"1","amount":"1"}}
+        ]), json!([]))).unwrap();
+    }
     let cursor = |store: &LocalStore| {
         let mut request = PageRequest {
             model: model.identity().into(),
@@ -264,18 +261,18 @@ fn reader_partition_cursors_survive_disjoint_changes_and_fence_both_sides_of_mov
         .unwrap()
         .version;
     admin.mutate(&mutation(&admin, 104,
-        json!([{"op":"update","id":id(40),"if_version":moving,"set":{"account":id(20)},"unset":[]}]),
+        json!([{"op":"update","id":id(40),"if_version":moving,"set":{"amount":"3"},"unset":[]}]),
         json!([]),
     )).unwrap();
     assert_eq!(left.page(&left_cursor).unwrap_err().code, "query_changed");
-    assert_eq!(right.page(&right_cursor).unwrap_err().code, "query_changed");
-    assert!(left.get(model.identity(), id(40)).unwrap().is_none());
-    assert!(right.get(model.identity(), id(40)).unwrap().is_some());
+    assert!(right.page(&right_cursor).is_ok());
+    assert!(left.get(model.identity(), id(40)).unwrap().is_some());
+    assert!(right.get(model.identity(), id(40)).unwrap().is_none());
     admin.check_integrity().unwrap();
 }
 
 #[test]
-fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() {
+fn real_store_preserves_owner_indexes_revokes_credentials_and_redacts_receipts() {
     let dir = Directory::new();
     let model = Arc::new(PreparedModel::load().unwrap());
     let admin = LocalStore::create_secured(
@@ -305,7 +302,7 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
         json!([id(11)]),
     );
     let result = manager.mutate(&entry).unwrap();
-    assert!(child.get(model.identity(), id(11)).unwrap().is_some());
+    assert!(child.get(model.identity(), id(11)).unwrap().is_none());
     assert!(stranger.get(model.identity(), id(11)).unwrap().is_none());
     let basis = mutation(
         &manager,
@@ -318,11 +315,11 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
         json!([id(21)]),
     );
     manager.mutate(&basis).unwrap();
-    assert!(child.get(model.identity(), id(21)).unwrap().is_some());
+    assert!(child.get(model.identity(), id(21)).unwrap().is_none());
     let readable = page(&child, None, 128);
     assert_eq!(
         readable.records.iter().map(|r| r.id).collect::<Vec<_>>(),
-        vec![id(10), id(11), id(21)]
+        vec![id(10)]
     );
     let first = page(&manager, None, 1);
     assert_eq!(first.records[0].id, id(10));
@@ -344,8 +341,7 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
     );
     assert_eq!(stranger.mutate(&denied).unwrap_err().code, "forbidden");
     assert_eq!(admin.observe_for_verification().unwrap(), before);
-    // Once owner3 and referenced owner4 become incomparable, own-owner first
-    // selects3. This changes disclosure without granting union access.
+    // Moving the child out of the manager branch revokes descendant scope.
     let mut g = graph();
     g.principals
         .iter_mut()
@@ -358,14 +354,13 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
     assert!(child.get(model.identity(), id(21)).unwrap().is_none());
     assert!(manager.get(model.identity(), id(21)).unwrap().is_some());
     let raw = admin.observe_for_verification().unwrap();
-    let entries = raw["tables"]["reader_records"].as_array().unwrap();
+    let entries = raw["tables"]["owner_records"].as_array().unwrap();
     assert_eq!(entries.len(), 5); // private outputs never enter public candidates
     let entry_key = format!("{}{:04x}{}", id(3).simple(), 8, id(11).simple());
     let basis_key = format!("{}{:04x}{}", id(3).simple(), 10, id(21).simple());
     assert!(entries.iter().any(|r| r["key"] == entry_key));
     assert!(entries.iter().any(|r| r["key"] == basis_key));
-    // Reader ownership remains3, so revoke the concrete Read action to test
-    // current-authority receipt redaction without changing reader semantics.
+    // Revoke Read to test current-authority receipt redaction.
     g.principals
         .iter_mut()
         .find(|p| p.id == id(3))
@@ -449,4 +444,127 @@ fn real_store_repairs_reader_indexes_revokes_credentials_and_redacts_receipts() 
             .collect::<Vec<_>>(),
         vec![id(10)]
     );
+}
+
+#[test]
+fn explicit_group_ownership_shares_reads_and_updates_but_requires_ancestor_delete() {
+    let dir = Directory::new();
+    let model = Arc::new(PreparedModel::load().unwrap());
+    let admin = LocalStore::create_secured(
+        dir.file(),
+        model.clone(),
+        Context {
+            tenant: id(1),
+            actor: id(2),
+        },
+    )
+    .unwrap();
+    let mut g = graph();
+    g.principals.push(Principal {
+        kind: PrincipalKind::Group,
+        ..person(6, &[2])
+    });
+    for actor in [4, 5] {
+        let p = g.principals.iter_mut().find(|p| p.id == id(actor)).unwrap();
+        p.parents = vec![id(6)];
+        p.grants = Grants::default();
+    }
+    replace(&admin, g).unwrap();
+    let left = admin.session(id(4), 0).unwrap();
+    let right = admin.session(id(5), 0).unwrap();
+    left.mutate(&mutation(
+        &left,
+        200,
+        json!([
+            {"op":"create","id":id(59),"owner":id(6),"contract":4,"fields":{"native_unit":1}},
+            {"op":"create","id":id(60),"owner":id(6),"contract":8,"fields":{"account":id(59),"at":"0","amount":"1"}},
+            {"op":"create","id":id(61),"contract":4,"fields":{"native_unit":1}}
+        ]),
+        json!([]),
+    ))
+    .unwrap();
+    assert!(left.get(model.identity(), id(61)).unwrap().is_some());
+    assert!(right.get(model.identity(), id(61)).unwrap().is_none());
+    let shared = right.get(model.identity(), id(60)).unwrap().unwrap();
+    right.mutate(&mutation(&right, 201, json!([
+        {"op":"update","id":id(60),"if_version":shared.version,"set":{"amount":"2"},"unset":[]}
+    ]), json!([]))).unwrap();
+    let shared = left.get(model.identity(), id(60)).unwrap().unwrap();
+    assert_eq!(serde_json::to_value(shared.input).unwrap()["amount"], "2");
+    for (caller, operation) in [(&left, 202), (&right, 203)] {
+        let before = admin.observe_for_verification().unwrap();
+        assert_eq!(
+            caller
+                .mutate(&mutation(
+                    caller,
+                    operation,
+                    json!([
+                        {"op":"delete","id":id(60),"if_version":shared.version}
+                    ]),
+                    json!([])
+                ))
+                .unwrap_err()
+                .code,
+            "forbidden"
+        );
+        assert_eq!(admin.observe_for_verification().unwrap(), before);
+    }
+    // Scope denial precedes duplicate/nil record identity checks. The earlier
+    // valid command in each batch must also roll back.
+    for (offset, owner) in [3, 1, 999].into_iter().enumerate() {
+        for record in [id(60), Uuid::nil()] {
+            let before = admin.observe_for_verification().unwrap();
+            assert_eq!(left.mutate(&mutation(&left, 210 + offset as u128, json!([
+                {"op":"create","id":id(70),"contract":4,"fields":{"native_unit":1}},
+                {"op":"create","id":record,"owner":id(owner),"contract":4,"fields":{"native_unit":1}}
+            ]), json!([]))).unwrap_err().code, "forbidden");
+            assert_eq!(admin.observe_for_verification().unwrap(), before);
+        }
+    }
+    admin
+        .mutate(&mutation(
+            &admin,
+            220,
+            json!([
+                {"op":"delete","id":id(60),"if_version":shared.version}
+            ]),
+            json!([]),
+        ))
+        .unwrap();
+    assert!(left.get(model.identity(), id(60)).unwrap().is_none());
+    admin.check_integrity().unwrap();
+}
+
+#[test]
+fn explicit_owner_wire_field_requires_a_canonical_uuid_string() {
+    let dir = Directory::new();
+    let store = LocalStore::create_secured(
+        dir.file(),
+        Arc::new(PreparedModel::load().unwrap()),
+        Context {
+            tenant: id(1),
+            actor: id(2),
+        },
+    )
+    .unwrap();
+    let valid = serde_json::to_value(mutation(
+        &store,
+        300,
+        json!([
+            {"op":"create","id":id(301),"contract":4,"fields":{"native_unit":1}}
+        ]),
+        json!([]),
+    ))
+    .unwrap();
+    assert!(serde_json::from_value::<Mutation>(valid.clone()).is_ok());
+    for owner in [
+        Value::Null,
+        json!(123),
+        json!("invalid"),
+        json!("ABCDEFAB-0000-0000-0000-000000000006"),
+    ] {
+        let mut request = valid.clone();
+        request["commands"][0]["owner"] = owner;
+        assert!(serde_json::from_value::<Mutation>(request).is_err());
+    }
 }

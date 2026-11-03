@@ -1,0 +1,678 @@
+{
+  "format": "next-base-owner-only-1",
+  "checkpoint": "C2.O",
+  "status": "accepted bounded owner-only authorization and storage integration",
+  "parentCommit": "f35811872c2f8e452243170dbd2529b3a3ca41a6",
+  "codec": "native-slice-kv-12",
+  "contract": {
+    "recordAuthority": "one immutable owner; no stored reader",
+    "readCreateUpdate": "active caller, same tenant, contract action and owner in self/strict descendants/direct group parents",
+    "delete": "active caller, same tenant, Delete action and owner=self or strict descendant; direct group membership alone never authorizes delete",
+    "tenantParents": "not ordinary resource scope; direct active tenant/group grant inheritance remains separate",
+    "createOwner": "optional canonical UUID string, omitted defaults to actor; requested owner checked before identity/existence diagnostics; owner edits on Update unavailable",
+    "rootSummary": "readable anchor record plus declared public root operation; full summary includes hidden contributors; no separate tree ACL",
+    "members": "independent per-record projection; readable root does not disclose hidden contributor ID/body",
+    "rootIdentity": "stable source UUID plus root slot; rotations only change structural head",
+    "namespace": "same-tenant source/reference guards and tenant-isolated adapter namespace; no implicit tenant aggregate",
+    "indexes": "owner_records keyed by (owner,contract,UUID); same-snapshot k-way merge of accessible owner streams; owner/contract query epochs",
+    "removed": [
+      "ModelRecord.reader",
+      "Reference.reader",
+      "choose_reader",
+      "reader candidate discovery/provenance/repair",
+      "reader_records",
+      "reader_checks metric",
+      "record scans/rewrites on authority graph changes"
+    ],
+    "retained": [
+      "linked augmented AVL summaries and structural sizes",
+      "source-derived independent checks",
+      "typed references and final-graph rules",
+      "private managed output provenance",
+      "interval stabbing and causal scheduling",
+      "atomic publication, receipts, rollback, CAS and protected storage reads",
+      "no persistent population counter"
+    ]
+  },
+  "inputs": [
+    {
+      "path": "examples/s0_baseline.rs",
+      "sha256": "f2f992af5e5acdb2cb8f842e3c68526c71d0aabca3d6a1741443b00ca2531e54"
+    },
+    {
+      "path": "src/access.rs",
+      "sha256": "0da8b69b25d92fd0145ff61c7f22ecc4eabfd87d9c466885c55801f24a79ffbe"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "e74ae4a2bfda8e1d466364ffca17886c7aa213346afdc162faf58efecb7a3fb9"
+    },
+    {
+      "path": "src/effects/application.rs",
+      "sha256": "c40d09a74e0711f5c2c712d852dc111e31fcec7ba74cd43d5c7a530822bb1a7f"
+    },
+    {
+      "path": "src/effects/conformance.rs",
+      "sha256": "cc71a67f576215124bf23ad1ad9c6902ef6609365db3b4cd66e85d0b6c88e841"
+    },
+    {
+      "path": "src/fixtures.rs",
+      "sha256": "533f825f9f0ee9ae3009922d570504a508dd119ced2cfa10426e397996978977"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "757eb3f26fd6aca5963f0cbe8ef4f2e6bf56af022c1f20685fe515e7685da153"
+    },
+    {
+      "path": "src/lifecycle.rs",
+      "sha256": "e67514e0551bb18b1736dc45dbfca52c5b8ae95a2855c03037e3dbce2b2ada37"
+    },
+    {
+      "path": "src/local.rs",
+      "sha256": "edb1abaa0a9ab4d8e33b378939f7eafaa5a5c1ed38f6e16bd484bb57d821b166"
+    },
+    {
+      "path": "src/merge.rs",
+      "sha256": "b69743f54c6a8b7790b956761ea1858327fea2694e80776de24a9e214908417a"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "80c931f7496404852e68adbb1fbd8ef915b00149fb71299805fbe2ad69775fa6"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "e6bcfbf1c19f0f1523e0f1e79970e5831659efb9371ae23d2b5934d0c7de7975"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "ada95cb1bc2b02a5f8e1a8620562336468747e8145c93bb113d8785d769988b6"
+    },
+    {
+      "path": "src/models/invoicing.rs",
+      "sha256": "a5039d511cf485208ecd114b6d77dfd5cea64a4820185af966a438c0da13a42a"
+    },
+    {
+      "path": "src/models/measurement.rs",
+      "sha256": "b9fe907d46cd94377c3e5a8703572b4018a037d2a71feec1ff97ea617c01682c"
+    },
+    {
+      "path": "src/models/quantity.rs",
+      "sha256": "7e3d9c7563d3ca100c097d32534d5932679ad6e341349c42295bf761add3c72e"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "09b2d3ebcfd3fa946b839128a81b34ed14aac4227a52bab800b4434f80bfd355"
+    },
+    {
+      "path": "src/native_codec.rs",
+      "sha256": "fa57af98b659bc90247e42cd396d6e82acd0a190be262b71b82f521318afb606"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "e925da89a78f43296381c3476ecf35a110463e361e857194b4e435ef9baeb019"
+    },
+    {
+      "path": "src/parameter_tests.rs",
+      "sha256": "d09c6393a79ada72b83064d3cf2a2bdf3c77ba0bce98bf20bbc16ea926ecca66"
+    },
+    {
+      "path": "src/plan.rs",
+      "sha256": "ced267a9081962801189cb7e9cfbc63e200138b7fe9ccd70f5d5773ed60addee"
+    },
+    {
+      "path": "src/publication_tests.rs",
+      "sha256": "a05eafb57e4352291d5d1f9d72071ce1767e5a1c55f3516a868a1f68b06bbd8a"
+    },
+    {
+      "path": "src/query.rs",
+      "sha256": "daff741bff346f22e9a41a18d80f7c6988edfb44daf4278d394b83326062c1d7"
+    },
+    {
+      "path": "src/reference_tests.rs",
+      "sha256": "7ca3e55358f653a3cbaac12d3588cdba377b3f13c2dcb6398031c22c65e1dcc8"
+    },
+    {
+      "path": "src/relationships.rs",
+      "sha256": "71dc5cfbc03a949472ad5d385b8ce44fee2ff12bf1812bdbd56a3ca47355351a"
+    },
+    {
+      "path": "src/security.rs",
+      "sha256": "9ec51693011d4f1c626fdf70e9cc482068b793f758c3a170f8a1265906ca8694"
+    },
+    {
+      "path": "src/server.rs",
+      "sha256": "f8565c365f1f2e090e3a358108502c088d180a26b373c571cf1f948f4c3d75f0"
+    },
+    {
+      "path": "src/storage/application_checks.rs",
+      "sha256": "a55567b946746dcfc5e28146a59b1dfea5b5b135e531b31cb467f67f13b8ecc4"
+    },
+    {
+      "path": "src/storage/concurrency_checks.rs",
+      "sha256": "f1f7397bde88823a9ac607bcbcdd04adcd5cc139571eae07b562541cca7240ba"
+    },
+    {
+      "path": "src/storage/coordination_checks.rs",
+      "sha256": "72d71394305f2cea81089386987824e97fc29f3477a84e6336d754a9a76eb02d"
+    },
+    {
+      "path": "src/uniqueness.rs",
+      "sha256": "7991b11c0fcf5ec1b53a43f8d2121da215531297c42f5ec119cc3a9f9ccba385"
+    },
+    {
+      "path": "src/window_tests.rs",
+      "sha256": "98e4c8c9265946443ae665b48d487e737ceb0f72897b85353a13eae12ab4a7a2"
+    },
+    {
+      "path": "tests/access_control.rs",
+      "sha256": "ea1dd3fc94ef997b0937b67d43a282a1b0aef77b50986edeb00067afada2fffd"
+    },
+    {
+      "path": "tests/authority_scope.rs",
+      "sha256": "f4f571b1bb9f51598691f06f1e0f45e8341ee68114fa0868968c6fc296ccfa96"
+    },
+    {
+      "path": "tests/exact_values.rs",
+      "sha256": "322e1493cda2bbc09661c2ebadd13187b592c844604267b8d8c1a627f6a02ff0"
+    },
+    {
+      "path": "tests/final_graph_references.rs",
+      "sha256": "c5209191be201d0c94c60092e7a07752349797e641a585bd3498639b48f87d55"
+    },
+    {
+      "path": "tests/reference_uniqueness.rs",
+      "sha256": "6cc37fb7fade0fac687c3bb177dcb8f05692a1458e43298938a5af3f1454069c"
+    },
+    {
+      "path": "tests/relationship_predicates.rs",
+      "sha256": "d9df44cbcaf8efd4c8066ff0469f828f84c74efddb9d0956191d54de1fa5b0b1"
+    },
+    {
+      "path": "tests/root_pages.rs",
+      "sha256": "4c4cbdb6221851d27472f147d7e6e57e5e669328bd21da7fd38e702a51e4ce88"
+    },
+    {
+      "path": "tests/semantics.rs",
+      "sha256": "39211d32851740544212a709a3a05549df00bc2c620a0da3a09fba08ebbf0a3a"
+    },
+    {
+      "path": "tests/storage_lifecycle.rs",
+      "sha256": "ba985e9aaeac3deac0d852be8f94346993ef84596044d8f9d5422b8ed6022aa3"
+    },
+    {
+      "path": "tools/node/examples/s0-baseline.mjs",
+      "sha256": "e611d96c81b15cc2c871957cfd58ed7926737b3181e89d7d90019d8fc1655f4a"
+    },
+    {
+      "path": "tools/node/examples/s0-contract.mjs",
+      "sha256": "a199076b002445c9a497ca65caf4c337edac80b8b007b46c9d801c51a0d13eff"
+    },
+    {
+      "path": "tools/node/private/operation-plan.mjs",
+      "sha256": "8f2a36cf18d0ac36f26ef458dd0b91a7c4d32954d81eb8d9757c36e7313ec7a8"
+    },
+    {
+      "path": "tools/node/storage-check.mjs",
+      "sha256": "c03f07b69ca6c8edb641f06c31581618fe599a87157e5941e0701447ea6c47b7"
+    },
+    {
+      "path": "tools/node/test/client.test.mjs",
+      "sha256": "12d0121b98e9590329c4496e9cb9cdd2ca4ffa86bddfaf7ea0b6e325a5e45837"
+    },
+    {
+      "path": "tools/node/test/population-contract.test.mjs",
+      "sha256": "f652853192f4f8f3c59354f5d2accce7d78c1b23551bca74ad54297df7360fc3"
+    },
+    {
+      "path": "tools/node/test/s0-baseline.test.mjs",
+      "sha256": "510d9e02c7fb9f8e4d1c90fe49d8f261500af50dde23bdedf1210f0425b13747"
+    },
+    {
+      "path": "tools/node/test/s0-contract.test.mjs",
+      "sha256": "1ce8e5c275b5cf517db71ec86187c4da03cc9b4ccd3552cf8dbd1f7b08ddeedf"
+    },
+    {
+      "path": "tools/node/test/storage-check.test.mjs",
+      "sha256": "3896a1e043858d5175ad2a4fc8b27ff1d8c51bea8e78cfe48575ba3292fdb473"
+    }
+  ],
+  "verification": {
+    "rust": {
+      "command": "cargo test --locked --offline --all-targets --no-fail-fast",
+      "passed": 284,
+      "failed": 0,
+      "ignored": 0
+    },
+    "node": {
+      "command": "Node 24.22.1 --test test/*.test.mjs with six explicit freshly built native host paths",
+      "passed": 174,
+      "failed": 0,
+      "skipped": 0
+    },
+    "checks": [
+      "cargo fmt --all -- --check",
+      "cargo clippy --locked --offline --all-targets -- -D warnings",
+      "cargo clippy --locked --offline --all-targets --features foundationdb -- -D warnings",
+      "git diff --check"
+    ],
+    "semanticWitnesses": [
+      {
+        "path": "tests/root_pages.rs",
+        "test": "published_root_includes_hidden_owner_contributions_without_disclosing_members",
+        "fullSum": "13",
+        "fullOccurrences": 5,
+        "visibleMemberIds": [
+          20,
+          21,
+          22
+        ],
+        "hiddenPublicContributor": 90,
+        "peerRootRead": "denied"
+      },
+      {
+        "path": "tests/access_control.rs",
+        "tests": [
+          "explicit_group_ownership_shares_reads_and_updates_but_requires_ancestor_delete",
+          "explicit_owner_wire_field_requires_a_canonical_uuid_string",
+          "prepared_scopes_match_independent_path_search_and_preserve_diamonds"
+        ],
+        "coverage": "shared group-owned creation/read/update, denied member deletes, ancestor delete, default private ownership, inaccessible owner and malformed/null wire rejections, whole-batch rollback"
+      },
+      {
+        "path": "tests/final_graph_references.rs",
+        "coverage": "direct reference scope and rollback preserved; readable own publication remains readable after referenced ancestor source becomes hidden"
+      },
+      {
+        "path": "tests/authority_scope.rs",
+        "coverage": "same tenant/action/active gates, ordinary admin does not widen scope, direct-group-only parent access, tenant excluded, delete scope"
+      },
+      {
+        "path": "tools/node/test/storage-check.test.mjs",
+        "coverage": "exact source-derived owner index; corrupt/missing/extra owner entries rejected; obsolete reader field rejected; private managed outputs stay hidden"
+      }
+    ],
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "campaigns": {
+        "coordination": {
+          "status": "passed",
+          "caseCount": 18,
+          "cases": [
+            "independent-populated-business-roots-distinct-owners-and-slots",
+            "complete-independent-write-sets-no-meta-population-or-header-write",
+            "original-id-replay-preserves-all-application-tables",
+            "scoped-cursor-survives-other-owner-other-contract-and-genuine-noop",
+            "same-owner-contract-change-invalidates-only-affected-cursor",
+            "same-root-existing-record-invariant-race-and-complete-rollback",
+            "genuine-noop-tracked-read-versus-edit-commit-barrier",
+            "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+            "scoped-tokens-slots-and-business-state-persist-on-reopen",
+            "c3.0-post-removal-output-producing-create-accounting-acceptance",
+            "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+            "c3.0-same-owner-contract-existing-source-epoch-control",
+            "derived-only-publication-invalidates-owner-contract-cursor",
+            "owner-move-invalidates-old-and-new-partition-cursors",
+            "rejected-derived-change-preserves-cursors-and-complete-tables",
+            "authority-administration-invalidates-snapshot-cursors",
+            "existing-source-discovery-versus-existing-reference-retarget-no-common-writes",
+            "existing-reference-parent-read-versus-source-change-no-common-writes"
+          ]
+        },
+        "lifecycle": {
+          "status": "passed",
+          "caseCount": 14,
+          "cases": [
+            "ordinary-operation-hash-collision-linear-probe-and-unchanged-domain",
+            "direct-valid-1023-receipt-fixture-complete-slot-bijection",
+            "final-slot-concurrent-noop-contenders-single-commit-complete-rollback",
+            "full-capacity-original-id-replay-unchanged-complete-tables",
+            "exact-capacity-new-operation-rejection-and-all-table-rollback",
+            "archive-atomic-clear-old-context-expiry-and-new-context-capacity",
+            "archive-commit-fences-stale-inflight-mutation-and-receipt",
+            "archive-digest-detects-authority-only-change",
+            "archive-digest-detects-real-effect-activation-change",
+            "archive-after-digest-authority-commit-conflict",
+            "archive-after-digest-effect-activation-commit-conflict",
+            "current-complete-backup-archive-succeeds-after-rejected-races",
+            "authority-noop-preserves-complete-image-counter-and-cursor",
+            "authority-noop-versus-replacement-real-commit-conflict"
+          ]
+        },
+        "application": {
+          "status": "passed",
+          "caseCount": 19,
+          "cases": [
+            "native-public-owner-abort",
+            "effect-execution-abort",
+            "effect-due-abort",
+            "effect-runtime-abort",
+            "operation-receipt-runtime-abort",
+            "effect-intent-atomic-publication-and-replay",
+            "stale-cas-preserves-complete-inventory",
+            "lost-response-original-id-reconciliation-no-duplicate",
+            "persistent-reopen-complete-tables-and-receipts",
+            "backend-restore-quarantine-and-populated-destination-isolation",
+            "quantity-publication-cascade-and-inexact-rollback",
+            "backup-restore-exact-complete-inventory",
+            "calculation-root-complete-time-invariant-rollback",
+            "same-root-invariant-commit-barrier",
+            "same-record-cas-commit-barrier-no-retry",
+            "absent-public-identity-commit-barrier",
+            "no-op-write-preserves-protected-point-read",
+            "reverse-reference-discovery-versus-delete-barrier",
+            "authority-revocation-barrier-and-snapshot-authorized-read"
+          ]
+        },
+        "effects": {
+          "status": "passed",
+          "caseCount": 27,
+          "cases": [
+            "signed-inbox-row-abort",
+            "signed-inbox-runtime-abort",
+            "signed-inbox-durable-ack-precedes-fact-and-domain",
+            "signed-inbox-dedup-preserves-complete-inventory",
+            "signed-inbox-content-conflict-preserves-complete-inventory",
+            "inbox-consume-fact-abort",
+            "inbox-consume-row-abort",
+            "inbox-consume-due-abort",
+            "inbox-consume-execution-abort",
+            "inbox-consume-runtime-abort",
+            "inbox-consumption-fact-atomic-and-idempotent",
+            "inbox-consumption-fences-old-worker-claim",
+            "application-first-native-write-abort",
+            "application-native-public-owner-abort",
+            "application-fact-revision-abort",
+            "application-due-abort",
+            "application-execution-abort",
+            "application-runtime-abort",
+            "inbox-success-applies-domain-once-literal-balance-nine",
+            "worker-fact-abort",
+            "worker-fact-due-abort",
+            "worker-fact-execution-abort",
+            "worker-fact-runtime-abort",
+            "worker-success-fact-and-domain-publication-literal-balance-six",
+            "insufficient-balance-rejects-domain-with-durable-fact-unchanged",
+            "blocked-application-preserves-fact-and-literal-domain",
+            "persistent-reopen-nonempty-facts-inbox-and-domain"
+          ]
+        },
+        "predicates": {
+          "status": "passed",
+          "caseCount": 10,
+          "cases": [
+            "authority-graph-write-abort",
+            "authority-prepared-scope-write-abort",
+            "authority-owner-scope-commit-literal-inventory-and-stale-cas",
+            "authority-repair-persistent-reopen",
+            "reference-delete-reject-complete-inventory-and-no-receipt",
+            "reference-teardown-persistent-reopen",
+            "reference-create-versus-parent-delete-barrier-and-reopen",
+            "reverse-discovery-versus-reference-create-barrier-and-reopen",
+            "concurrent-empty-catalog-initialization-barrier-no-retry",
+            "initialization-populated-rejection-complete-inventory-and-reopen"
+          ]
+        }
+      },
+      "independentCreateDelete": [
+        {
+          "case": "c3.0-post-removal-output-producing-create",
+          "automaticRetries": false,
+          "concurrent": true,
+          "outcomes": [
+            {
+              "attempt": "c30-create-left-original",
+              "outcome": "committed",
+              "scannedTables": [],
+              "readCount": 36,
+              "writeCount": 28
+            },
+            {
+              "attempt": "c30-right-original",
+              "outcome": "committed",
+              "scannedTables": [],
+              "readCount": 36,
+              "writeCount": 28
+            }
+          ],
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ],
+          "inventory": {
+            "active_sources": [
+              102,
+              202
+            ],
+            "records": 10,
+            "retained_reservations": 4,
+            "retired_sources": [],
+            "roles": 4,
+            "source_count": 10
+          }
+        },
+        {
+          "case": "c3.0-post-removal-output-retiring-delete",
+          "automaticRetries": false,
+          "concurrent": true,
+          "outcomes": [
+            {
+              "attempt": "c30-delete-left-original",
+              "outcome": "committed",
+              "scannedTables": [],
+              "readCount": 30,
+              "writeCount": 26
+            },
+            {
+              "attempt": "c30-right-original",
+              "outcome": "committed",
+              "scannedTables": [],
+              "readCount": 30,
+              "writeCount": 26
+            }
+          ],
+          "commonWrites": [],
+          "crossPointOverlaps": [
+            [],
+            []
+          ],
+          "inventory": {
+            "active_sources": [],
+            "records": 4,
+            "retained_reservations": 4,
+            "retired_sources": [
+              102,
+              202
+            ],
+            "roles": 4,
+            "source_count": 4
+          }
+        }
+      ],
+      "sameOwnerEpochControl": {
+        "outcomes": [
+          {
+            "attempt": "c30-same-partition-loser",
+            "outcome": "transaction_conflict",
+            "scannedTables": [],
+            "readCount": 8,
+            "writeCount": 5
+          },
+          {
+            "attempt": "c30-same-partition-winner",
+            "outcome": "committed",
+            "scannedTables": [],
+            "readCount": 8,
+            "writeCount": 5
+          }
+        ],
+        "sharedWrites": [
+          {
+            "class": "owner_contract_epoch",
+            "key": "000000000000000000000000000000030065",
+            "table": "query_epochs"
+          }
+        ]
+      },
+      "sameBusinessRootControl": {
+        "outcomes": [
+          {
+            "attempt": "same-root-loser",
+            "outcome": "transaction_conflict",
+            "scannedTables": [],
+            "readCount": 14,
+            "writeCount": 7
+          },
+          {
+            "attempt": "same-root-winner",
+            "outcome": "committed",
+            "scannedTables": [],
+            "readCount": 14,
+            "writeCount": 8
+          }
+        ],
+        "exclusiveAbortKeyAttribution": false
+      }
+    },
+    "redb": {
+      "scope": "embedded sequential writer controls; not concurrency acceptance",
+      "campaigns": {
+        "coordination": {
+          "status": "passed",
+          "caseCount": 15,
+          "cases": [
+            "independent-populated-business-roots-distinct-owners-and-slots",
+            "complete-independent-write-sets-no-meta-population-or-header-write",
+            "original-id-replay-preserves-all-application-tables",
+            "scoped-cursor-survives-other-owner-other-contract-and-genuine-noop",
+            "same-owner-contract-change-invalidates-only-affected-cursor",
+            "same-root-existing-record-invariant-race-and-complete-rollback",
+            "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+            "scoped-tokens-slots-and-business-state-persist-on-reopen",
+            "c3.0-post-removal-output-producing-create-accounting-acceptance",
+            "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+            "c3.0-same-owner-contract-existing-source-epoch-control",
+            "derived-only-publication-invalidates-owner-contract-cursor",
+            "owner-move-invalidates-old-and-new-partition-cursors",
+            "rejected-derived-change-preserves-cursors-and-complete-tables",
+            "authority-administration-invalidates-snapshot-cursors"
+          ]
+        },
+        "lifecycle": {
+          "status": "passed",
+          "caseCount": 10,
+          "cases": [
+            "ordinary-operation-hash-collision-linear-probe-and-unchanged-domain",
+            "direct-valid-1023-receipt-fixture-complete-slot-bijection",
+            "final-slot-sequential-noop-commit",
+            "full-capacity-original-id-replay-unchanged-complete-tables",
+            "exact-capacity-new-operation-rejection-and-all-table-rollback",
+            "archive-atomic-clear-old-context-expiry-and-new-context-capacity",
+            "archive-digest-detects-authority-only-change",
+            "archive-digest-detects-real-effect-activation-change",
+            "current-complete-backup-archive-succeeds-after-rejected-races",
+            "authority-noop-preserves-complete-image-counter-and-cursor"
+          ]
+        },
+        "application": {
+          "status": "passed",
+          "caseCount": 13,
+          "cases": [
+            "native-public-owner-abort",
+            "effect-execution-abort",
+            "effect-due-abort",
+            "effect-runtime-abort",
+            "operation-receipt-runtime-abort",
+            "effect-intent-atomic-publication-and-replay",
+            "stale-cas-preserves-complete-inventory",
+            "lost-response-original-id-reconciliation-no-duplicate",
+            "persistent-reopen-complete-tables-and-receipts",
+            "backend-restore-quarantine-and-populated-destination-isolation",
+            "quantity-publication-cascade-and-inexact-rollback",
+            "backup-restore-exact-complete-inventory",
+            "calculation-root-complete-time-invariant-rollback"
+          ]
+        },
+        "effects": {
+          "status": "passed",
+          "caseCount": 27,
+          "cases": [
+            "signed-inbox-row-abort",
+            "signed-inbox-runtime-abort",
+            "signed-inbox-durable-ack-precedes-fact-and-domain",
+            "signed-inbox-dedup-preserves-complete-inventory",
+            "signed-inbox-content-conflict-preserves-complete-inventory",
+            "inbox-consume-fact-abort",
+            "inbox-consume-row-abort",
+            "inbox-consume-due-abort",
+            "inbox-consume-execution-abort",
+            "inbox-consume-runtime-abort",
+            "inbox-consumption-fact-atomic-and-idempotent",
+            "inbox-consumption-fences-old-worker-claim",
+            "application-first-native-write-abort",
+            "application-native-public-owner-abort",
+            "application-fact-revision-abort",
+            "application-due-abort",
+            "application-execution-abort",
+            "application-runtime-abort",
+            "inbox-success-applies-domain-once-literal-balance-nine",
+            "worker-fact-abort",
+            "worker-fact-due-abort",
+            "worker-fact-execution-abort",
+            "worker-fact-runtime-abort",
+            "worker-success-fact-and-domain-publication-literal-balance-six",
+            "insufficient-balance-rejects-domain-with-durable-fact-unchanged",
+            "blocked-application-preserves-fact-and-literal-domain",
+            "persistent-reopen-nonempty-facts-inbox-and-domain"
+          ]
+        },
+        "predicates": {
+          "status": "passed",
+          "caseCount": 7,
+          "cases": [
+            "authority-graph-write-abort",
+            "authority-prepared-scope-write-abort",
+            "authority-owner-scope-commit-literal-inventory-and-stale-cas",
+            "authority-repair-persistent-reopen",
+            "reference-delete-reject-complete-inventory-and-no-receipt",
+            "reference-teardown-persistent-reopen",
+            "initialization-populated-rejection-complete-inventory-and-reopen"
+          ]
+        }
+      }
+    },
+    "runHashes": [
+      {
+        "file": "owner-only-rust-final.log",
+        "sha256": "efae57cbdc9ec4ccede996fdbc20214c89ff3a455aa12df7b30e337dd2eee31b"
+      },
+      {
+        "file": "owner-only-node.log",
+        "sha256": "86849af2885c58a0588286a72c406bbeb55a8a04b10ec50e8d6e20cede39f943"
+      },
+      {
+        "file": "owner-only-fdb-live.json",
+        "sha256": "6172e8eb5df8b0cbd4010bec294e8a9f99484d2e9ef734119a16bef5e6cba291"
+      },
+      {
+        "file": "owner-only-fdb-application.json",
+        "sha256": "f9552aed49ca310c7caaf8b095c1dfe7317387b9c28d071fb44cd18ca89231ac"
+      },
+      {
+        "file": "owner-only-redb-live.json",
+        "sha256": "4a5d7b55a53df7e4afdee2c3fac58ad2e96256439ef3f440022be64a0db0f773"
+      }
+    ]
+  },
+  "testRetirement": "Obsolete inferred-reader algorithm/frontier tests were removed; owner-scope, hidden-summary, reference, query, corruption and group CRUD witnesses replace their relevant access obligations.",
+  "limitations": [
+    "Local FoundationDB7.3.77 single-process/host correctness acceptance is not multi-host throughput/failover acceptance.",
+    "Standalone SurrealKV was not separately rerun in this checkpoint.",
+    "Bulk graph replacement remains an operator control plane, not ordinary per-principal management CRUD.",
+    "General resource/tenant/owner/declared-order access streams and non-time subscriber cuts remain C3 work.",
+    "Email/phone authentication remains separately planned; current JWT verification is not delivered identity proof.",
+    "UUIDv7 is a recommendation only: current RPC accepts caller canonical UUIDs; no v7-only enforcement or automatic trusted created_at was introduced.",
+    "Root summaries intentionally disclose aggregate information about hidden contributors. Published summary capability does not authorize raw leaf disclosure.",
+    "Explicit recreation is required for earlier stores; historical evidence remains tied to its original source."
+  ]
+}

@@ -90,6 +90,32 @@ test('prepare binds original session context and identities; execute and status 
   assert.ok(calls.every(call => call.authorization === 'Bearer test-token'));
 });
 
+test('create owner remains bound in saved and submitted plans and rejects invalid authority fields', async () => {
+  const client = connect({ endpoint: base, credential: 'test-token' });
+  const command = { op: 'create', id: tenant, contract: 7, fields: {}, owner: store };
+  const draft = { model: 'quantity', commands: [command], returning: [] };
+  const plan = await client.prepare(draft, { operationId });
+  assert.equal(plan.request.commands[0].owner, store);
+  command.owner = actor;
+  await client.execute(plan);
+  assert.equal(calls.findLast(call => call.envelope.method === 'records.mutate').envelope.params.commands[0].owner, store);
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'rebase-owner-plan-'));
+  try {
+    const destination = path.join(directory, 'plan.json');
+    await savePlan(destination, plan);
+    assert.equal(JSON.parse(await readFile(destination, 'utf8')).request.commands[0].owner, store);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+  for (const owner of [null, 7, '', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA', 'bad-owner']) {
+    await assert.rejects(client.prepare({ ...draft, commands: [{ ...command, owner }] }), error => error.code === 'invalid_plan');
+  }
+  for (const invalid of [
+    { ...command, reader: actor },
+    { ...command, unexpected: true },
+    { op: 'update', id: tenant, if_version: actor, set: {}, unset: [], owner: store },
+    { op: 'delete', id: tenant, if_version: actor, owner: store },
+  ]) await assert.rejects(client.prepare({ ...draft, commands: [invalid] }), error => error.code === 'invalid_plan');
+});
+
 test('plans are private, complete, and write-once', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'rebase-client-'));
   try {

@@ -80,11 +80,10 @@ const page = await client.call('roots.page', request);
 ```
 
 Here `owner` is the model record owning the root, not a client-supplied authority
-principal. Read permission for that resource and explicit root declarations
-`members` plus `summary` are required. The declaration permits raw occurrence
-counts/ranks/gaps; it does not grant disclosure of hidden IDs, private outputs or
-member bodies. Every hydrated source passes the normal current-authority public
-projection. The supplied Calculation Account history opts in; other roots require
+principal. The caller must have Read action and owner accessibility for the root, and the model must
+explicitly declare `members` plus `summary`. A root record read authorizes that declared
+public summary; FULL aggregates may include hidden contributors. This does not grant
+leaf, body or ID reads. Every hydrated member still requires its own owner-access check. The supplied Calculation Account history opts in; other roots require
 an explicit model declaration. Member enumeration is an engine structural capability,
 not a business-summary operation added to each family.
 
@@ -96,7 +95,7 @@ limits are independently bounded. Exhaustion returns no cursor. Discovery, autho
 epoch fencing and hydration use the same native snapshot.
 
 Continuations bind store/model/actor/tenant/root and both root state and current
-reader-contract projection/authority epochs. Reader-only or payload-only changes
+owner/contract projection/authority epochs. Owner-scope or payload-only changes
 can invalidate them while root summaries and root revision stay unchanged. The
 signed payload carries raw next rank and query identities, not hidden member IDs,
 keys or pending frontiers. HMAC supplies integrity, not confidentiality. Per-page
@@ -113,6 +112,6 @@ Existing `records.page` query meaning is preserved.
 
 Tests cover normal validated populations of 50/100/1,000 sources, ordered ties,
 private gaps, permissions, progressing partial pages, budget adaptation, same-snapshot
-epochs, member payload/reader changes with unchanged root revision, revocation and
+epochs, member payload/owner-scope changes with unchanged root revision, revocation and
 cursor substitution. Local default-backend correctness is not a distributed latency
 or throughput benchmark. See [C1.4 evidence](checkpoints/c1-authorized-pages.json).

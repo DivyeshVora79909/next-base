@@ -242,7 +242,7 @@ function checkSnapshot(snapshot,records,members,roots,corpus) {
   for(const expected of records){
     const actual=recordMap.get(expected.id);demand(actual?.contract===expected.contract,'actual record contract differs');
     same(actual.input,expected.fields,'actual source input differs');
-    demand(actual.tenant===corpus.tenant&&actual.owner===corpus.actor&&actual.reader===corpus.actor&&UUID.test(actual.version),'source authority/version differs');
+    demand(actual.tenant===corpus.tenant&&actual.owner===corpus.actor&&UUID.test(actual.version),'source authority/version differs');
     if(expected.contract===6){const native=members.find(m=>m.id===expected.id&&m.slot===1),reporting=members.find(m=>m.id===expected.id&&m.slot===2);
       same(actual.derived,{native_minor:native.amount,reporting_minor:reporting.amount},'actual derived Posting amounts differ');
     } else demand(actual.derived===null,'unexpected derived source fields');

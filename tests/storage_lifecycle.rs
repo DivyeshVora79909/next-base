@@ -121,7 +121,7 @@ fn damaged_or_incomplete_backups_never_publish_a_destination() {
         let mut bad = original.clone();
         match damage {
             0 => bad["sha256"] = json!("0".repeat(64)),
-            1 => bad["payload"]["tables"]["reader_records"] = json!([]),
+            1 => bad["payload"]["tables"]["owner_records"] = json!([]),
             2 => bad["payload"]["complete"] = json!(false),
             _ => {
                 let rows = bad["payload"]["tables"]["native_kv"]

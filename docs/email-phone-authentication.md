@@ -8,11 +8,13 @@ Provider API credentials in [E1](server-execution.md) are separate records from 
 
 ## Authority and identity records
 
-Preserve the legacy ordinary-record rule: action permission and accessible owner authorize
-writes; Read permission and accessible reader authorize disclosure. Ownership alone does not
-grant Read. Accessibility means self, descendants, and direct group/tenant parents. Direct
-user parents supply graph placement, not inherited roles; users inherit direct group/tenant
-roles. Full action permissions do not widen ordinary graph scope.
+The current ordinary-record contract is owner-only; C2.O is accepted. There
+is no reader field or inferred reader. Read/Create/Update require same tenant, action grant,
+and owner accessibility through self, strict descendants, or direct group parents; direct
+tenant-parent records are excluded from ordinary data scope. Tenant-grant inheritance remains
+a separate legacy rule. Delete permits self or strict descendants only. Admin actions do not
+widen ordinary scope. Create may name an accessible owner (default actor); Update cannot
+change owner.
 
 Current bulk graph replacement remains an operator control plane. This plan does not claim
 ordinary user/group CRUD parity is implemented. Future principal management must enforce

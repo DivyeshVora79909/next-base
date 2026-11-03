@@ -66,7 +66,6 @@ pub struct Reference {
     /// Authored parent fields read by the pure relationship validator.
     pub validation_fields: Vec<&'static str>,
     pub on_delete: &'static str,
-    pub reader: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -654,7 +653,7 @@ impl<B: Binding> Prepared<B> {
         for bytes in [
             B::NAME.as_bytes(),
             B::BEHAVIOR.as_bytes(),
-            crate::access::READER_POLICY.as_bytes(),
+            crate::access::OWNER_POLICY.as_bytes(),
             crate::access::SCOPE_POLICY.as_bytes(),
             crate::relationships::POLICY.as_bytes(),
             crate::mutation::REFERENCE_POLICY.as_bytes(),
@@ -801,7 +800,7 @@ impl<B: Binding> Prepared<B> {
             "api":API_VERSION,"codec":self.engine.codec,
             "indexes":self.indexes,
             "contracts":self.contracts.values().collect::<Vec<_>>(),
-            "capabilities":model_capabilities::<B>(),"authority":"local actor or transaction-scoped tenant principal DAG; separate owner and reader",
+            "capabilities":model_capabilities::<B>(),"authority":"local actor or transaction-scoped tenant principal DAG; owner-only disclosure and action-specific mutation authority",
             "identity_policy":"retained private reservations; retired producers cannot be reused",
             "preparation":"bundled compiled model only; no arbitrary behavior loader",
             "fixtures":B::fixture_catalog()})
@@ -844,7 +843,7 @@ fn model_capabilities<B: Binding>() -> Value {
         "path":{"name":"records.by_id","order":"UUID ascending","filter":"optional public contract and one declared scalar authored-field equality"},
         "limits":{"commands":64,
             "returning":32,"page_limit":32,"visit_budget":128,"receipts":1024,"request_bytes":65536},
-        "cursor":"HMAC-SHA256; bound store/model/actor/query and scoped reader/contract epochs plus authority revision; unchanged scopes and true no-ops preserve cursors",
+        "cursor":"HMAC-SHA256; bound store/model/actor/query and scoped owner/contract epochs plus authority revision; unchanged scopes and true no-ops preserve cursors",
         "versions":"record/root/mutation revisions are opaque UUID tokens, never ordered; access revision is an administration-only counter; pages return a scoped digest",
         "updates":"set replaces complete fields; unset must be empty in this model",
         "receipt":"required actor/store/generation context from session.describe; same operation ID/content replays; offline archive advances its fence",
@@ -873,10 +872,6 @@ fn reference(
         direct_fields: direct.to_vec(),
         validation_fields: vec![],
         on_delete: "reject",
-        reader: matches!(
-            field,
-            "account" | "subsidiary" | "sources[0]" | "sources[1]"
-        ),
     }
 }
 

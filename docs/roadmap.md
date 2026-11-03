@@ -7,8 +7,8 @@ obligations pass; unresolved semantic choices or failed evidence must be reporte
 Do not add unused traits, dependencies or a second DSL merely to illustrate future capabilities.
 M0 recorded planning and bounded algebra witnesses. C1 is split into C1.1
 structural size/count-only indexes, C1.2 same-view storage batches, C1.3 trusted
-rank-window traversal, and C1.4 authorized member paging/cursors. C2.R corrects
-reader policy before C1.4. C1.1–C1.4 have bounded default-backend acceptance;
+rank-window traversal, and C1.4 authorized member paging/cursors. Historical C2.R reader policy was superseded by current owner-only direction (C2.O accepted); C1.4 acceptance
+remains historical evidence under its original source identity. C1.1–C1.4 have bounded default-backend acceptance;
 distributed performance/deployment gates remain separate. Follow the current user's authorization; conversation
 usage budgets are not standing commit-count instructions for future agents.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
@@ -50,44 +50,49 @@ Reuse [`src/index_tests.rs`](../src/index_tests.rs) and access/page witnesses in
 
 ## C2 — Catalog relationships and final-graph guards
 
-### C2.R — Owner-inclusive minimal reader policy, before C1.4
+### C2.R — Historical reader policy (superseded; frozen evidence)
 
-The selected policy includes the resource's own owner and owners from its declared
-reader-affecting relation hierarchy. Deduplicate candidates in a stable, documented
-declaration traversal order. Eliminate every candidate that strictly dominates
-another candidate, then select the first surviving candidate. Incomparable survivors
-are permitted; do not invent a rejection or an ACL-intersection rule. Never compare
-principals across tenants. Managed private outputs retain their producer's reader.
+C2.R's owner-inclusive minimal reader inference/repair was an accepted historical
+policy. It is no longer a current requirement and must not be restored. Preserve its
+source identity and results in the checkpoint [evidence](checkpoints/c2-reader-policy.json).
 
-The previous implementation used immediate referenced owners and omitted the
-resource owner when references were nonempty. Its greedy ancestor replacement was
-incorrect for stable first-minimal choice. For [A,B,C], A dominates C and B is
-incomparable: minimal survivors are [B,C], so choose B, whereas the old fold chose C.
-C2.R now repairs writer/admin paths and checking together; its bounded witnesses
-include a changed hidden frontier with unchanged upstream reader/publication.
 
-Reuse current tenant reachability closures for comparisons; do not enumerate all
-principal paths. A simple first-minimal scan uses O(k^2) dominance checks for k
-distinct candidates. Closure bitsets can accelerate set intersections for large k,
-but are optional and must remain bound to the current authority revision. If relation
-hierarchy discovery is recursive, visit each reachable source once under a work
-budget, define ordering/deduplication/cycle handling, and propagate changed inputs
-through reverse references. A single previously chosen scalar reader is not a
-lossless summary of several incomparable candidates; retain/discover the necessary
-candidate frontier rather than assuming scalar composition proves the policy.
+### C2.O — Current owner-only access contract (accepted)
 
-Acceptance: independent source-edge DAG oracle, own-owner inclusion, diamonds,
-ties/duplicates, incomparable first choice, reordered declarations under defined
-semantics, relation retargeting, parent edits, graph changes, private outputs and
-full rollback. Update mutation/admin repair, persisted reader indexes and independent
-checker together, with explicit shared semantic identity change. Do not silently
-reinterpret old stored readers or widen read/write/reference permissions.
+The user's breaking direction is current: ModelRecord has only an owner; Reference has no
+reader flag or reader inference/repair. Physical indexes are `owner_records`; lookups
+k-way merge accessible owner streams. Read/Create/Update require same-tenant scope, the
+action grant, and owner accessibility through self, strict descendants, or direct group
+parents only. Direct tenant-parent records are excluded from ordinary data scope; tenant-
+grant inheritance remains separate. Delete permits self or strict descendants only. Admin
+actions do not widen ordinary scope. Create accepts optional canonical UUID `owner`,
+defaults to actor and requires access to the requested owner; Update cannot change owner.
+Acceptance is complete. Internal balancing/cascades validate hidden records without granting
+client access. Root access authorizes explicitly declared public summary data; FULL
+aggregates may include hidden contributors but do not grant leaf/body/ID reads. Proof:
+[C2.O checkpoint](checkpoints/c2-owner-only.json). Verification passed 284 Rust all-target
+tests (0 ignored), all 174 full Node tests (0 skipped), formatting, and default/FDB
+all-target Clippy with `-D warnings`. FoundationDB 7.3.77 on one host/process passed
+coordination/lifecycle/application/effects/predicates 18/14/19/27/10; sequential redb
+controls passed 15/10/13/27/7. The new tests cover optional canonical owner wire input,
+protected group-owned CRUD, FULL hidden contributions (sum 13, visible member IDs 20/21/22,
+hidden contribution 90), and a record remaining readable under its own owner after its
+related source is hidden. Superseded reader-specific tests were removed; replacement
+access-control, authority-scope and root-page cases verify the new contract. Original C3
+creates/deletes and same-owner query-epoch/business-root conflict controls remain intact.
+This is local correctness evidence, not multi-host/production evidence; SurrealKV was not
+rerun. Roots use `(root_record_uuid, declared_slot)` and members `(record_uuid,
+membership_slot)`, sorted by declared total order and stable ties. Composite ordering can
+use tuples of root grouping and sort fields despite one parent/child participation; infer
+no all-ancestor or all-permutation memberships. Tenant remains a strict namespace, with
+no implicit central aggregate/counter absent an explicit business root. Codec `native-slice-kv-12`
+requires old-store recreation. General C3 owner/order access streams remain planned.
 
 ### Remaining relationship guards
 
 Final-graph source reference binding and final client reference authorization are
 accepted as C2.F: see [evidence](checkpoints/c2-final-graph-references.json).
-Early action/CAS boundaries remain; readers are repaired before final target access.
+Early action/CAS boundaries remain; final owner accessibility is checked before target access.
 This does not implement arbitrary relationship predicates or allow causal cycles.
 Catalog scalar/pair tuple uniqueness is accepted as C2.U: see
 [semantics](relationships.md) and [evidence](checkpoints/c2-reference-uniqueness.json).
@@ -100,7 +105,7 @@ Engine-owned Incoming bookkeeping is accepted as C2.A: see
 references, without a second manual Incoming implementation. Direct/Subscribers
 policies remain separate. C3 accounting is the next bounded prerequisite.
 
-Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
+Expose one prepared schema/reference catalog with explicit ownership and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.
 Cover 1:n child references, 1:1 target uniqueness and n:m typed junction/pair uniqueness.
 Reuse existing cardinality roots where sufficient; otherwise reserve uniqueness keys.
@@ -112,36 +117,37 @@ a local schema check or a child-only predicate is insufficient.
 Acceptance: concurrent competing links cannot both win; concurrent delete/reference creation
 cannot leave dangling edges; retarget, delete/recreate and joint final-state repairs work.
 Verify command permutations with the same final graph, cross-tenant/type rejection, hidden
-reference targets, incomparable readers and full rollback on invariant failure.
+reference targets, owner-scope boundaries and full rollback on invariant failure.
 Reuse [`src/mutation.rs`](../src/mutation.rs), [`src/dependency.rs`](../src/dependency.rs),
 [`src/publication_tests.rs`](../src/publication_tests.rs) and authority tests as starting witnesses.
 
 ## C3 — Explicit global and domain indexes
 
 C3.0 preserves the historical pre-change real-adapter [contention baseline](checkpoints/c3-contention-baseline.json).
-C3.1 removes the stored capacity counter and `Binding::Limits` entirely, with no
-tracked/untracked mode. Codec is `native-slice-kv-11`; source-derived `Population`
-statistics remain read-only at open/checking, never stored or scanned by normal mutations.
+Historical C3.1 removed the stored capacity counter and `Binding::Limits` entirely, with no
+tracked/untracked mode. That source used codec `native-slice-kv-11`; the current owner-only
+format is `native-slice-kv-12`. Source-derived `Population` statistics remain read-only at
+open/checking, never stored or scanned by normal mutations.
 Business invariants, work/byte budgets, reservation identities, receipts and required
-reader/contract epochs remain. [C3.1 is accepted](checkpoints/c3-counter-removal.json)
+reader/contract epochs remain in historical C3.1 evidence; since C2.O, current epochs
+are owner/contract scoped. [C3.1 is accepted](checkpoints/c3-counter-removal.json)
 on FoundationDB 7.3.77, one local process/host: both original separate-scope creates
-and deletes commit without automatic retries; same-reader epoch and shared-business-root
+and deletes committed without automatic retries; the historical reader epoch and shared-business-root
 conflict controls remain. See [results and continuation](c3-accounting-handoff.md).
-Next C3 work is scoped access/order streams and general non-time reactive cuts.
+Next C3 work is chronological owner access/order streams and general non-time reactive cuts.
 Measure remaining epoch and AVL-root coordination independently; do not remove required
 guards to manufacture success or infer unrestricted capacity from counter removal.
 
-Implement resource/tenant/reader-or-owner/declared-order access definitions with explicit
+Implement resource/tenant/owner/declared-order access definitions with explicit
 per-resource opt-in, stable ties, root scope and created metadata. Prefer scoped streams and
 authorized k-way merge; tenant-only ordered indexes are optional for measured workloads.
-Owner controls writes and reader controls disclosure; do not collapse them. Multiple domain indexes may
+Owner accessibility controls ordinary reads and mutations subject to action-specific scope. Multiple domain indexes may
 order by effective time, created time, distance or another declared total order with independent
 summaries/validators. Define principal-root namespaces and transaction-domain boundaries.
 Generalize non-time range query/dependency cuts deliberately: current subscriber routes are
 time-specific. Preserve final-graph causality, exact boundaries, old/new route repair and field
 identity across indexes. Test numeric/string/composite bounds without timestamp coercion.
-Use one ordered root where sufficient; bounded k-way merge is for multiple sorted reader/resource
-streams. Specify snapshot, disclosure, cursor and filter semantics before promising global rank.
+Use one ordered root where sufficient; bounded k-way merge is for multiple sorted owner/resource streams. Specify snapshot, disclosure, cursor and filter semantics before promising global rank.
 Acceptance: independent scan oracle matches results under rekeys, deletion and authorization
 changes; payload-only updates avoid unchanged index writes where semantics permit.
 Measure bytes, changed memberships, hot ancestors and conflicts for tenant/owner root alternatives.

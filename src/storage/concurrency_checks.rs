@@ -99,14 +99,13 @@ fn reopen(
 }
 
 /// The oracle is authored literals, not another invocation of settlement or
-/// integrity. It also checks original inputs, ownership and immediate readers.
+/// integrity. It also checks original inputs, ownership.
 fn quantity(
     store: &Store<Quantity>,
     record: Uuid,
     fields: Value,
     published: &str,
     owner: Uuid,
-    reader: Uuid,
 ) -> Result<()> {
     let read = store.db.begin_read()?;
     let native = read.open_table(local::KV)?;
@@ -122,8 +121,7 @@ fn quantity(
         serde_json::to_value(observed.input).map_err(local::storage)? == fields
             && serde_json::to_value(observed.derived).map_err(local::storage)?["quantity"]
                 == published
-            && observed.owner == owner
-            && observed.reader == reader,
+            && observed.owner == owner,
         "quantity source/publication/authority differs from literal oracle",
     )
 }
@@ -285,37 +283,36 @@ fn graph_fixture() -> Result<Graph> {
     }
     Ok(graph)
 }
-fn check_reader_inventory(store: &Store<Quantity>, join_reader: Uuid) -> Result<()> {
+fn check_owner_inventory(store: &Store<Quantity>) -> Result<()> {
     let expected = [
         (id(3), 101, id(10)),
         (id(4), 101, id(11)),
-        (join_reader, 309, id(12)),
+        (id(3), 309, id(12)),
     ]
-    .map(|(reader, contract, record)| {
-        json!({"key":format!("{}{:04x}{}",reader.simple(),contract,record.simple()),
+    .map(|(owner, contract, record)| {
+        json!({"key":format!("{}{:04x}{}",owner.simple(),contract,record.simple()),
                 "contract":contract})
     });
     let mut expected = expected.to_vec();
     expected.sort_by(|a, b| a["key"].as_str().cmp(&b["key"].as_str()));
     let observed = image(store)?;
     require(
-        observed["tables"]["reader_records"] == json!(expected)
+        observed["tables"]["owner_records"] == json!(expected)
             && observed["tables"]["public_records"]
                 == json!([
                     {"key":id(10).simple().to_string(),"contract":101},
                     {"key":id(11).simple().to_string(),"contract":101},
                     {"key":id(12).simple().to_string(),"contract":309}]),
-        "reader/public inventory differs from independently authored keys",
+        "owner/public inventory differs from independently authored keys",
     )?;
-    quantity(store, id(10), json!({"value":"12"}), "12", id(3), id(3))?;
-    quantity(store, id(11), json!({"value":"6"}), "6", id(4), id(4))?;
+    quantity(store, id(10), json!({"value":"12"}), "12", id(3))?;
+    quantity(store, id(11), json!({"value":"6"}), "6", id(4))?;
     quantity(
         store,
         id(12),
         json!({"left":id(10),"right":id(11)}),
         "18",
         id(3),
-        join_reader,
     )
 }
 
@@ -372,7 +369,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         json!([{"op":"create","id":id(12),
         "contract":quantity::JOIN,"fields":{"left":id(10),"right":id(11)}}]),
     )?)?;
-    check_reader_inventory(&store, id(4))?;
+    check_owner_inventory(&store)?;
     let mut changed = graph_fixture()?;
     changed
         .principals
@@ -382,20 +379,6 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         .parents = vec![id(1)];
     let replacement = graph_request(&store, changed)?;
     for (name, fault) in [
-        (
-            "authority-reader-index-write-abort",
-            Fault {
-                table: "reader_records",
-                key: None,
-            },
-        ),
-        (
-            "authority-repaired-native-record-write-abort",
-            Fault {
-                table: "native_kv",
-                key: Some(Key::Record(id(12)).encode()),
-            },
-        ),
         (
             "authority-graph-write-abort",
             Fault {
@@ -425,7 +408,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             lock(&controls)?.failures == failures + 1 && image(&store)? == before,
             "authority abort did not preserve all application tables/receipts",
         )?;
-        check_reader_inventory(&store, id(4))?;
+        check_owner_inventory(&store)?;
         store.check_integrity()?;
         // A second logical handle uses the same native database handle. A fresh
         // factory open below additionally verifies actual backend persistence.
@@ -441,12 +424,12 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         cases.push(name);
     }
     store.replace_access(&replacement)?;
-    check_reader_inventory(&store, id(3))?;
+    check_owner_inventory(&store)?;
     require(
         manager.get(manager.model().identity(), id(11))?.is_none()
             && manager.get(manager.model().identity(), id(12))?.is_some()
             && child.get(child.model().identity(), id(12))?.is_none(),
-        "authority reader repair exposed the wrong candidates",
+        "authority owner repair exposed the wrong candidates",
     )?;
     let accepted = image(&store)?;
     let error = store
@@ -457,7 +440,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "stale authority replacement changed tables",
     )?;
     store.check_integrity()?;
-    cases.push("authority-reader-repair-commit-literal-inventory-and-stale-cas");
+    cases.push("authority-owner-scope-commit-literal-inventory-and-stale-cas");
     drop((manager, child, store, db));
     reopen(&factory, family, &accepted)?;
     cases.push("authority-repair-persistent-reopen");
@@ -480,13 +463,12 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "referenced deletion changed tables",
     )?;
     receipt_absent(&store, rejected.operation_id)?;
-    quantity(&store, id(20), json!({"value":"12"}), "12", id(2), id(2))?;
+    quantity(&store, id(20), json!({"value":"12"}), "12", id(2))?;
     quantity(
         &store,
         id(21),
         json!({"parent":id(20),"factor":{"numerator":"1","denominator":"2"},"rounding":"exact"}),
         "6",
-        id(2),
         id(2),
     )?;
     store.check_integrity()?;
@@ -498,7 +480,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     let accepted = image(&store)?;
     require(
         accepted["tables"]["public_records"] == json!([])
-            && accepted["tables"]["reader_records"] == json!([]),
+            && accepted["tables"]["owner_records"] == json!([]),
         "reference teardown retained public candidates",
     )?;
     store.check_integrity()?;
@@ -528,13 +510,12 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
                     "losing reference survived winning parent deletion",
                 )?;
             } else {
-                quantity(&store, id(30), json!({"value":"12"}), "12", id(2), id(2))?;
+                quantity(&store, id(30), json!({"value":"12"}), "12", id(2))?;
                 quantity(
                     &store,
                     id(31),
                     json!({"parent":id(30),"factor":{"numerator":"1","denominator":"2"},"rounding":"exact"}),
                     "6",
-                    id(2),
                     id(2),
                 )?;
             }
@@ -619,7 +600,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
     require(
         image(&reopened)? == accepted
             && accepted["tables"]["public_records"] == json!([])
-            && accepted["tables"]["reader_records"] == json!([])
+            && accepted["tables"]["owner_records"] == json!([])
             && accepted["tables"]["operations"] == json!([])
             && accepted["tables"]["receipt_slots"] == json!([])
             && accepted["tables"]["query_epochs"] == json!([])
