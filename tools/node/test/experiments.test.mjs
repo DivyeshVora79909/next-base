@@ -140,14 +140,14 @@ test('source snapshot checker rejects duplicate/missing/extra source rows and co
   const snapshot = {
     records: [...Object.entries(facts).map(([id, row]) => ({ id, record: { contract: row.contract, input: row.fields,
       derived: expected.derived[id] ?? null } })),
-      { id: 'private-start', record: { contract: 900, input: { producer: 'reservation', role: 11, pool: 'pool', at: '10', quantity: '-8' }, derived: null } },
-      { id: 'private-end', record: { contract: 900, input: { producer: 'reservation', role: 29, pool: 'pool', at: '20', quantity: '8' }, derived: null } }],
+      { id: 'private-start', record: { contract: 900, created_at: '0', input: { producer: 'reservation', role: 11, pool: 'pool', at: '10', quantity: '-8' }, derived: null } },
+      { id: 'private-end', record: { contract: 900, created_at: '0', input: { producer: 'reservation', role: 29, pool: 'pool', at: '20', quantity: '8' }, derived: null } }],
     roots: [{ root: { id: 'pool', slot: 7 }, revision: 'opaque-revision',
       summary: { kind: 'financial', value: { count: 3, first: '0', last: '20', sum: '10', min_prefix: '0', max_prefix: '10', boundary_min: '2', boundary_max: '10' } } }],
     queries: [{ query: { id: 'reservation', slot: 31 }, descriptor: { source: { id: 'pool', slot: 7 },
       operation: 'sum', phase: 'calculate', channel: 'amount', range: { lower: null, upper: { excluded: '10' } }, result: '10', selected: null } }],
-    roles: [{ source_role: { id: 'reservation', slot: 11 }, binding: { output: 'private-start', retired: false } },
-      { source_role: { id: 'reservation', slot: 29 }, binding: { output: 'private-end', retired: false } }],
+    roles: [{ source_role: { id: 'reservation', slot: 11 }, binding: { output: 'private-start', retired: false, first_created_at: '0' } },
+      { source_role: { id: 'reservation', slot: 29 }, binding: { output: 'private-end', retired: false, first_created_at: '0' } }],
   };
   const completeSource = checkSourceSnapshot({ model: 'equipment', facts, snapshot });
   assert.equal(completeSource.status, 'incomplete');
@@ -168,16 +168,18 @@ test('source snapshot checker rejects duplicate/missing/extra source rows and co
     ['root-inventory', value => { value.roots[0].root.slot = 8; }],
     ['query-descriptor-contents', value => { value.queries[0].descriptor.operation = 'latest'; }],
     ['role-binding-contents', value => { value.roles[0].binding.retired = true; }],
+    ['role-binding-contents', value => { value.roles[0].binding.first_created_at = '1'; }],
+    ['role-binding-contents', value => { value.records[3].record.created_at = '1'; }],
     ['private-output-records', value => { value.records[3].record.input.at = 10; value.records[3].record.input.quantity = -8; }],
     ['private-output-records', value => { value.records[3].record.input.forged = true; }],
     ['private-output-records', value => { value.records[3].record.derived = { available_before: '999', allocated: '999' }; }],
     ['private-output-records', value => {
       value.records[4].record.input = { producer: 'reservation', role: 11, pool: 'pool', at: '10', quantity: '-8' };
-      value.roles[1].binding = { output: 'private-start', retired: false };
+      value.roles[1].binding = { output: 'private-start', retired: false, first_created_at: '0' };
     }],
     ['private-output-records', value => {
       value.records[4].record.input = { producer: 'reservation', role: 11, pool: 'pool', at: '10', quantity: '-8' };
-      value.roles[1].binding = { output: 'private-start', retired: false };
+      value.roles[1].binding = { output: 'private-start', retired: false, first_created_at: '0' };
     }],
   ];
   for (const [name, corrupt] of cases) {

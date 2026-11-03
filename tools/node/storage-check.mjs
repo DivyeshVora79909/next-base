@@ -64,6 +64,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const observation = { records: [], roots: [], queries: [], roles: [], reserved: [] };
   const nativeKeys = new Set();
   const recordsById = new Map();
+  const secrets = new Map();
   const uniqueClaims = [];
   let metadata;
   for (const row of rows) {
@@ -97,8 +98,17 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     else if (decodedKey.type === 'meta') metadata = value.data;
     else if (decodedKey.type === 'unique') uniqueClaims.push({ key: decodedKey, holder: value.data });
     else if (decodedKey.type === 'query') observation.queries.push({ query: decodedKey.address, descriptor: value.data });
-    else if (decodedKey.type === 'role') observation.roles.push({ source_role: decodedKey.address, binding: value.data });
+    else if (decodedKey.type === 'role') {
+      exactKeys(value.data, ['output', 'retired', 'first_created_at'], 'role binding');
+      requireThat(UUID.test(value.data.output ?? '') && typeof value.data.retired === 'boolean', 'role binding identity differs');
+      if (value.data.first_created_at !== null) requireThat(canonicalTime(value.data.first_created_at) >= 0n, 'role creation time is negative');
+      observation.roles.push({ source_role: decodedKey.address, binding: value.data });
+    }
     else if (decodedKey.type === 'reserved') observation.reserved.push({ id: decodedKey.id, source_role: value.data });
+    else if (decodedKey.type === 'credential_secret') {
+      validateSecretEnvelope(value.data, decodedKey.id);
+      secrets.set(decodedKey.id, value.data);
+    }
     if (decodedKey.type === 'access_root' || decodedKey.type === 'access_node') {
       const inventory = decodedKey.type === 'access_root' ? accessRoots : accessNodes;
       inventory.set(addressToken(decodedKey.address), { address: decodedKey.address, value: value.data });
@@ -113,6 +123,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     }
     else nodes.set(token, { address: decodedKey.address, value: value.data });
   }
+  const credentialSecretInventory = checkSecretInventory(catalog, recordsById, secrets);
   // Public source records define the complete owner catalog. Managed outputs
   // remain native records but are deliberately absent from both catalogs.
   const expectedOwners = new Map();
@@ -262,11 +273,65 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     }
   }
   const result = { status: 'passed', sourceMembership: expectedMembers ? 'checked' : 'not_evaluated',
+    credentialSecretInventory, credentialSecretCount: secrets.size, credentialSecretAuthentication: 'not_evaluated',
     accessSourceMembership: accessExpected ? 'checked' : 'not_evaluated', accessRootCount: accessRoots.size, accessNodeCount: accessNodes.size,
     rootCount: roots.size, nodeCount: nodes.size, nativeKvRows: rows.length, snapshotBytes: backupBytes.length };
   if (includeObservation) result.observation = Object.freeze(Object.fromEntries(
     Object.entries(observation).map(([name, values]) => [name, Object.freeze(values.map(Object.freeze))])));
   return Object.freeze(result);
+}
+
+function canonicalU64(value, label) {
+  requireThat(typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value) && BigInt(value) < (1n << 64n), `${label} is not canonical u64`);
+  return BigInt(value);
+}
+function secretBase64(value, min, max) {
+  requireThat(typeof value === 'string' && value.length <= Math.ceil(max / 3) * 4 && /^[A-Za-z0-9_-]+$/.test(value), 'credential secret encoding is invalid');
+  const bytes = Buffer.from(value, 'base64url');
+  requireThat(bytes.length >= min && bytes.length <= max && bytes.toString('base64url') === value, 'credential secret encoding length is invalid');
+}
+function validateSecretEnvelope(value, id) {
+  exactKeys(value, ['format', 'credential', 'secret_revision', 'key_id', 'nonce', 'ciphertext'], 'credential secret envelope');
+  requireThat(value.format === 'rebase-credential-secret-1' && value.credential === id, 'credential secret identity differs');
+  requireThat(canonicalU64(value.secret_revision, 'credential secret revision') > 0n, 'credential secret revision is zero');
+  requireThat(typeof value.key_id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.key_id), 'credential secret key ID is invalid');
+  secretBase64(value.nonce, 24, 24);
+  secretBase64(value.ciphertext, 17, 2048);
+  requireThat(Buffer.byteLength(JSON.stringify(value)) <= 2048, 'credential secret envelope byte limit');
+}
+function checkSecretInventory(catalog, records, secrets) {
+  for (const [id, envelope] of secrets) {
+    const source = records.get(id);
+    requireThat(source !== undefined, 'credential secret has no source');
+    requireThat(source.derived?.has_secret === true && source.derived.secret_revision === envelope.secret_revision,
+      'credential source/private revision differs');
+  }
+  if (catalog === undefined) return 'not_evaluated';
+  const declaration = catalog.capabilities?.credentials;
+  if (declaration === undefined) {
+    requireThat(secrets.size === 0, 'credential secret is not declared in the catalog');
+    return 'checked';
+  }
+  const code = declaration.contract;
+  requireThat(Number.isInteger(code) && catalog.contracts.some(contract => contract.code === code), 'credential source declaration is missing');
+  let expected = 0;
+  for (const [id, source] of records) {
+    if (source.contract !== code) { requireThat(!secrets.has(id), 'credential secret source contract differs'); continue; }
+    const state = source.derived;
+    object(state, 'credential derived metadata');
+    exactKeys(state, ['has_secret', 'secret_revision', 'use_epoch', 'incarnation'], 'credential derived metadata');
+    requireThat(UUID.test(state.incarnation ?? '') && state.incarnation !== '00000000-0000-0000-0000-000000000000', 'credential incarnation is invalid');
+    requireThat(typeof state.has_secret === 'boolean' && state.has_secret === (state.secret_revision !== null), 'credential derived secret presence differs');
+    canonicalU64(state.use_epoch, 'credential use epoch');
+    requireThat(!source.input?.enabled || state.has_secret, 'enabled credential has no secret');
+    if (state.has_secret) {
+      requireThat(canonicalU64(state.secret_revision, 'credential source revision') > 0n, 'credential source revision is zero');
+      requireThat(secrets.get(id)?.secret_revision === state.secret_revision, 'credential current secret is missing or stale');
+      expected += 1;
+    } else requireThat(!secrets.has(id), 'credential unexpected secret');
+  }
+  requireThat(expected === secrets.size, 'credential secret inventory size differs');
+  return 'checked';
 }
 
 function emptyStats(kind) {
@@ -457,14 +522,14 @@ function decodeKey(bytes) {
     }
     return { type: 'unique', contract, constraint, targets };
   }
-  const expectedLength = new Set([1, 5, 6, 9]).has(tag) ? 17
+  const expectedLength = new Set([1, 5, 6, 9, 17]).has(tag) ? 17
     : new Set([2, 3, 4, 7, 8, 10, 11, 12, 15, 16]).has(tag) ? 19 : 0;
   requireThat(expectedLength > 0 && bytes.length === expectedLength, 'invalid native point key');
   const id = formatUuid(bytes.subarray(1, 17));
   const slot = expectedLength === 19 ? bytes.readUInt16BE(17) : null;
   if (expectedLength === 19) requireThat(slot > 0, 'native address slot is zero');
   const type = ({ 1: 'record', 2: 'root', 3: 'node', 4: 'query', 5: 'incoming', 6: 'direct',
-    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node', 15: 'access_root', 16: 'access_node' })[tag];
+    7: 'subscribers', 8: 'role', 9: 'reserved', 10: 'route_node', 11: 'route_node', 12: 'route_node', 15: 'access_root', 16: 'access_node', 17: 'credential_secret' })[tag];
   requireThat(type !== undefined, 'invalid native point key tag');
   return { type, id, ...(expectedLength === 19 ? { address: { id, slot } } : {}) };
 }

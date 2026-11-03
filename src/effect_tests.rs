@@ -981,6 +981,7 @@ fn corrupt_effect_inventory_rejects_complete_check_and_restore_without_publicati
             listen: "127.0.0.1:0".parse().unwrap(),
             max_inflight: 2,
             request_timeout_seconds: 5,
+            credentials: None,
             effects: None,
             identity: crate::identity::IdentityConfig {
                 issuer: "effect-test".into(),

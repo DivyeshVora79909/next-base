@@ -169,7 +169,7 @@ test('positive package path discovers native identities and verifies a synthetic
     toolingEnvironment: { PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`,
       NPM_CONFIG_CACHE: path.join(root, 'npm-cache') } });
   assert.equal(result.status, 'passed');
-  assert.equal(result.modelCount, 6);
+  assert.equal(result.modelCount, 7);
   assert.deepEqual(result.supportedBackends, ['redb']);
   const manifest = JSON.parse(await readFile(path.join(root, 'package/BUNDLE.json'), 'utf8'));
   assert.equal(manifest.build.profile, 'release');
@@ -178,7 +178,7 @@ test('positive package path discovers native identities and verifies a synthetic
   assert.equal((await (await import('node:fs/promises')).stat(path.join(root, 'package/bin/rebase-next'))).nlink, 1);
   assert.equal(Object.hasOwn(manifest.sourceFiles, 'tools/node/node_modules/ajv/dist/2020.js'), false);
   assert.match(await readFile(path.join(root, 'package/SHA256SUMS'), 'utf8'), /  tools\/node\/node_modules\/ajv\/dist\/2020\.js\n/);
-  assert.deepEqual(Object.keys(manifest.models).sort(), ['calculation', 'effect-demo', 'equipment', 'invoicing', 'measurement', 'quantity'].sort());
+  assert.deepEqual(Object.keys(manifest.models).sort(), ['calculation', 'effect-demo', 'equipment', 'invoicing', 'measurement', 'quantity', 'services'].sort());
   const packedTools = path.join(root, 'package/tools/node');
   await import(pathToFileURL(path.join(packedTools, 'model.mjs')).href);
   await import(pathToFileURL(path.join(packedTools, 'population.mjs')).href);

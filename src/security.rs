@@ -217,6 +217,7 @@ impl<B: Binding> Store<B> {
             secured: true,
             credential_epoch: Some(credential_epoch),
             expected_store: self.expected_store,
+            credentials: self.credentials.clone(),
         })
     }
 

@@ -100,3 +100,11 @@ query identities across numeric, string and composite roots. Acceptance results
 and measured local adapter coordination belong in the C3 checkpoint evidence.
 Each opted-in root adds write coordination; scoped streams do not promise
 unrestricted throughput or multi-host correctness from local measurements.
+
+Managed UUIDs retain their first-materialization time in `Role.first_created_at`,
+beyond the lifetime of a live output row. Initial inactive roles allocate no
+output identity or timestamp. Later inactivity, reactivation, transfer and producer
+retirement retain the first timestamp, including repeated settlements within one
+Attempt. The role and live output timestamp must agree in independent checks;
+first activation and failed reactivation remain atomic with the indexes and receipt.
+This role shape is part of `native-slice-kv-14`; recreate older stores explicitly.

@@ -6,7 +6,7 @@ use crate::{
     model::Prepared,
     models::{
         effect_demo::EffectDemo, equipment::Equipment, invoicing::Invoicing,
-        measurement::Measurement, quantity::Quantity,
+        measurement::Measurement, quantity::Quantity, services::Services,
     },
     native_codec::uuid_text,
     native_slice::{Context, Error, Result},
@@ -29,15 +29,16 @@ pub use bootstrap::run_service_file;
 
 pub const PROTOCOL: &str = "rebase-native-host-1";
 pub const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
-const MODELS: [&str; 6] = [
+const MODELS: [&str; 7] = [
     "calculation",
     "equipment",
     "invoicing",
     "measurement",
     "effect-demo",
     "quantity",
+    "services",
 ];
-const METHODS: [&str; 19] = [
+const METHODS: [&str; 22] = [
     "host.describe",
     "host.configure",
     "model.catalog",
@@ -57,6 +58,9 @@ const METHODS: [&str; 19] = [
     "store.archive",
     "store.reset",
     "effects.retry",
+    "credentials.plan",
+    "credentials.rewrap",
+    "credentials.verify",
 ];
 
 #[derive(Deserialize)]
@@ -349,6 +353,7 @@ fn prepare_selected(
         "measurement" => selected!(Measurement),
         "effect-demo" => selected!(EffectDemo),
         "quantity" => selected!(Quantity),
+        "services" => selected!(Services),
         _ => Err(Error::new("invalid_config", "unknown compiled model")),
     }
 }
@@ -402,6 +407,9 @@ impl Host {
                         | "store.reset"
                         | "store.recover"
                         | "effects.retry"
+                        | "credentials.plan"
+                        | "credentials.rewrap"
+                        | "credentials.verify"
                 )
             })
             || (config.target.is_null() && !grants.is_empty())
@@ -510,7 +518,8 @@ impl Host {
             "model.explain" | "model.validate" | "model.render" | "fixture.catalog"
             | "fixture.plan" | "service.start" | "service.stop" | "identity.issue"
             | "store.backup" | "store.restore" | "store.archive" | "store.reset"
-            | "effects.retry" => {
+            | "effects.retry" | "credentials.plan" | "credentials.rewrap"
+            | "credentials.verify" => {
                 if self.selected.is_none() {
                     return Err(Error::new("not_configured", "model/store unavailable"));
                 }
@@ -592,7 +601,7 @@ pub fn configuration_schema() -> Value {
     };
     json!({"$schema":crate::model::SCHEMA_DIALECT,"type":"object","additionalProperties":false,"required":["model","backend","target","operator_methods"],"properties":{
         "model":{"enum":MODELS},"backend":{"type":"object","additionalProperties":false,"required":["kind","cluster_file"],"properties":{"kind":{"enum":backends},"cluster_file":{"oneOf":[{"type":"null"},path]}}},
-        "target":{},"operator_methods":{"type":"array","uniqueItems":true,"maxItems":11,"items":{"enum":["store.check","store.inspect","service.start","service.stop","identity.issue","store.backup","store.restore","store.archive","store.reset","store.recover","effects.retry"]}}},
+        "target":{},"operator_methods":{"type":"array","uniqueItems":true,"maxItems":14,"items":{"enum":["store.check","store.inspect","service.start","service.stop","identity.issue","store.backup","store.restore","store.archive","store.reset","store.recover","effects.retry","credentials.plan","credentials.rewrap","credentials.verify"]}}},
         "allOf":[{"if":{"properties":{"target":{"type":"null"}}},"then":{"properties":{"operator_methods":{"maxItems":0}}}},
         {"if":{"properties":{"backend":{"properties":{"kind":{"const":"foundationdb"}}}}},"then":{"properties":{"target":target("namespace",namespace),"backend":{"properties":{"cluster_file":path}}}},"else":{"properties":{"target":target("path",path),"backend":{"properties":{"cluster_file":{"type":"null"}}}}}},
         {"if":{"properties":{"target":{"type":"object","properties":{"mode":{"const":"recover"}},"required":["mode"]}}},"then":{"properties":{"backend":{"properties":{"kind":{"const":"redb"}}},"operator_methods":{"contains":{"const":"store.recover"}}}}}]})

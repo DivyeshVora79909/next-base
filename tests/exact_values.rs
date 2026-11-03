@@ -373,6 +373,7 @@ async fn exact_values_cross_native_binding_http_receipts_and_reopening() {
         },
         max_inflight: 4,
         request_timeout_seconds: 5,
+        credentials: None,
         effects: None,
     };
     let token = identity::issue(

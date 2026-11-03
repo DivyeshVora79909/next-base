@@ -15,7 +15,7 @@ import { checkBackupStructure } from '../storage-check.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const binary = process.env.REBASE_NODE_N2_BINARY ?? path.join(root, 'target/n2-native-default/rebase-next');
 const available = existsSync(binary);
-const expectedModels = ['calculation', 'effect-demo', 'equipment', 'invoicing', 'measurement', 'quantity'];
+const expectedModels = ['calculation', 'effect-demo', 'equipment', 'invoicing', 'measurement', 'quantity', 'services'];
 const methods = ['store.backup', 'service.start', 'service.stop', 'identity.issue'];
 
 test('independently checks real complete snapshots for every model compiled by the frozen N2 host', { skip: !available && `missing ${binary}` }, async () => {

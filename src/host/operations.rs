@@ -71,6 +71,25 @@ struct RetryEffect {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct RewrapPlan {
+    scope: Scope,
+    ids: Vec<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RewrapCredentials {
+    scope: Scope,
+    keyring: String,
+    request: crate::credentials::lifecycle::RewrapRequest,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerifyCredentials {
+    scope: Scope,
+    keyring: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Restore {
     scope: Scope,
     backup: String,
@@ -214,6 +233,60 @@ impl<B: Binding> SelectedModel<B> {
                 authorize_identity(&store, &p.scope, &p.request)?;
                 Ok(
                     json!({"token":crate::identity::issue(&p.identity,&p.request,p.private_key_pem.as_bytes())?}),
+                )
+            }
+            "credentials.plan" => {
+                let p: RewrapPlan = bind(params, "invalid_request")?;
+                self.offline()?;
+                let store = self.scoped(&p.scope)?;
+                B::credential_operator(
+                    &store.scoped_to(p.scope.store),
+                    None,
+                    crate::credentials::Operator::RewrapPlan(
+                        p.ids
+                            .into_iter()
+                            .map(|text| {
+                                let id = Uuid::parse_str(&text).map_err(|_| {
+                                    Error::new("invalid_request", "canonical UUID required")
+                                })?;
+                                if text != id.to_string() {
+                                    return Err(Error::new(
+                                        "invalid_request",
+                                        "canonical UUID required",
+                                    ));
+                                }
+                                Ok(id)
+                            })
+                            .collect::<Result<Vec<_>>>()?,
+                    ),
+                )
+            }
+            "credentials.rewrap" => {
+                let p: RewrapCredentials = bind(params, "invalid_request")?;
+                self.offline()?;
+                let store = self.scoped(&p.scope)?;
+                if !B::credential_enabled() {
+                    return Err(Error::new("unsupported_query", "model has no credentials"));
+                }
+                let crypto = crate::credentials::crypto::Crypto::load(&absolute(&p.keyring)?)?;
+                B::credential_operator(
+                    &store.scoped_to(p.scope.store),
+                    Some(&crypto),
+                    crate::credentials::Operator::Rewrap(p.request),
+                )
+            }
+            "credentials.verify" => {
+                let p: VerifyCredentials = bind(params, "invalid_request")?;
+                self.offline()?;
+                let store = self.scoped(&p.scope)?;
+                if !B::credential_enabled() {
+                    return Err(Error::new("unsupported_query", "model has no credentials"));
+                }
+                let crypto = crate::credentials::crypto::Crypto::load(&absolute(&p.keyring)?)?;
+                B::credential_operator(
+                    &store.scoped_to(p.scope.store),
+                    Some(&crypto),
+                    crate::credentials::Operator::VerifyCustody,
                 )
             }
             "effects.retry" => {

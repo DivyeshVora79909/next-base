@@ -1,6 +1,6 @@
 # E1 credentials and bounded grants
 
-Status: concrete implementation contract, not implemented acceptance. This fixes
+Status: implemented and verified; see [checkpoint evidence](checkpoints/e1-credentials.json). This fixes
 the E1 choices left open by [server execution](server-execution.md). Implement E1
 after C4, then reuse its types in E2/R0, A0–A2 and E3. Local deterministic fake
 adapters supply acceptance; live account credentials are not a prerequisite.
@@ -18,8 +18,10 @@ another model/store atomic.
 Credential metadata is an ordinary `ModelRecord`: tenant, owner, trusted creation
 time, version and typed input. Use the same source lifecycle, owner access,
 references, public indexes, query epochs, CAS, receipts and rollback path. Keep
-encrypted secret envelopes in an engine-owned `credential_secrets` table keyed
-by credential UUID and secret revision. This is private payload storage for the declared Credential,
+encrypted secret envelopes in the engine-owned `native_kv` credential-secret
+namespace (tag 17), keyed by credential UUID. E1 retains exactly the current
+revision in its envelope; E2 must explicitly change the format identity to retain
+multiple revisions for accepted jobs. This is private payload storage for the declared Credential,
 not a second public resource schema or authority registry. The prepared catalog
 owns both the public input/projection and the private envelope/operation schemas.
 
@@ -54,6 +56,10 @@ Neither provider nor account can change on an existing Credential. A different
 remote account requires another credential ID and explicit new job intent.
 
 The system-written public state is `{ has_secret, secret_revision, use_epoch }`.
+Persist an additional internal UUID `incarnation` in the source derived metadata,
+assigned from the first creation revision and retained on all edits. It is not a
+published field. Grants pin it so deleting and recreating the same credential UUID
+cannot restore an old authorization even when revision and epoch numbers repeat.
 `secret_revision` is null until submission of a secret, otherwise a positive u64;
 `use_epoch` starts at zero. These are derived metadata, never caller-controlled
 fields. They must agree with the private secret row. Generic record CRUD may
@@ -240,7 +246,16 @@ inspection can operate without decrypting secrets; enabling secret use fails
 closed on missing keys or failed authentication. Do not turn ciphertext validation
 into a claim that key custody or live account access has been verified.
 
-Root-key rotation is an operator-only, stopped-service operation. Load old and
+Root-key rotation is an operator-only, stopped-service operation. The explicit
+host methods `credentials.plan`, `credentials.rewrap` and `credentials.verify`
+require their configured operator grants and matching model/store scope. The Node
+operator exposes `prepareRewrap({ids})`, `rewrapCredentials({keyring,request})` and
+`verifyCredentials({keyring})`. Save the returned secret-free rewrap request with
+ordinary private file I/O before submitting it; retain that exact request after an
+unknown outcome. A plan pins source versions, secret revisions and old envelope
+SHA256 digests, protecting concurrent rewrites without changing source versions.
+Verification authenticates the complete bounded envelope inventory and enables no
+delivery. Only rewrap/verify load the explicit external private keyring. Load old and
 new key IDs, make the new ID active, and rewrap a bounded caller-selected list of
 credentials with CAS in ordinary short transactions. Each rewrap authenticates
 the old AAD and creates a new envelope without changing provider/account,
@@ -273,7 +288,7 @@ Secret-bearing bodies such as A1 codes use server-authored private intent later;
 they must not be copied into generic developer plans or grant diagnostics.
 
 The private grant claims bind model/store/tenant, actor and principal epoch, resolved credential
-UUID/use_epoch/secret_revision, provider/account, operation version `email-send-1`, exact canonical
+UUID/incarnation/use_epoch/secret_revision, provider/account, operation version `email-send-1`, exact canonical
 request hash, issued_at, expires_at and a CSPRNG UUID nonce. It is a sealed
 authorization artifact for the native EmailSend entrypoint, not a provider token
 or permission to perform HTTP. Seal the claims with XChaCha20-Poly1305 using a
@@ -349,7 +364,7 @@ independent protocol regression; credential loading cannot authorize dispatch.
 | Slice | Files and obligation |
 | --- | --- |
 | E1.1 primitive oracle | New `src/credentials/crypto.rs` and `tools/node/credentials.mjs`; HPKE interoperability, AEAD/AAD tampering, redacted types, key-file validation and deterministic adversarial tests; library lockfiles owned by the Cargo integrator |
-| E1.2 catalog and atomic storage | New `src/models/services.rs`, `src/credentials.rs`; small shared hooks in `binding.rs`, `local.rs`, `mutation.rs`, `rpc.rs`, model/host allowlist; source/private-row invariant and ordinary metadata/transfer semantics |
+| E1.2 catalog and atomic storage | New `src/models/services.rs`, `src/credentials/store.rs`; small shared hooks in `binding.rs`, `local.rs`, `mutation.rs`, `rpc.rs`, model/host allowlist; source/private-row invariant and ordinary metadata/transfer semantics |
 | E1.3 grants and runtime | `src/credentials/grants.rs`, server/host runtime configuration; strict EmailSend input normalization, BYOC/platform authority, bounded opaque grants and current-authority consumption checks |
 | E1.4 lifecycle and tools | Existing lifecycle/backup/restore/receipt modules, Node structure checker and typed encrypted-plan integration; rewrap, restore custody and observed failure injection |
 | E1 acceptance | Native credential/authority/atomicity tests, Node saved-plan/leakage/real signed workflow tests, fake secret-loader/provider spies, current adapter checks and source-bound checkpoint evidence |
@@ -371,3 +386,33 @@ rotation and missing-key restore; expired/forged/mismatched grants; and two nati
 handles racing a secret rotation or revocation. Independently derive expected
 private-row inventory and safe projections from source facts rather than writer
 caches. A fake send does not establish live Resend/Brevo delivery.
+
+## Current developer entrypoints
+
+The compiled `services` model also supplies a disabled metadata-only fixture. It
+needs no keyring and makes no provider request. Enable the credential endpoints
+with service configuration `credentials: { keyring: <absolute private file>,
+platform: [] }`; metadata-only service use can omit this configuration.
+
+```js
+const secret = Buffer.from(JSON.stringify({ api_key: process.env.TEST_MAIL_KEY }));
+try {
+  const plan = await client.prepareCredential({
+    model: model.identity, id: credentialId, if_version: null,
+    metadata: { label: 'Mail', provider: 'resend', account: 'primary-mail',
+      enabled: true, scopes: ['email.send'] },
+  }, secret);
+  await savePlan(planPath, plan);
+  const result = await client.execute(plan);
+} finally {
+  secret.fill(0);
+}
+```
+
+A response loss retains that saved encrypted plan for `client.status(plan)` and
+original-capsule replay. The plan validator accepts the fixed `credential-write`
+kind only; no arbitrary RPC method is persistable through this path. JavaScript
+string copies cannot be guaranteed physically erased. Public email authorization
+uses `{ model, email: { sender, to, subject, text }, selection, ttl_seconds }` and
+returns an opaque grant without a provider call. E2 supplies durable enqueue and
+consumption; authorization alone never sends mail.

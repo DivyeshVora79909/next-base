@@ -1,5 +1,10 @@
 # Server execution: planning reference
 
+E1 credentials and bounded grants are now implemented and verified within the
+[credential checkpoint](checkpoints/e1-credentials.json). E2/R0 follows the
+[concrete email contract](e2-email.md); the remaining services below retain their
+planned status until their acceptance checks pass.
+
 This is a design and acceptance map, not implemented provider functionality.
 Read with [external effects](external-effects.md), [architecture](architecture.md),
 [developer tools](developer-tools.md), and [roadmap](roadmap.md).

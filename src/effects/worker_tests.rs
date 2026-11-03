@@ -1205,6 +1205,7 @@ async fn scoped_live_worker_and_signed_ingress_cannot_adopt_reset_store() {
             identity,
             max_inflight: 2,
             request_timeout_seconds: 2,
+            credentials: None,
             effects: Some(fake::Config {
                 endpoint: "http://127.0.0.1:1/".into(),
                 mode: WorkerMode::Delivery,

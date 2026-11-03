@@ -199,7 +199,7 @@ test('C4 final rule and solver retargets cannot evade fanout and all array occur
   const proposal = await propose(state, {});
   const occurrences = proposal.commands.flatMap(row => row.fields.links.map(link => link.parent));
   const histogram = Object.fromEntries(existing.Parent.map(parent => [parent.id, occurrences.filter(id => id === parent.id).length]));
-  assert.deepEqual(Object.values(histogram).sort(), [0, 2, 2]);
+  assert.deepEqual(Object.values(histogram).sort(), [1, 1, 2]);
   for (const [parent, count] of Object.entries(histogram)) assert.equal(proposal.usage[`Child\0links[*].parent\0Parent\0${parent}`] ?? 0, count);
   const blocked = preparePopulation(model(), { Child: 1 }, { seed: 'retarget', existing, maxAttempts: 2,
     referenceUsage: { [`Child\0parent\0Parent\0${id(1)}`]: 1 },
@@ -207,6 +207,56 @@ test('C4 final rule and solver retargets cannot evade fanout and all array occur
     solver: candidate => ({ ...candidate.fields, parent: id(1) }),
     references: { Child: { parent: { maxFanout: 1 } } } });
   await assert.rejects(propose(blocked, {}), error => error.code === 'population_unsatisfied' && error.details.unsatisfied.every(issue => issue.kind === 'fanout'));
+});
+
+test('C4 reserves each array slot against tentative usage and rejection releases every reservation', async () => {
+  const catalog = structuredClone(model().catalog);
+  catalog.contracts[1].schema = schema({ links: { type: 'array', minItems: 2, maxItems: 2, items: schema({ parent: uuid }) }, value: exact });
+  catalog.contracts[1].references = [{ slot: 1, field: 'links[*].parent', targets: [101], optional: false }];
+  const native = prepareModel(catalog, { selector: 'c4-test' });
+  const seen = [];
+  let attempts = 0;
+  const options = { seed: 'one-parent-per-slot', batchSize: 1, maxAttempts: 2, existing: { Parent: existing.Parent.slice(0, 2) },
+    strategies: { Child: () => ({ links: [{}, {}], value: '1' }) },
+    references: { Child: { 'links[*].parent': { maxFanout: 1 } } },
+    selectReference(_contract, _path, pools, usage) {
+      seen.push({ ids: pools.Parent.map(row => row.id), usage: { ...usage } });
+      assert.ok(Object.isFrozen(usage));
+      return ['Parent', pools.Parent[0].id];
+    },
+    checks: { Child: () => ++attempts % 2 ? [rule] : [] },
+  };
+  // Failed local rules discard tentative fanout and permit the next identical selection.
+  const state = preparePopulation(native, { Child: 1 }, options);
+  const proposal = await propose(state, {});
+  assert.equal(proposal.generation.candidates, 2);
+  assert.deepEqual(proposal.commands[0].fields.links.map(link => link.parent), [id(1), id(2)]);
+  assert.deepEqual(seen[0], { ids: [id(1), id(2)], usage: {} });
+  assert.deepEqual(seen[1], { ids: [id(2)], usage: { [`Child\0links[*].parent\0Parent\0${id(1)}`]: 1 } });
+  assert.deepEqual(seen.slice(0, 2), seen.slice(2, 4));
+  assert.deepEqual(state.referenceUsage, {});
+  reject(state, proposal);
+  const next = await propose(state, {});
+  assert.deepEqual(next.commands[0].fields, proposal.commands[0].fields);
+  assert.notEqual(next.commands[0].id, proposal.commands[0].id);
+  assert.deepEqual(state.referenceUsage, {});
+  commit(state, next);
+  assert.deepEqual(Object.values(state.referenceUsage), [1, 1]);
+});
+
+test('C4 final array retargets must still satisfy fanout after tentative selection', async () => {
+  const catalog = structuredClone(model().catalog);
+  catalog.contracts[1].schema = schema({ links: { type: 'array', minItems: 2, maxItems: 2, items: schema({ parent: uuid }) }, value: exact });
+  catalog.contracts[1].references = [{ slot: 1, field: 'links[*].parent', targets: [101], optional: false }];
+  const native = prepareModel(catalog, { selector: 'c4-test' });
+  const state = preparePopulation(native, { Child: 1 }, { seed: 'array-retarget', maxAttempts: 2, existing: { Parent: existing.Parent.slice(0, 2) },
+    strategies: { Child: () => ({ links: [{}, {}], value: '1' }) },
+    references: { Child: { 'links[*].parent': { maxFanout: 1 } } },
+    rules: { Child: fields => ({ ...fields, links: [{ parent: id(1) }, { parent: id(1) }] }) },
+    solver: candidate => candidate.fields });
+  await assert.rejects(propose(state, {}), error => error.code === 'population_unsatisfied' && error.details.unsatisfied.every(issue => issue.kind === 'fanout'));
+  assert.deepEqual(state.referenceUsage, {});
+  assert.equal(state.pending, null);
 });
 
 test('C4 callback diagnostics must name native catalog rules and failed generation leaves deterministic Faker intent', async () => {

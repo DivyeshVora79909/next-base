@@ -30,6 +30,8 @@ pub struct ServerConfig {
     pub request_timeout_seconds: u16,
     #[serde(default)]
     pub effects: Option<crate::effects::fake::Config>,
+    #[serde(default)]
+    pub credentials: Option<crate::credentials::Config>,
 }
 #[derive(Clone)]
 struct App<B: Binding> {
@@ -39,6 +41,7 @@ struct App<B: Binding> {
     timeout: Duration,
     ingress: Option<Arc<crate::effects::inbox::Secret>>,
     effect_probe_directory: Option<std::path::PathBuf>,
+    credentials: Option<Arc<crate::credentials::grants::Runtime>>,
 }
 fn response(status: StatusCode, value: Value) -> Response {
     let bytes = serde_json::to_vec(&value).expect("JSON value serializes");
@@ -85,7 +88,11 @@ async fn call<B: Binding>(State(app): State<App<B>>, headers: HeaderMap, body: B
         let _permit = permit;
         let claims = app.verifier.verify(&token, app.store.context().tenant)?;
         let session = app.store.session(claims.sub, claims.epoch)?;
-        Ok::<_, Error>(rpc::handle(&session, &body))
+        Ok::<_, Error>(rpc::handle_with_credentials(
+            &session,
+            app.credentials.as_deref(),
+            &body,
+        ))
     });
     match tokio::time::timeout(app.timeout, work).await {
         Ok(Ok(Ok(value))) => response(StatusCode::OK, value),
@@ -218,6 +225,11 @@ fn router_with_admission<B: Binding>(
             .and_then(|effects| effects.ingress_secret_file.as_ref())
             .map(|path| crate::effects::inbox::Secret::load(path).map(Arc::new))
             .transpose()?,
+        credentials: config
+            .credentials
+            .as_ref()
+            .map(|c| c.load::<B>().map(Arc::new))
+            .transpose()?,
         effect_probe_directory: config
             .effects
             .as_ref()
@@ -237,6 +249,9 @@ fn router_with_admission<B: Binding>(
 /// Configuration-only validation shared by standalone startup and owned service
 /// admission. This runs before the bootstrap acquires a writable store owner.
 pub(crate) fn validate_configuration<B: Binding>(config: &ServerConfig) -> Result<()> {
+    if let Some(credentials) = &config.credentials {
+        credentials.validate::<B>()?;
+    }
     if let Some(effects) = &config.effects {
         effects.validate::<B>()?;
         if let Some(path) = &effects.ingress_secret_file {
@@ -452,6 +467,7 @@ mod tests {
             },
             max_inflight: 1,
             request_timeout_seconds: 1,
+            credentials: None,
             effects: None,
         };
         let result = start_scoped(store.clone(), config, Some(header.store_id)).await;
@@ -503,6 +519,7 @@ mod tests {
                 identity: identity.clone(),
                 max_inflight: 2,
                 request_timeout_seconds: 2,
+                credentials: None,
                 effects: None,
             },
             Some(before.store_id),
@@ -664,6 +681,7 @@ mod tests {
             permits: Arc::new(Semaphore::new(1)),
             timeout: Duration::from_millis(2),
             ingress: None,
+            credentials: None,
             effect_probe_directory: None,
         };
         let mut headers = HeaderMap::new();
@@ -751,6 +769,7 @@ mod tests {
                 identity,
                 max_inflight: 1,
                 request_timeout_seconds: 1,
+                credentials: None,
                 effects: None,
             },
         )

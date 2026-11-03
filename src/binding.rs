@@ -62,6 +62,29 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()>;
     fn check(store: &Store<Self>) -> Result<Value>;
+    fn credential_enabled() -> bool {
+        false
+    }
+    fn credential_operation(
+        _store: &Store<Self>,
+        _runtime: &crate::credentials::grants::Runtime,
+        _operation: crate::credentials::Operation,
+    ) -> Result<Value> {
+        Err(crate::native_slice::Error::new(
+            "unsupported_query",
+            "model has no credential operations",
+        ))
+    }
+    fn credential_operator(
+        _store: &Store<Self>,
+        _crypto: Option<&crate::credentials::crypto::Crypto>,
+        _operation: crate::credentials::Operator,
+    ) -> Result<Value> {
+        Err(crate::native_slice::Error::new(
+            "unsupported_query",
+            "model has no credential operations",
+        ))
+    }
     fn effect_action() -> Option<crate::effects::ActionDeclaration> {
         None
     }

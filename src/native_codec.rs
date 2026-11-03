@@ -11,7 +11,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-13";
+pub const CODEC: &str = "native-slice-kv-14";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -206,6 +206,7 @@ pub enum Key {
     Node(Address),
     AccessRoot(Address),
     AccessNode(Address),
+    CredentialSecret(Uuid),
     Query(Address),
     Incoming(Uuid),
     Direct(Uuid),
@@ -241,6 +242,7 @@ impl Key {
             Self::Node(a) => (3, a.id, Some(a.slot)),
             Self::AccessRoot(a) => (15, a.id, Some(a.slot)),
             Self::AccessNode(a) => (16, a.id, Some(a.slot)),
+            Self::CredentialSecret(id) => (17, *id, None),
             Self::Query(a) => (4, a.id, Some(a.slot)),
             Self::Incoming(id) => (5, *id, None),
             Self::Direct(id) => (6, *id, None),
@@ -286,7 +288,7 @@ impl Key {
             });
         }
         let length = match tag {
-            1 | 5 | 6 | 9 => 17,
+            1 | 5 | 6 | 9 | 17 => 17,
             2..=4 | 7 | 8 | 10..=12 | 15 | 16 => 19,
             _ => return Err(bad()),
         };
@@ -309,6 +311,7 @@ impl Key {
             3 => Self::Node(a),
             15 => Self::AccessRoot(a),
             16 => Self::AccessNode(a),
+            17 => Self::CredentialSecret(id),
             4 => Self::Query(a),
             5 => Self::Incoming(id),
             6 => Self::Direct(id),
@@ -342,6 +345,7 @@ pub enum StoredValue<B: Binding> {
     Node(Node<B::Index>),
     AccessRoot(Root<AccessOrder>),
     AccessNode(Node<AccessOrder>),
+    CredentialSecret(crate::credentials::crypto::SecretEnvelope),
     Query(Query<B::Index>),
     Incoming(crate::routes::Header),
     Direct(crate::routes::Header),
@@ -357,6 +361,9 @@ pub struct Role {
     #[serde(with = "uuid_text")]
     pub output: Uuid,
     pub retired: bool,
+    /// First materialization of the permanently reserved output UUID.
+    #[serde(with = "optional_decimal")]
+    pub first_created_at: Option<i64>,
 }
 
 pub type Stored = StoredValue<Calculation>;
@@ -455,6 +462,9 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
         (Key::Node(a), StoredValue::Node(n)) => valid_node(a, n),
         (Key::AccessRoot(a), StoredValue::AccessRoot(r)) => valid_root(a, r),
         (Key::AccessNode(a), StoredValue::AccessNode(n)) => valid_node(a, n),
+        (Key::CredentialSecret(id), StoredValue::CredentialSecret(secret)) => {
+            B::credential_enabled() && secret.credential == *id && secret.validate().is_ok()
+        }
         (Key::Query(a), StoredValue::Query(q)) => {
             a.slot > 0 && q.source.slot > 0 && B::Index::validate_query(q).is_ok()
         }
@@ -492,7 +502,9 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
                         .as_ref()
                         .is_some_and(|bound| bound.lower_cut() <= n.range.lower.lower_cut()))
         }
-        (Key::Role(a), StoredValue::Role(_)) => a.slot > 0,
+        (Key::Role(a), StoredValue::Role(role)) => {
+            a.slot > 0 && role.first_created_at.is_none_or(|at| at >= 0)
+        }
         (Key::Reserved(_), StoredValue::Reserved(a)) => a.slot > 0,
         _ => false,
     };

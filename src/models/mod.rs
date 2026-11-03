@@ -9,3 +9,5 @@ mod invoicing_fixtures;
 
 pub mod measurement;
 pub mod quantity;
+
+pub mod services;

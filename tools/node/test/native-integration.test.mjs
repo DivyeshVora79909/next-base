@@ -31,8 +31,8 @@ function config(model, target = null, operatorMethods = []) {
   } });
 }
 
-test('real native host serves all six public/developer catalogs over private framed IPC', { skip: !available && `native binary not found: ${binary}` }, async () => {
-  const selectors = ['calculation', 'equipment', 'invoicing', 'measurement', 'effect-demo', 'quantity'];
+test('real native host serves all seven public/developer catalogs over private framed IPC', { skip: !available && `native binary not found: ${binary}` }, async () => {
+  const selectors = ['calculation', 'equipment', 'invoicing', 'measurement', 'effect-demo', 'quantity', 'services'];
   for (const selector of selectors) {
     const host = await openNative(config(selector));
     try {
@@ -83,8 +83,8 @@ test('real redb ownership grants scoped check/inspect, rejects conflicts and wro
   await assert.rejects(stat(directory), error => error.code === 'ENOENT');
 });
 
-test('all six native models prepare both catalog scopes and validate native fixtures before drafting', { skip: !available && `native binary not found: ${binary}` }, async () => {
-  for (const selector of ['calculation', 'equipment', 'invoicing', 'measurement', 'effect-demo', 'quantity']) {
+test('all seven native models prepare both catalog scopes and validate native fixtures before drafting', { skip: !available && `native binary not found: ${binary}` }, async () => {
+  for (const selector of ['calculation', 'equipment', 'invoicing', 'measurement', 'effect-demo', 'quantity', 'services']) {
     const native = await openNative(config(selector));
     try {
       const models = [];

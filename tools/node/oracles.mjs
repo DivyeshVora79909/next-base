@@ -217,18 +217,20 @@ export function checkSourceSnapshot({ model, facts, snapshot, roleHistory } = {}
   const roleContentsMatch = wantedRoles.every(address => {
     const binding = roleRows.get(addressKey(address))?.binding;
     if (!binding || typeof binding.output !== 'string' || typeof binding.retired !== 'boolean'
-      || !same(Object.keys(binding).sort(), ['output', 'retired'])
+      || !same(Object.keys(binding).sort(), ['first_created_at', 'output', 'retired'])
+      || !(binding.first_created_at === null || validCreationTime(binding.first_created_at))
       || ![11, 29].includes(address.slot) || outputIdentities.has(binding.output)
       || Object.hasOwn(facts, binding.output) || producers.has(binding.output)) return false;
     outputIdentities.add(binding.output);
     const witness = history?.get(addressKey(address));
-    if (history && witness?.output !== binding.output) return false;
+    if (history && (witness?.output !== binding.output || witness.first_created_at !== binding.first_created_at)) return false;
     const producer = facts[address.id];
     if (binding.retired !== !producer || (producer && producer.contract !== 410)) return false;
     const output = recordRows.get(binding.output)?.record;
     if (!producer?.fields.active) return output === undefined;
     const expected = expectedPrivate.get(addressKey(address));
-    return Boolean(expected && output?.contract === 900 && same(output.input, expected) && output.derived === null);
+    return Boolean(expected && output?.contract === 900 && same(output.input, expected) && output.derived === null
+      && validCreationTime(binding.first_created_at) && output.created_at === binding.first_created_at);
   });
   if (wantedRoles.length) add('role-binding-contents', roleContentsMatch,
     'role binding is retired, points at the wrong output, or has inconsistent private output facts');
@@ -245,7 +247,7 @@ export function checkSourceSnapshot({ model, facts, snapshot, roleHistory } = {}
 }
 
 /** Check source semantics and physical trees from one retained complete backup.
- * roleHistory is an optional bounded identity witness: [{producer, role, output}].
+ * roleHistory is an optional bounded lifetime witness: [{producer, role, output, first_created_at}].
  * It lists every reservation ever allocated, including currently active ones.
  * Identities come from retained committed observations, never guessed UUIDs.
  * catalog is the matching developer catalog; it enables source-derived access
@@ -318,6 +320,11 @@ export function checkSourceBackup({ model, facts, backup, roleHistory, catalog }
   return Object.freeze(result);
 }
 
+function validCreationTime(value) {
+  return typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)
+    && BigInt(value) <= 9223372036854775807n;
+}
+
 function validateRoleHistory(history) {
   if (history === undefined) return undefined;
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -325,7 +332,8 @@ function validateRoleHistory(history) {
   const roles = new Map(), outputs = new Set();
   for (const row of history) {
     fail(row && typeof row === 'object' && !Array.isArray(row)
-      && same(Object.keys(row).sort(), ['producer', 'role', 'output'].sort())
+      && same(Object.keys(row).sort(), ['producer', 'role', 'output', 'first_created_at'].sort())
+      && (row.first_created_at === null || validCreationTime(row.first_created_at))
       && typeof row.producer === 'string' && typeof row.output === 'string'
       && uuid.test(row.producer) && uuid.test(row.output) && [11, 29].includes(row.role), 'role_history', 'invalid roleHistory identity');
     const key = addressKey({ id: row.producer, slot: row.role });

@@ -1,5 +1,60 @@
 # Current checkpoint
 
+## E1 — Credentials, grants and requested lifetime/fanout fixes
+
+Publication status: verified and committed locally; push is blocked by the current
+environment. HTTPS has no GitHub credentials, SSH rejects available identities,
+and the connected GitHub app transport is unreachable. Restore GitHub authentication,
+push this checkpoint to `origin/main`, then begin E2/R0. No E1 reset is needed.
+
+Implemented and verified on the default backend and one local FoundationDB 7.3.77
+process/host. The compiled `services` binding adds owner-scoped Credential metadata,
+HPKE encrypted ingress, private XChaCha20-Poly1305 envelopes, explicit Use grants,
+request-bound opaque email authorization, stopped-service rewrap and restore custody
+checks. Source/private rows, indexes, query epochs and original operation receipts
+share one commit. Current authority and both old/new owners are checked before CAS
+and decrypt. Replayed committed writes recover before trying an expired capsule.
+Grant issuance loads no provider secret and sends no requests. A retained internal
+credential incarnation prevents delete/recreate from reviving old grants. Label
+edits retain grants; rotation pins revisions and use-affecting edits advance epochs.
+
+The Node client seals secret bytes before creating a persistable `credential-write`
+plan. Execute/status retain the original target, context, operation and capsule.
+The native host and developer tools expose all seven compiled models, a disabled
+credential metadata fixture, and explicit operator rewrap/verification methods.
+Keyrings stay external/private; backups contain ciphertext and restore secret use
+requires the matching keys. Native and Node checkers derive private inventory from
+source facts. E1 keeps one current envelope per credential in native KV tag 17;
+E2 must change the explicit format to retain accepted job revisions.
+
+Requested fixes are included: `Role.first_created_at` outlives inactive/retired
+managed output rows and is reused across committed inactivity and repeated
+settlements in one Attempt. The independent counterexample failed before the fix.
+First activation/reactivation/transfer, index keys, rollback and reopen are covered.
+Array references select and reserve each occurrence independently with candidate-local
+fanout usage, allowing two unused parents for two references at maxFanout 1. Rules
+and solver results still receive final validation, and rejection discards usage.
+
+Acceptance: 344 Rust all-target tests passed (0 ignored), 202 full Node tests passed
+(0 skipped) on Node 26.12.0 with the freshly built default redb host. Formatting,
+default/FDB all-target Clippy with warnings denied, real HPKE known-answer and
+cross-runtime tests passed. FDB coordination/lifecycle/application/effects/predicates/
+credentials passed 20/14/19/27/24/6; redb controls passed 17/10/13/27/16/6. Independent
+credential rotations committed with no shared writes; same-credential rotation and
+four concurrent authority revocations correctly conflicted. Existing owner transfer,
+managed output, cursor, source-derived index, rollback and recovery controls remain.
+This is local correctness evidence; live providers, distributed capacity and standalone
+SurrealKV were not accepted by this run. Current codec is `native-slice-kv-14`;
+changed stores require explicit recreation. See [E1 evidence](docs/checkpoints/e1-credentials.json)
+and [E1 contract and entrypoints](docs/e1-credentials.md).
+
+Next dependency: implement [E2/R0](docs/e2-email.md): durable EmailSend using independently
+bound Resend/Brevo fake protocols, retained credential revisions and scoped rate
+admission. Then A0–A2 identity/proof/sessions, E3 objects, E5 full fake-pipeline recovery
+and fresh committed-source release/bootstrap verification. These are required remaining
+work, not completed capability. C5 live invalidations, E4 recurrence, frontend, live
+provider acceptance and TiKV remain optional/deferred. No population counter is present.
+
 ## C3 and C4 — Ordered access, native reactivity and adaptive population
 
 C3 is implemented and verified. Explicit catalog access indexes maintain linked
@@ -331,8 +386,9 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
 
 ## Server extensions and evidence boundaries
 
-E0 service contracts are planned; E1–E5 credentials, EmailSend with independent
-Resend/Brevo bindings, object lifecycle and optional recurrence are not implemented.
+E1 credentials and bounded grants are accepted as described above. E2–E5 EmailSend
+with independent Resend/Brevo bindings, object lifecycle, optional recurrence and
+full-pipeline acceptance remain planned.
 Reuse committed intent/start/fence/fact/application and unknown-outcome recovery.
 Unrelated external provider I/O follows commit, outside the native transaction.
 Do not mandate public v1/v2 operations; accepted jobs pin semantics/provider/account.

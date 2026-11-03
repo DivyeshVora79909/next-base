@@ -100,7 +100,7 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
 count/count-only indexing is implemented in C1.1; business counts retain their
-own declared meaning. Current codec `native-slice-kv-13` requires explicit store recreation.
+own declared meaning. Current codec `native-slice-kv-14` requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
@@ -129,7 +129,7 @@ Avoid a universal hot counter. Optional live invalidations would publish through
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
 Stored capacity counters and `Binding::Limits` are removed, with no accounting mode
-fallback. The current format uses `native-slice-kv-13` and requires explicit recreation; `Population` is source-derived read-only inventory
+fallback. The current format uses `native-slice-kv-14` and requires explicit recreation; `Population` is source-derived read-only inventory
 at open/checking, never persisted or scanned by normal mutations. Business validators,
 work/byte budgets, identity reservations and required owner/contract epochs remain.
 Historical [C3.0 evidence](checkpoints/c3-contention-baseline.json) records pre-change
@@ -144,3 +144,10 @@ Public root ranges and reverse subscriber routes now use `NativeRange<I::Key>`.
 Native numeric, string and composite keys preserve included/excluded group boundaries,
 old/new registration repair and final-graph causality. TimeRange remains an explicit
 temporal adapter; native ordering never requires a timestamp cast.
+
+E1's explicit `services` binding supplies Credential metadata and encrypted secret
+operations in the same ordinary transaction domain. `Role.first_created_at` and
+private credential envelopes are part of codec14. A generated UUID's timestamp
+survives inactivity; a Credential's internal incarnation fences delete/recreate
+authorization. See [E1](e1-credentials.md) for implemented custody/grant boundaries
+and [E2/R0](e2-email.md) for the next, still planned durable email work.

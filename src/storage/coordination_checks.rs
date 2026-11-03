@@ -22,35 +22,35 @@ use std::{
 };
 use uuid::Uuid;
 
-type Written = BTreeSet<(String, Vec<u8>)>;
+pub(crate) type Written = BTreeSet<(String, Vec<u8>)>;
 #[derive(Clone)]
-struct Trace {
-    label: String,
-    reads: Written,
-    writes: Written,
-    scanned_tables: BTreeSet<String>,
-    outcome: String,
-    commit_us: u128,
-    read_value_bytes: u64,
-    put_key_value_bytes: u64,
-    access_put_key_value_bytes: u64,
+pub(crate) struct Trace {
+    pub(crate) label: String,
+    pub(crate) reads: Written,
+    pub(crate) writes: Written,
+    pub(crate) scanned_tables: BTreeSet<String>,
+    pub(crate) outcome: String,
+    pub(crate) commit_us: u128,
+    pub(crate) read_value_bytes: u64,
+    pub(crate) put_key_value_bytes: u64,
+    pub(crate) access_put_key_value_bytes: u64,
 }
 #[derive(Default)]
-struct Capture {
-    label: String,
-    traces: Vec<Trace>,
+pub(crate) struct Capture {
+    pub(crate) label: String,
+    pub(crate) traces: Vec<Trace>,
 }
-type Captures = Arc<Mutex<Capture>>;
-fn capture(c: &Captures) -> Result<std::sync::MutexGuard<'_, Capture>> {
+pub(crate) type Captures = Arc<Mutex<Capture>>;
+pub(crate) fn capture(c: &Captures) -> Result<std::sync::MutexGuard<'_, Capture>> {
     c.lock().map_err(|_| failure("capture mutex poisoned"))
 }
-fn label(c: &Captures, name: &str) -> Result<()> {
+pub(crate) fn label(c: &Captures, name: &str) -> Result<()> {
     capture(c)?.label = name.into();
     Ok(())
 }
-struct Recording {
-    db: Database,
-    captures: Captures,
+pub(crate) struct Recording {
+    pub(crate) db: Database,
+    pub(crate) captures: Captures,
 }
 impl Backend for Recording {
     fn limits(&self) -> Limits {
@@ -332,7 +332,11 @@ fn changed<B: Binding>(store: &Store<B>, request: &PageRequest) -> Result<()> {
 // Fixture selection is read-only and precedes both attempts. It selects free,
 // distinct hash starts and distinct SurrealKV point-guard buckets; it is not an
 // automatic retry of a mutation or a relaxation of the allocation capacity.
-fn operation<B: Binding>(store: &Store<B>, start: u128, avoid: Option<&[u8]>) -> Result<Uuid> {
+pub(crate) fn operation<B: Binding>(
+    store: &Store<B>,
+    start: u128,
+    avoid: Option<&[u8]>,
+) -> Result<Uuid> {
     let read = store.db.begin_read()?;
     let slots = read.open_table(crate::receipts::SLOTS)?;
     for n in start..start + 4096 {
@@ -358,7 +362,7 @@ fn operation<B: Binding>(store: &Store<B>, start: u128, avoid: Option<&[u8]>) ->
         "unable to select bounded independent receipt fixture",
     ))
 }
-fn trace_value(trace: &Trace) -> Value {
+pub(crate) fn trace_value(trace: &Trace) -> Value {
     json!({"attempt":trace.label,"outcome":trace.outcome,"commit_us":trace.commit_us,
         "read_value_bytes":trace.read_value_bytes,"put_key_value_bytes":trace.put_key_value_bytes,"access_put_key_value_bytes":trace.access_put_key_value_bytes,
         "application_reads":trace.reads.iter().map(|(table,key)|json!({"table":table,"key":native_codec::hex(key)})).collect::<Vec<_>>(),

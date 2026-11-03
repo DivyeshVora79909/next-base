@@ -14,7 +14,8 @@ usage budgets are not standing commit-count instructions for future agents.
 The [mathematical catalog](index-mathematics.md) and [rate contract](rate-admission.md)
 separate mathematical representability from implemented capability. The
 [E0–E5 service plan](server-execution.md) adds contracts and acceptance witnesses;
-it does not declare credentials, object storage or recurrence implemented.
+E1 credentials are now accepted within [their checkpoint](checkpoints/e1-credentials.json);
+EmailSend, object storage and recurrence retain their following milestone boundaries.
 
 ## C0 — Clean root and reproducible bootstrap
 
@@ -207,13 +208,14 @@ follow-ons, not mandatory dependencies of completing this base.
 
 The [server plan](server-execution.md) preserves existing execution/fact/application
 machinery while adding strict typed capabilities. E0 records the service contract pass;
-C3/C4 are accepted. E1 uses the [concrete credential contract](e1-credentials.md);
-E2/R0, A0–A2, E3, E5 and fresh release verification follow in dependency order.
+C3/C4 and [E1 credentials](e1-credentials.md) are accepted. E1 also fixes managed
+UUID lifetime creation metadata and array-reference tentative fanout selection.
+[E2/R0](e2-email.md), A0–A2, E3, E5 and fresh release verification follow in dependency order.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |
 | E0 | Current/absent capabilities, modes and recovery obligations | C0 and existing effect evidence; planning only |
-| E1 | Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
+| E1 | Accepted Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
 | E2 | One EmailSend contract with independent Resend/Brevo adapters and durable jobs | E1 contracts; reuse the present worker state machine |
 | E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2; one selected object adapter |
 | E4 | Optional recurrence producing ordinary one-shot jobs | E2 and protected occurrence uniqueness; no workflow engine |

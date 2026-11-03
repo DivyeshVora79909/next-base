@@ -20,6 +20,9 @@ const METHODS = Object.freeze({
     request: params.request,
     private_key_pem: params.privateKeyPem,
   }, options)],
+  'credentials.plan': ['prepareRewrap', (native, scope, params, options) => native.prepareRewrap({ scope, ids: params.ids }, options)],
+  'credentials.rewrap': ['rewrapCredentials', (native, scope, params, options) => native.rewrapCredentials({ scope, keyring: params.keyring, request: params.request }, options)],
+  'credentials.verify': ['verifyCredentials', (native, scope, params, options) => native.verifyCredentials({ scope, keyring: params.keyring }, options)],
   'effects.retry': ['retryEffect', (native, scope, params, options) => native.retryEffect({
     scope,
     execution_id: params.executionId,

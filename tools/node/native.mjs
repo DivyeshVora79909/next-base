@@ -9,7 +9,7 @@ const ALLOWED_METHODS = new Set([
   'host.describe', 'host.configure', 'model.catalog', 'store.check', 'store.inspect', 'host.close',
   'model.explain', 'model.validate', 'model.render', 'fixture.catalog', 'fixture.plan',
   'service.start', 'service.stop', 'identity.issue', 'store.backup', 'store.archive',
-  'store.reset', 'store.restore', 'effects.retry',
+  'store.reset', 'store.restore', 'effects.retry', 'credentials.plan', 'credentials.rewrap', 'credentials.verify',
 ]);
 const RESPONSE_KEYS = new Set(['protocol', 'id', 'result', 'error']);
 const HASH = /^[0-9a-f]{64}$/;
@@ -137,6 +137,9 @@ class NativeHost {
       restore(params, options = {}) { return host.#request('store.restore', params, options, true); },
       archive(params, options = {}) { return host.#request('store.archive', params, options, true); },
       reset(params, options = {}) { return host.#request('store.reset', params, options, true); },
+      prepareRewrap(params, options = {}) { return host.#request('credentials.plan', params, options, true); },
+      rewrapCredentials(params, options = {}) { return host.#request('credentials.rewrap', params, options, true); },
+      verifyCredentials(params, options = {}) { return host.#request('credentials.verify', params, options, true); },
       retryEffect(params, options = {}) { return host.#retryEffect(params, options); },
       diagnostics() { return host.#diagnostics(); },
       close() { closePromise ??= host.close(); return closePromise; },

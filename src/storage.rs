@@ -12,6 +12,7 @@ pub mod application_checks;
 pub mod concurrency_checks;
 pub mod conformance;
 pub mod coordination_checks;
+pub mod credential_checks;
 pub mod diagnostic_checks;
 #[cfg(feature = "foundationdb")]
 pub mod foundationdb;

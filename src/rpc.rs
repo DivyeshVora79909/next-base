@@ -63,7 +63,12 @@ fn bind<T: for<'de> Deserialize<'de>>(params: Value) -> Result<T> {
         .map_err(|_| Error::new("invalid_input", "invalid operation params"))
 }
 
-fn dispatch<B: Binding>(store: &Store<B>, method: &str, params: Value) -> Result<Value> {
+fn dispatch<B: Binding>(
+    store: &Store<B>,
+    runtime: Option<&crate::credentials::grants::Runtime>,
+    method: &str,
+    params: Value,
+) -> Result<Value> {
     match method {
         "model.describe" => {
             let _: Empty = bind(params)?;
@@ -84,6 +89,27 @@ fn dispatch<B: Binding>(store: &Store<B>, method: &str, params: Value) -> Result
                 "permissions":scope.grants,"model":store.model().identity(),"store":header.store_id,
                 "operation_context":crate::security::operation_context(&header,store.context(),store.model().identity())?}),
             )
+        }
+        "credentials.ingress_key" if B::credential_enabled() => {
+            let p: ModelOnly = bind(params)?;
+            let (read, _, _) = store.read(&p.model)?;
+            store.authority(&read)?;
+            let runtime = runtime.ok_or_else(|| {
+                Error::new("credential_unavailable", "credential runtime unavailable")
+            })?;
+            serde_json::to_value(runtime.crypto().ingress_descriptor())
+                .map_err(crate::local::storage)
+        }
+        "credentials.write_secret" | "email.authorize" if B::credential_enabled() => {
+            let runtime = runtime.ok_or_else(|| {
+                Error::new("credential_unavailable", "credential runtime unavailable")
+            })?;
+            let operation = if method == "credentials.write_secret" {
+                crate::credentials::Operation::WriteSecret(bind(params)?)
+            } else {
+                crate::credentials::Operation::AuthorizeEmail(bind(params)?)
+            };
+            B::credential_operation(store, runtime, operation)
         }
         "access.replace" => store.replace_access(&bind(params)?),
         "records.get" => {
@@ -143,6 +169,9 @@ pub(crate) fn failure(id: Value, kind: &str) -> Value {
             -32001,
             "Commit outcome unknown; retain the operation ID and reconcile after reopening",
         ),
+        "credential_crypto" => (-32000, "Credential cryptography failed"),
+        "credential_unavailable" => (-32000, "Credential runtime is unavailable"),
+        "invalid_grant" => (-32000, "Email authorization is invalid"),
         "forbidden" => (-32000, "Operation is not permitted"),
         "not_found" => (-32000, "Record or root is unavailable"),
         "unavailable_reference" => (-32000, "A required identity is unavailable"),
@@ -185,6 +214,14 @@ pub(crate) fn failure(id: Value, kind: &str) -> Value {
 }
 
 pub fn handle<B: Binding>(store: &Store<B>, bytes: &[u8]) -> Value {
+    handle_with_credentials(store, None, bytes)
+}
+
+pub(crate) fn handle_with_credentials<B: Binding>(
+    store: &Store<B>,
+    runtime: Option<&crate::credentials::grants::Runtime>,
+    bytes: &[u8],
+) -> Value {
     let value = match json::parse(bytes) {
         Ok(v) => v,
         Err(e) => return failure(Value::Null, e.code),
@@ -205,7 +242,7 @@ pub fn handle<B: Binding>(store: &Store<B>, bytes: &[u8]) -> Value {
         }
         _ => return failure(id, "invalid_request"),
     };
-    match dispatch(store, &request.method, request.params) {
+    match dispatch(store, runtime, &request.method, request.params) {
         Ok(result) => json!({"jsonrpc":"2.0","id":request.id,"result":result}),
         Err(error) => failure(json!(request.id), error.code),
     }

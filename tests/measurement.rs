@@ -494,6 +494,7 @@ fn observation_report_and_native_corruptions_fail_check_startup_and_verified_res
         listen: "127.0.0.1:0".parse().unwrap(),
         max_inflight: 1,
         request_timeout_seconds: 5,
+        credentials: None,
         effects: None,
         identity: IdentityConfig {
             issuer: "measurement-test".into(),

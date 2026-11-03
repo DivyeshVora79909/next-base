@@ -680,6 +680,7 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                 Some(StoredValue::Role(Role {
                     output: id,
                     retired: false,
+                    first_created_at: None,
                 })),
             )?;
             ws.put(Key::Reserved(id), Some(StoredValue::Reserved(a)))?;
@@ -713,13 +714,15 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
         }
         if p.record.is_none() {
             for (role, output) in &p.bindings {
-                ws.put(
-                    Key::Role(Address::new(*producer, *role)),
-                    Some(StoredValue::Role(Role {
-                        output: *output,
-                        retired: true,
-                    })),
-                )?;
+                let key = Key::Role(Address::new(*producer, *role));
+                let Some(StoredValue::Role(mut binding)) = ws.get(&key)? else {
+                    return Err(Error::new("corrupt_state", "missing retiring role"));
+                };
+                if binding.output != *output {
+                    return Err(Error::new("corrupt_state", "retiring role output mismatch"));
+                }
+                binding.retired = true;
+                ws.put(key, Some(StoredValue::Role(binding)))?;
             }
         }
     }
@@ -829,15 +832,46 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
                     ));
                 }
             }
+            // The role permanently reserves this UUID. Its first materialization
+            // time survives intervals where the output record does not exist.
+            let role_key = Key::Role(Address::new(id, e.role));
+            let Some(StoredValue::Role(mut binding)) = ws.get(&role_key)? else {
+                return Err(Error::new("corrupt_state", "missing output role"));
+            };
+            if binding.output != output || binding.retired {
+                return Err(Error::new("corrupt_state", "output role identity mismatch"));
+            }
+            let created_at = match binding.first_created_at {
+                Some(at) => {
+                    if p.old_outputs
+                        .get(&e.role)
+                        .is_some_and(|(_, old)| old.created_at != at)
+                    {
+                        return Err(Error::new(
+                            "corrupt_state",
+                            "output creation provenance mismatch",
+                        ));
+                    }
+                    at
+                }
+                None => {
+                    if p.old_outputs.contains_key(&e.role) {
+                        return Err(Error::new(
+                            "corrupt_state",
+                            "live output lacks creation provenance",
+                        ));
+                    }
+                    let at = crate::mutation::creation_time()?;
+                    binding.first_created_at = Some(at);
+                    ws.put(role_key, Some(StoredValue::Role(binding)))?;
+                    at
+                }
+            };
             let new = ModelRecord {
                 contract: e.contract,
                 tenant: context.tenant,
                 owner: r.owner,
-                created_at: p
-                    .old_outputs
-                    .get(&e.role)
-                    .map(|(_, old)| old.created_at)
-                    .map_or_else(crate::mutation::creation_time, Ok)?,
+                created_at,
                 version: revision,
                 input,
                 derived: None,
@@ -1032,18 +1066,19 @@ mod tests {
             // expected amounts do not come from query or writer caches.
             for (role, output, at, quantity) in [(11, 900, 10, -3), (29, 901, 15, 3)] {
                 let role_id = Address::new(id(300), role);
+                let row = ws.record(id(output)).unwrap().unwrap();
                 assert_eq!(
                     ws.get(&Key::Role(role_id)).unwrap(),
                     Some(StoredValue::Role(Role {
                         output: id(output),
                         retired: false,
+                        first_created_at: Some(row.created_at),
                     }))
                 );
                 assert_eq!(
                     ws.get(&Key::Reserved(id(output))).unwrap(),
                     Some(StoredValue::Reserved(role_id))
                 );
-                let row = ws.record(id(output)).unwrap().unwrap();
                 assert_eq!(row.owner, id(owner));
                 assert_eq!(row.version, producer.version);
                 assert_eq!(
@@ -1128,11 +1163,17 @@ mod tests {
             assert!(ws.record(id(301)).unwrap().is_none());
             for (role, output) in [(11, 902), (29, 903)] {
                 let address = Address::new(id(301), role);
+                let Some(StoredValue::Role(original)) = ws.original(&Key::Role(address)).unwrap()
+                else {
+                    panic!("original role");
+                };
+                assert!(original.first_created_at.is_some());
                 assert_eq!(
                     ws.get(&Key::Role(address)).unwrap(),
                     Some(StoredValue::Role(Role {
                         output: id(output),
                         retired: true,
+                        first_created_at: original.first_created_at,
                     }))
                 );
                 assert_eq!(
@@ -1141,6 +1182,247 @@ mod tests {
                 );
                 assert!(ws.record(id(output)).unwrap().is_none());
             }
+        }
+
+        #[test]
+        fn managed_uuid_creation_time_survives_inactive_reactivation_and_transfer() {
+            for committed_inactive in [true, false] {
+                let (model, mut bytes) = seed(&[(300, 10)]);
+                let first: BTreeMap<_, _> = [900, 901]
+                    .into_iter()
+                    .map(|output| {
+                        let key = Key::Record(id(output));
+                        let StoredValue::Record(record) =
+                            native_codec::decode_for::<Equipment>(&key, &bytes[&key.encode()])
+                                .unwrap()
+                        else {
+                            panic!("output record")
+                        };
+                        (output, record.created_at)
+                    })
+                    .collect();
+                // A reactivation happens after the first materialization's millisecond.
+                std::thread::sleep(std::time::Duration::from_millis(2));
+                if committed_inactive {
+                    let mut ws = Attempt::<_, Equipment>::new(
+                        |key: &[u8]| Ok(bytes.get(key).cloned()),
+                        200_000,
+                    );
+                    let inactive = update(&mut ws, 300, None, json!({"active":false}));
+                    stage(&mut ws, &model, &[inactive], &mut no_allocation).unwrap();
+                    for output in [900, 901] {
+                        assert!(ws.record(id(output)).unwrap().is_none());
+                    }
+                    let batch = ws.finish().unwrap();
+                    drop(ws);
+                    for (key, value) in batch {
+                        if let Some(value) = value {
+                            bytes.insert(key, value);
+                        } else {
+                            bytes.remove(&key);
+                        }
+                    }
+                }
+                let mut ws =
+                    Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+                if !committed_inactive {
+                    let inactive = update(&mut ws, 300, None, json!({"active":false}));
+                    stage(&mut ws, &model, &[inactive], &mut no_allocation).unwrap();
+                }
+                let active = update(&mut ws, 300, None, json!({"active":true}));
+                stage(&mut ws, &model, &[active], &mut no_allocation).unwrap();
+                let transfer = update(&mut ws, 300, Some(id(3)), json!({}));
+                stage(&mut ws, &model, &[transfer], &mut no_allocation).unwrap();
+                for output in [900, 901] {
+                    let record = ws.record(id(output)).unwrap().unwrap();
+                    assert_eq!(
+                        record.created_at, first[&output],
+                        "UUID lifetime timestamp changed; committed inactive={committed_inactive}"
+                    );
+                    assert_eq!(record.owner, id(3));
+                }
+            }
+        }
+
+        #[test]
+        fn first_materialization_is_atomic_retained_and_matches_created_access_keys() {
+            use crate::{
+                access_index::Declaration,
+                local::{Mutation, Store},
+                storage::ReadableTable,
+            };
+            fn request(store: &Store<Equipment>, commands: Vec<Command>) -> Mutation {
+                Mutation {
+                    model: store.model().identity().into(),
+                    context: store.operation_context(store.model().identity()).unwrap(),
+                    operation_id: Uuid::new_v4(),
+                    commands,
+                    returning: vec![],
+                }
+            }
+            fn native(store: &Store<Equipment>, key: Key) -> Option<StoredValue<Equipment>> {
+                let read = store.begin_read().unwrap();
+                let table = read.open_table(crate::local::KV).unwrap();
+                table.get(key.encode()).unwrap().map(|bytes| {
+                    native_codec::decode_for::<Equipment>(&key, bytes.value()).unwrap()
+                })
+            }
+            fn set_active(store: &Store<Equipment>, active: bool) -> Mutation {
+                let version = store
+                    .get(store.model().identity(), id(300))
+                    .unwrap()
+                    .unwrap()
+                    .version;
+                request(
+                    store,
+                    vec![Command::Update {
+                        id: id(300),
+                        if_version: version,
+                        owner: None,
+                        set: [("active".into(), json!(active))].into(),
+                        unset: vec![],
+                    }],
+                )
+            }
+            let directory =
+                std::env::temp_dir().join(format!("managed-created-{}", Uuid::new_v4()));
+            std::fs::create_dir_all(&directory).unwrap();
+            let mut declarations = Equipment::declarations().unwrap();
+            declarations
+                .iter_mut()
+                .find(|c| c.code == 900)
+                .unwrap()
+                .access_indexes = vec![Declaration::created(9001)];
+            let model = std::sync::Arc::new(Prepared::<Equipment>::prepare(declarations).unwrap());
+            let store = Store::create(
+                directory.join("store.redb"),
+                model.clone(),
+                Context {
+                    tenant: id(1),
+                    actor: id(2),
+                },
+            )
+            .unwrap();
+            let initial = request(
+                &store,
+                vec![
+                    create(100, 101, json!({"unit":1})),
+                    create(200, 205, json!({"pool":id(100),"at":"0","quantity":"10"})),
+                    create(
+                        300,
+                        410,
+                        json!({"pool":id(100),"starts":"10","ends":"15","requested":"3","active":false}),
+                    ),
+                ],
+            );
+            store.mutate_with_ids(&initial, &mut no_allocation).unwrap();
+            for role in [11, 29] {
+                assert!(native(&store, Key::Role(Address::new(id(300), role))).is_none());
+            }
+            assert!(native(&store, Key::AccessRoot(Address::new(id(2), 9001))).is_none());
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            let activation_start = crate::mutation::creation_time().unwrap();
+            let activate = set_active(&store, true);
+            let before = store.observe_for_verification().unwrap();
+            let mut next = 900;
+            assert!(
+                store
+                    .mutate_inner(
+                        &activate,
+                        &mut || {
+                            let output = id(next);
+                            next += 1;
+                            Ok(output)
+                        },
+                        Some(usize::MAX)
+                    )
+                    .is_err()
+            );
+            assert_eq!(
+                store.observe_for_verification().unwrap(),
+                before,
+                "aborted first materialization retained state"
+            );
+            let mut next = 900;
+            store
+                .mutate_with_ids(&activate, &mut || {
+                    let output = id(next);
+                    next += 1;
+                    Ok(output)
+                })
+                .unwrap();
+            let mut first = BTreeMap::new();
+            for (role, output) in [(11, 900), (29, 901)] {
+                let Some(StoredValue::Role(binding)) =
+                    native(&store, Key::Role(Address::new(id(300), role)))
+                else {
+                    panic!("role")
+                };
+                let at = binding.first_created_at.unwrap();
+                assert!(at >= activation_start);
+                first.insert(output, at);
+                let Some(StoredValue::Record(record)) = native(&store, Key::Record(id(output)))
+                else {
+                    panic!("output")
+                };
+                assert_eq!(record.created_at, at);
+            }
+            for _ in 0..2 {
+                store
+                    .mutate_with_ids(&set_active(&store, false), &mut no_allocation)
+                    .unwrap();
+                for (role, output) in [(11, 900), (29, 901)] {
+                    let Some(StoredValue::Role(binding)) =
+                        native(&store, Key::Role(Address::new(id(300), role)))
+                    else {
+                        panic!("inactive role")
+                    };
+                    assert_eq!(binding.first_created_at, Some(first[&output]));
+                    assert!(native(&store, Key::Record(id(output))).is_none());
+                }
+                let reactivate = set_active(&store, true);
+                let before = store.observe_for_verification().unwrap();
+                assert!(
+                    store
+                        .mutate_inner(&reactivate, &mut no_allocation, Some(usize::MAX))
+                        .is_err()
+                );
+                assert_eq!(store.observe_for_verification().unwrap(), before);
+                store
+                    .mutate_with_ids(&reactivate, &mut no_allocation)
+                    .unwrap();
+                for output in [900, 901] {
+                    let Some(StoredValue::Record(record)) = native(&store, Key::Record(id(output)))
+                    else {
+                        panic!("output")
+                    };
+                    assert_eq!(record.created_at, first[&output]);
+                    let Some(StoredValue::AccessNode(node)) =
+                        native(&store, Key::AccessNode(Address::new(id(output), 9001)))
+                    else {
+                        panic!("created index")
+                    };
+                    assert_eq!(
+                        node.key.value,
+                        crate::order_value::OrderKey(vec![crate::order_value::OrderAtom::Integer(
+                            i128::from(first[&output])
+                        )])
+                    );
+                }
+                store.check_integrity().unwrap();
+            }
+            drop(store);
+            let reopened = Store::<Equipment>::open(directory.join("store.redb"), model).unwrap();
+            reopened.check_integrity().unwrap();
+            for output in [900, 901] {
+                let Some(StoredValue::Record(record)) = native(&reopened, Key::Record(id(output)))
+                else {
+                    panic!("reopened output")
+                };
+                assert_eq!(record.created_at, first[&output]);
+            }
+            drop(reopened);
+            std::fs::remove_dir_all(directory).unwrap();
         }
 
         #[test]

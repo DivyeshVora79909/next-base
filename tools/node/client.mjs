@@ -6,6 +6,7 @@ import {
 } from './private/client-wire.mjs';
 import { validateOperationDraft as validateDraft, validateOperationPlan as validatePlan } from './private/operation-plan.mjs';
 import { persistWriteOnce } from './private/plan-files.mjs';
+import { sealCredentialIngress, validateCredentialMetadata } from './credentials.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -51,11 +52,39 @@ export function connect({ endpoint: endpointInput, credential, timeoutMs = 20_00
       validatePlan(detached);
       return deepFreeze(detached);
     },
+    async prepareCredential(draft, secret, { operationId = randomUUID(), expiresAt = Date.now() + 300_000, signal } = {}) {
+      // No plan exists until the private bytes have become an ingress capsule.
+      if (!isObject(draft) || !['model', 'id', 'if_version', 'metadata'].every(key => Object.hasOwn(draft, key))
+        || Object.keys(draft).some(key => !['model', 'id', 'if_version', 'metadata', 'owner'].includes(key))) {
+        throw rpcError('invalid_plan', 'Complete credential metadata and target required');
+      }
+      const stableDraft = parseJson(encodeJson(draft, MAX_REQUEST_BYTES));
+      validateCredentialMetadata(stableDraft.metadata);
+      validateUuid(operationId, 'operationId');
+      validateUuid(stableDraft.id, 'id');
+      if (stableDraft.if_version !== null) validateUuid(stableDraft.if_version, 'if_version');
+      if (Object.hasOwn(stableDraft, 'owner')) validateUuid(stableDraft.owner, 'owner');
+      const session = await rpc('session.describe', {}, { signal });
+      validateSession(session);
+      if (session.model !== stableDraft.model) throw rpcError('model_mismatch', 'Draft and server model differ');
+      const descriptor = await rpc('credentials.ingress_key', { model: session.model }, { signal });
+      const sealed_secret = await sealCredentialIngress({ descriptor, secret, expiresAt,
+        context: { model: session.model, store: session.store, tenant: session.tenant, actor: session.actor,
+          credential_epoch: session.credential_epoch, context: session.operation_context, operation_id: operationId,
+          credential: stableDraft.id, owner: stableDraft.owner ?? null, if_version: stableDraft.if_version, metadata: stableDraft.metadata } });
+      const plan = { format: PLAN_FORMAT, kind: 'credential-write',
+        target: { url: endpoint.href, model: session.model, store: session.store, tenant: session.tenant,
+          actor: session.actor, credential_epoch: session.credential_epoch },
+        request: { ...stableDraft, context: session.operation_context, operation_id: operationId, sealed_secret } };
+      const detached = parseJson(encodeJson(plan, MAX_PLAN_BYTES));
+      validatePlan(detached);
+      return deepFreeze(detached);
+    },
     async execute(plan, { signal } = {}) {
       const stablePlan = parseJson(encodeJson(plan, MAX_PLAN_BYTES));
       validatePlan(stablePlan);
       await verifyCurrentTarget(rpc, endpoint, stablePlan.target, signal);
-      return rpc('records.mutate', stablePlan.request, { signal });
+      return rpc(stablePlan.kind === 'credential-write' ? 'credentials.write_secret' : 'records.mutate', stablePlan.request, { signal });
     },
     async status(plan, { signal } = {}) {
       const stablePlan = parseJson(encodeJson(plan, MAX_PLAN_BYTES));

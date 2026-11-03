@@ -2,7 +2,9 @@ import {
   encodeJson, isObject, MAX_PLAN_BYTES, MAX_REQUEST_BYTES, PLAN_FORMAT, rpcError,
 } from './client-wire.mjs';
 
-const PLAN_KEYS = new Set(['format', 'target', 'request', 'fixture']);
+import { validateCredentialMetadata, validateIngressEnvelope } from '../credentials.mjs';
+
+const PLAN_KEYS = new Set(['format', 'target', 'request', 'fixture', 'kind']);
 const TARGET_KEYS = ['url', 'model', 'store', 'tenant', 'actor', 'credential_epoch'];
 const REQUEST_KEYS = ['model', 'context', 'operation_id', 'commands', 'returning'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -38,7 +40,11 @@ export function validateOperationPlan(plan) {
     || !Object.hasOwn(plan, 'target') || !Object.hasOwn(plan, 'request')) throw rpcError('invalid_plan', 'Unsupported saved plan');
   const target = plan.target;
   const request = plan.request;
-  if (!isObject(target) || !sameKeys(target, TARGET_KEYS) || !isObject(request) || !sameKeys(request, REQUEST_KEYS)) {
+  const secretWrite = plan.kind === 'credential-write';
+  if (Object.hasOwn(plan, 'kind') && !secretWrite) throw rpcError('invalid_plan', 'Unsupported saved plan kind');
+  const requestKeys = secretWrite ? ['model', 'context', 'operation_id', 'id', 'if_version', 'metadata', 'sealed_secret'] : REQUEST_KEYS;
+  if (secretWrite && Object.hasOwn(request ?? {}, 'owner')) requestKeys.push('owner');
+  if (!isObject(target) || !sameKeys(target, TARGET_KEYS) || !isObject(request) || !sameKeys(request, requestKeys)) {
     throw rpcError('invalid_plan', 'Invalid plan target or mutation request');
   }
   const endpoint = normalizeEndpoint(target.url);
@@ -49,9 +55,18 @@ export function validateOperationPlan(plan) {
   if (!Number.isSafeInteger(target.credential_epoch) || target.credential_epoch < 0) throw rpcError('invalid_plan', 'Invalid credential epoch');
   validateUuid(request.operation_id, 'operation_id');
   if (typeof request.context !== 'string' || !request.context) throw rpcError('invalid_plan', 'Original operation context is required');
-  validateOperationDraft({ model: request.model, commands: request.commands, returning: request.returning });
+  if (secretWrite) {
+    if (Object.hasOwn(plan, 'fixture')) throw rpcError('invalid_plan', 'Credential plans cannot contain fixture metadata');
+    validateUuid(request.id, 'id');
+    if (request.if_version !== null) validateUuid(request.if_version, 'if_version');
+    if (Object.hasOwn(request, 'owner')) validateUuid(request.owner, 'owner');
+    try { validateCredentialMetadata(request.metadata); validateIngressEnvelope(request.sealed_secret); }
+    catch { throw rpcError('invalid_plan', 'Invalid encrypted credential request'); }
+  } else {
+    validateOperationDraft({ model: request.model, commands: request.commands, returning: request.returning });
+  }
   if (Object.hasOwn(plan, 'fixture')) encodeJson(plan.fixture, MAX_PLAN_BYTES);
-  const envelope = { jsonrpc: '2.0', id: '00000000-0000-4000-8000-000000000000', method: 'records.mutate', params: request };
+  const envelope = { jsonrpc: '2.0', id: '00000000-0000-4000-8000-000000000000', method: secretWrite ? 'credentials.write_secret' : 'records.mutate', params: request };
   if (encodeJson(envelope).byteLength > MAX_REQUEST_BYTES) throw rpcError('invalid_plan', 'Saved mutation exceeds the request byte limit');
   if (encodeJson(plan, MAX_PLAN_BYTES).byteLength > MAX_PLAN_BYTES) throw rpcError('invalid_plan', 'Plan exceeds the file byte limit');
 }

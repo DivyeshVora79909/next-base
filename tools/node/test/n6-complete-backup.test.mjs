@@ -84,7 +84,7 @@ test('N6 complete backup rejects unsupported and oversized input before copying 
   } finally { Buffer.from = originalFrom; }
 });
 function identities(observation) {
-  return observation.roles.map(row => ({ producer: row.source_role.id, role: row.source_role.slot, output: row.binding.output }));
+  return observation.roles.map(row => ({ producer: row.source_role.id, role: row.source_role.slot, output: row.binding.output, first_created_at: row.binding.first_created_at }));
 }
 
 test('N6 complete Equipment backup binds generated leaves, mixed-sign full keys and retained role history', { skip: !available && `missing ${binary}` }, async t => {

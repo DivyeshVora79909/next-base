@@ -199,6 +199,10 @@ async function buildProposal(state, context, { maxCommands = state.batchSize } =
       if (Buffer.byteLength(JSON.stringify(fields)) > 65_536) throw populationError('proposal_too_large', 'Generated fields exceed 65536 bytes');
       fields = cloneJson(fields, 'generated fields');
       const selected = {};
+      // Reserve each selected occurrence only for this candidate. Final rule/solver
+      // fields are independently assessed against the accepted proposal usage below.
+      const tentativeUsage = { ...usage };
+      charge(Object.keys(usage).length);
       let unavailable = false;
       for (const reference of contract.references) {
         const path = reference.field;
@@ -206,36 +210,46 @@ async function buildProposal(state, context, { maxCommands = state.batchSize } =
         if (reference.optional && (!current.length || current.every(value => value === null))) continue;
         const policy = state.referencePolicies[name]?.[path] ?? {};
         const targets = [...state.contracts.values()].filter(target => (reference.targets ?? []).includes(target.code) && pools[target.name].size > 0);
-        const candidates = [];
-        for (const target of targets) for (const row of pools[target.name].values()) {
-          charge();
-          const used = usage[usageKey(name, path, target.name, row.id)] ?? 0;
-          const occurrences = Math.max(1, current.length);
-          if (policy.maxFanout === undefined || used + occurrences <= policy.maxFanout) candidates.push({ target: target.name, row, used });
-        }
-        if (!candidates.length) {
-          failed(name, targets.length ? 'fanout' : 'reference', path);
-          unavailable = true;
-          break;
-        }
-        let picked;
-        if (state.selectReference) {
-          const view = Object.fromEntries(targets.map(target => [target.name, candidates.filter(item => item.target === target.name).map(item => item.row)]).filter(([, rows]) => rows.length));
-          picked = await state.selectReference(name, path, frozenCopy(view), Object.freeze({ ...usage }), rng, frozenCopy(typeof context === 'function' ? {} : context));
-        } else {
-          let available = candidates;
-          if (policy.distribution === 'balanced') {
-            const minimum = candidates.reduce((minimum, item) => Math.min(minimum, item.used), Infinity);
-            available = candidates.filter(item => item.used === minimum);
+        const occurrences = [];
+        setDeclaredPath(fields, path, value => { occurrences.push(value); return value; });
+        const replacements = [];
+        for (const value of occurrences) {
+          if (reference.optional && value === null) { replacements.push(null); continue; }
+          const candidates = [];
+          for (const target of targets) for (const row of pools[target.name].values()) {
+            charge();
+            const used = tentativeUsage[usageKey(name, path, target.name, row.id)] ?? 0;
+            if (policy.maxFanout === undefined || used < policy.maxFanout) candidates.push({ target: target.name, row, used });
           }
-          const chosen = weightedPick(available, available.map(item => policy.distribution === 'prefer_used' ? (item.used + 1) ** (policy.skew ?? 1) : 1), rng);
-          picked = [chosen.target, chosen.row.id];
+          if (!candidates.length) {
+            failed(name, targets.length ? 'fanout' : 'reference', path);
+            unavailable = true;
+            break;
+          }
+          let picked;
+          if (state.selectReference) {
+            const view = Object.fromEntries(targets.map(target => [target.name, candidates.filter(item => item.target === target.name).map(item => item.row)]).filter(([, rows]) => rows.length));
+            picked = await state.selectReference(name, path, frozenCopy(view), Object.freeze({ ...tentativeUsage }), rng, frozenCopy(typeof context === 'function' ? {} : context));
+          } else {
+            let available = candidates;
+            if (policy.distribution === 'balanced') {
+              const minimum = candidates.reduce((minimum, item) => Math.min(minimum, item.used), Infinity);
+              available = candidates.filter(item => item.used === minimum);
+            }
+            const chosen = weightedPick(available, available.map(item => policy.distribution === 'prefer_used' ? (item.used + 1) ** (policy.skew ?? 1) : 1), rng);
+            picked = [chosen.target, chosen.row.id];
+          }
+          if (!Array.isArray(picked) || picked.length !== 2 || !candidates.some(item => item.target === picked[0] && item.row.id === picked[1])) {
+            throw populationError('invalid_selection', `Reference selector chose an incompatible or exhausted pool for ${name}.${path}`);
+          }
+          replacements.push(picked[1]);
+          increment(tentativeUsage, usageKey(name, path, picked[0], picked[1]));
         }
-        if (!Array.isArray(picked) || picked.length !== 2 || !candidates.some(item => item.target === picked[0] && item.row.id === picked[1])) {
-          throw populationError('invalid_selection', `Reference selector chose an incompatible or exhausted pool for ${name}.${path}`);
-        }
-        setDeclaredPath(fields, path, picked[1]);
-        selected[path] = picked[1];
+        if (unavailable) break;
+        let occurrence = 0;
+        setDeclaredPath(fields, path, () => replacements[occurrence++]);
+        const present = replacements.filter(value => value !== null);
+        if (present.length) selected[path] = present.length === 1 ? present[0] : present;
       }
       if (unavailable) continue;
       const fresh = typeof context === 'function' ? await context(name, frozenCopy(selected), cursor) : cloneJson(context, 'context');
@@ -533,7 +547,7 @@ function pathTokens(path) {
 function setDeclaredPath(root, path, replacement) {
   const tokens = pathTokens(path);
   const visit = (node, index) => {
-    if (index === tokens.length) return replacement;
+    if (index === tokens.length) return typeof replacement === 'function' ? replacement(node) : replacement;
     const token = tokens[index];
     if (token === '*') {
       if (!Array.isArray(node)) throw populationError('reference_shape', `${path} expects an array`);

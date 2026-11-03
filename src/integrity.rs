@@ -675,6 +675,10 @@ impl<'a, B: Binding> Snapshot<'a, B> {
         )?;
         for (role, binding) in &bindings {
             require(
+                binding.first_created_at.is_none_or(|at| at >= 0),
+                "managed lifetime creation timestamp",
+            )?;
+            require(
                 reserved.get(&binding.output) == Some(role),
                 "reservation inverse",
             )?;
@@ -698,7 +702,8 @@ impl<'a, B: Binding> Snapshot<'a, B> {
                     require(
                         output.contract == declaration.contract
                             && output.input.managed() == Some((role.id, role.slot))
-                            && output.owner == producer.owner,
+                            && output.owner == producer.owner
+                            && binding.first_created_at == Some(output.created_at),
                         "managed output provenance/authority",
                     )?;
                 }
@@ -1676,6 +1681,7 @@ mod tests {
             },
             max_inflight: 1,
             request_timeout_seconds: 5,
+            credentials: None,
             effects: None,
         };
         assert_eq!(

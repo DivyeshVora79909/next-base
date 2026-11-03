@@ -86,3 +86,11 @@ Equipment/Quantity receipt and stale-context controls are also retained. See
 the [source-bound checkpoint evidence](checkpoints/c4-population.json). Full
 current-source acceptance passed 315 Rust and 193 Node tests, with no ignored or
 skipped tests; the Node native cases used the freshly built redb host.
+
+Array-reference selection chooses each occurrence separately. Candidate-local
+usage includes earlier selected occurrences, so two unused parents with
+`maxFanout: 1` can each receive one of two references. Custom selectors see this
+tentative usage; balanced/skew policies use it as well. Failed candidates and
+rejected proposals discard reservations. Rules and solver replacements still
+pass final schema, reference and fanout assessment against the accepted proposal
+state; tentative selection never becomes committed population progress.

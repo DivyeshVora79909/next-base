@@ -226,6 +226,7 @@ pub struct Store<B: Binding> {
     pub(crate) secured: bool,
     pub(crate) credential_epoch: Option<u64>,
     pub(crate) expected_store: Option<Uuid>,
+    pub(crate) credentials: Option<Arc<crate::credentials::grants::Runtime>>,
 }
 
 pub type LocalStore = Store<Calculation>;
@@ -315,6 +316,7 @@ impl<B: Binding> Store<B> {
             secured,
             credential_epoch: None,
             expected_store: None,
+            credentials: None,
         })
     }
 
@@ -360,6 +362,7 @@ impl<B: Binding> Store<B> {
             secured,
             credential_epoch: None,
             expected_store: None,
+            credentials: None,
         };
         store.check_meta(&meta, store.model.identity())?;
         let public = read.open_table(PUBLIC).map_err(storage)?;
@@ -449,6 +452,7 @@ impl<B: Binding> Store<B> {
             secured: self.secured,
             credential_epoch: self.credential_epoch,
             expected_store: Some(expected_store),
+            credentials: self.credentials.clone(),
         }
     }
 
@@ -535,6 +539,25 @@ impl<B: Binding> Store<B> {
         before_commit: &mut dyn FnMut() -> Result<()>,
         lose_response: bool,
     ) -> Result<Value> {
+        self.mutate_staged(
+            request,
+            allocate,
+            abort_after,
+            before_commit,
+            lose_response,
+            None,
+        )
+    }
+
+    pub(crate) fn mutate_staged(
+        &self,
+        request: &Mutation,
+        allocate: &mut dyn FnMut() -> Result<Uuid>,
+        abort_after: Option<usize>,
+        before_commit: &mut dyn FnMut() -> Result<()>,
+        lose_response: bool,
+        secret: Option<crate::credentials::store::SecretStage<'_>>,
+    ) -> Result<Value> {
         if request.returning.len() > 32
             || request.returning.iter().collect::<BTreeSet<_>>().len() != request.returning.len()
         {
@@ -543,7 +566,10 @@ impl<B: Binding> Store<B> {
                 "returning requires at most 32 unique IDs",
             ));
         }
-        let request_hash = self.request_hash("records.mutate", request)?;
+        let request_hash = match &secret {
+            Some(stage) => self.request_hash("credentials.write_secret", stage.request)?,
+            None => self.request_hash("records.mutate", request)?,
+        };
         let write = self.begin_write()?;
         let scope = self.write_authority(&write)?;
         let header: RuntimeHeader;
@@ -593,6 +619,16 @@ impl<B: Binding> Store<B> {
                 }
                 let result = self.disclose_result(&scope, receipt.result, &mut ws)?;
                 return Ok(json!({"status":"committed","replayed":true,"result":result}));
+            }
+            if let Some(stage) = secret {
+                crate::credentials::store::stage_secret(
+                    &mut ws,
+                    &self.model,
+                    self.context,
+                    &scope,
+                    &header,
+                    stage,
+                )?;
             }
             let settled = crate::mutation::settle_authorized(
                 &mut ws,

@@ -19,6 +19,71 @@ const hasBinary = existsSync(binary);
 const ROOT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
+test('credential private inventory follows catalog source revisions without disclosing envelopes or claiming decryption', () => {
+  const tenant = '11111111-1111-4111-8111-111111111111';
+  const source = { contract: 1001, tenant, owner: tenant, created_at: '0', input: { enabled: true },
+    derived: { has_secret: true, secret_revision: '1', use_epoch: '0', incarnation: NODE_ID } };
+  const envelope = { format: 'rebase-credential-secret-1', credential: ROOT_ID, secret_revision: '1', key_id: 'public-test-vault',
+    nonce: Buffer.alloc(24, 1).toString('base64url'), ciphertext: Buffer.alloc(32, 2).toString('base64url') };
+  const catalog = { model: 'public-test-model', capabilities: { credentials: { contract: 1001 } }, contracts: [{ code: 1001, access_indexes: [] }] };
+  const rows = [
+    { key: '00', value: hex(JSON.stringify({ type: 'meta', data: { model: catalog.model, tenant } })) },
+    { key: `01${ROOT_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'record', data: source })) },
+    { key: `11${ROOT_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'credential_secret', data: envelope })) },
+  ];
+  const backup = backupWith(rows);
+  const check = (copy, options = {}) => { resign(copy); return checkBackupStructure(JSON.stringify(copy), { catalog, ...options }); };
+  const result = check(backup, { includeObservation: true });
+  assert.equal(result.credentialSecretInventory, 'checked');
+  assert.equal(result.credentialSecretAuthentication, 'not_evaluated');
+  assert.equal(result.credentialSecretCount, 1);
+  assert.equal(result.observation.records.length, 1);
+  assert.equal(JSON.stringify(result).includes(envelope.key_id), false);
+  assert.equal(check(backup, { catalog: undefined }).credentialSecretInventory, 'not_evaluated');
+  const change = (copy, index, edit) => {
+    const value = JSON.parse(Buffer.from(copy.payload.tables.native_kv[index].value, 'hex').toString());
+    edit(value.data); copy.payload.tables.native_kv[index].value = hex(JSON.stringify(value));
+  };
+  for (const mutate of [
+    copy => copy.payload.tables.native_kv.splice(2, 1),
+    copy => copy.payload.tables.native_kv.splice(1, 1),
+    copy => change(copy, 2, value => { value.credential = NODE_ID; }),
+    copy => change(copy, 2, value => { value.secret_revision = '2'; }),
+    copy => change(copy, 2, value => { value.secret_revision = '01'; }),
+    copy => change(copy, 2, value => { value.secret_revision = '18446744073709551616'; }),
+    copy => change(copy, 2, value => { value.nonce += '='; }),
+    copy => change(copy, 2, value => { value.nonce = 'AA'; }),
+    copy => change(copy, 2, value => { value.ciphertext = Buffer.alloc(2049).toString('base64url'); }),
+    copy => change(copy, 2, value => { value.api_key = 'untrusted-extra'; }),
+    copy => change(copy, 1, value => { value.derived.has_secret = false; }),
+    copy => change(copy, 1, value => { value.derived.use_epoch = '-1'; }),
+    copy => change(copy, 1, value => { value.derived.incarnation = '00000000-0000-0000-0000-000000000000'; }),
+    copy => change(copy, 1, value => { value.contract = 42; }),
+  ]) {
+    const copy = structuredClone(backup); mutate(copy);
+    assert.throws(() => check(copy), /credential/);
+  }
+  const disabled = structuredClone(backup);
+  disabled.payload.tables.native_kv.splice(2, 1);
+  change(disabled, 1, value => { value.input.enabled = false; value.derived.has_secret = false; value.derived.secret_revision = null; });
+  assert.equal(check(disabled).credentialSecretCount, 0);
+  change(disabled, 1, value => { value.input.enabled = true; });
+  assert.throws(() => check(disabled), /enabled credential/);
+  assert.throws(() => check(backup, { catalog: { ...catalog, capabilities: {} } }), /not declared/);
+});
+
+test('role creation provenance is a strict nullable nonnegative i64 timestamp', () => {
+  const row = binding => ({ key: encodeKey(8, ROOT_ID), value: hex(JSON.stringify({ type: 'role', data: binding })) });
+  for (const first_created_at of [null, '0', '9223372036854775807']) {
+    const backup = backupWith([row({ output: NODE_ID, retired: false, first_created_at })]);
+    assert.equal(checkBackupStructure(JSON.stringify(backup)).status, 'passed');
+  }
+  for (const first_created_at of [undefined, '-1', '00', 0, '9223372036854775808']) {
+    const backup = backupWith([row({ output: NODE_ID, retired: false, first_created_at })]);
+    assert.throws(() => checkBackupStructure(JSON.stringify(backup)), /role|time/);
+  }
+});
+
 test('checks a bounded complete backup captured from the real N2 operator', { skip: !hasBinary && `missing ${binary}` }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rebase-n5-structure-'));
   const tenant = '11111111-1111-4111-8111-111111111111';
@@ -209,7 +274,7 @@ test('returns an inspect-compatible projection from the validated native KV pars
     version: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', input: { unit: 1 }, derived: null };
   const query = { source: { id: ROOT_ID, slot: 1 }, operation: 'sum', phase: 'calculate', channel: 'amount',
     range: { from: null, through: null } };
-  const binding = { output: NODE_ID, retired: false };
+  const binding = { output: NODE_ID, retired: false, first_created_at: '0' };
   const sourceRole = { id: ROOT_ID, slot: 11 };
   const reservedRole = { id: ROOT_ID, slot: 29 };
   rows.push(

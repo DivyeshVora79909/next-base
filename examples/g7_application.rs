@@ -53,8 +53,9 @@ fn main() -> Result<()> {
             let application = storage::application_checks::run(factory, concurrent)?;
             let effects = rebase_semantic_proof::effects::conformance::run(factory)?;
             let predicates = storage::concurrency_checks::run(factory, concurrent)?;
+            let credentials = storage::credential_checks::run(factory, concurrent)?;
             Ok::<_, Error>(
-                json!({"application":application,"effects":effects,"predicates":predicates}),
+                json!({"application":application,"effects":effects,"predicates":predicates,"credentials":credentials}),
             )
         })
         .await

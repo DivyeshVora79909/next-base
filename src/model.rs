@@ -845,6 +845,13 @@ fn model_capabilities<B: Binding>() -> Value {
     if B::effect_action().is_some() {
         methods.extend(["effects.status", "effects.cancel"]);
     }
+    if B::credential_enabled() {
+        methods.extend([
+            "credentials.ingress_key",
+            "credentials.write_secret",
+            "email.authorize",
+        ]);
+    }
     let mut catalog = json!({"methods":methods,
         "transport":"JSON-RPC 2.0 over stdio or authenticated HTTP /rpc; string request IDs; no batches/notifications",
         "path":{"name":"records.by_id","order":"UUID ascending","filter":"optional public contract and one declared scalar authored-field equality"},
@@ -865,6 +872,20 @@ fn model_capabilities<B: Binding>() -> Value {
             "order":"native key, UUID, membership slot; occurrence ranks are not visible-record ranks"}});
     if let Some(action) = B::effect_action() {
         catalog["effects"] = crate::effects::capabilities::<B>(&action);
+    }
+    if B::credential_enabled() {
+        catalog["credentials"] = json!({
+            "contract":crate::models::services::CREDENTIAL,
+            "metadata_schema":crate::credentials::crypto::Metadata::schema(),
+            "authorize_schema":crate::credentials::grants::AuthorizeRequest::schema(),
+            "secret_schema":{"type":"object","required":["api_key"],"additionalProperties":false,
+                "properties":{"api_key":{"type":"string","minLength":1,"x-maxUtf8Bytes":512}}},
+            "secret_schema_id":"provider-api-key-1",
+            "ingress":"rebase-secret-ingress-1", "suite":"X25519-HKDF-SHA256-AES256GCM",
+            "methods":["credentials.ingress_key","credentials.write_secret","email.authorize"],
+            "use":"explicit Credential Use grant; ordinary owner scope or fixed platform binding",
+            "grant":"opaque request-bound email-send-1 authorization; 1-60 seconds; no provider call"
+        });
     }
     catalog
 }

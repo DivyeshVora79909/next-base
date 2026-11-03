@@ -37,6 +37,7 @@ pub enum Action {
     Create,
     Update,
     Delete,
+    Use,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,11 +56,12 @@ impl Grants {
     }
 
     pub fn allows(&self, code: u16, action: Action) -> bool {
-        self.admin
-            || self
-                .contracts
-                .get(&code)
-                .is_some_and(|a| a.contains(&action))
+        (self.admin && action != Action::Use) || self.allows_explicit(code, action)
+    }
+    pub fn allows_explicit(&self, code: u16, action: Action) -> bool {
+        self.contracts
+            .get(&code)
+            .is_some_and(|actions| actions.contains(&action))
     }
 }
 

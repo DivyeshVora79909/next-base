@@ -70,7 +70,16 @@ export function validateNativeConfigurationShape(configuration) {
 }
 
 export function validateServiceConfigurationShape(configuration, label = 'service') {
-  assertExactKeys(configuration, new Set(['listen', 'identity', 'max_inflight', 'request_timeout_seconds', 'effects']), label);
+  const keys = ['listen', 'identity', 'max_inflight', 'request_timeout_seconds', 'effects'];
+  if (Object.hasOwn(configuration, 'credentials')) keys.push('credentials');
+  assertExactKeys(configuration, new Set(keys), label);
+  if (configuration.credentials !== undefined && configuration.credentials !== null) {
+    assertExactKeys(configuration.credentials, new Set(['keyring', 'platform']), `${label}.credentials`);
+    validateAbsolutePath(configuration.credentials.keyring, `${label}.credentials.keyring`);
+    if (!Array.isArray(configuration.credentials.platform) || configuration.credentials.platform.length > 16) {
+      throw new ConfigurationError('requires at most 16 explicit platform bindings', `${label}.credentials.platform`);
+    }
+  }
   if (typeof configuration.listen !== 'string' || !configuration.listen || configuration.listen.includes('\0')) {
     throw new ConfigurationError('must be an explicit socket address', `${label}.listen`);
   }
