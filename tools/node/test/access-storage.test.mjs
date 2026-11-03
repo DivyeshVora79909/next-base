@@ -126,7 +126,8 @@ function edit(rows, type, fn) {
 function rewrite(bytes, fn) { const backup = JSON.parse(bytes); return seal(fn(backup.payload.tables.native_kv)); }
 function seal(rows) {
   const tables = { native_kv: rows };
-  for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime', 'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) tables[name] = [];
+  for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime', 'auth_challenges', 'auth_receipts', 'auth_heads', 'auth_handles', 'auth_runtime', 'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) tables[name] = [];
+  tables.local_runtime = [{ key: Buffer.from('header').toString('hex'), value: Buffer.from(JSON.stringify({ format: 'rebase-store-11', store_id: '00000000-0000-0000-0000-0000000000f1', session_generation: '00000000-0000-0000-0000-0000000000f2', cursor_key: 'ab'.repeat(32), operation_epoch: '0' })).toString('hex') }];
   const payload = { format: 'rebase-authorized-observation-1', complete: true, tables };
   return JSON.stringify({ format: 'rebase-backup-1', sha256: createHash('sha256').update(canonical(payload)).digest('hex'), payload });
 }

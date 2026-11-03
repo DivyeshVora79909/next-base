@@ -19,6 +19,7 @@ fn principal(n: u128, kind: PrincipalKind, parents: &[u128], grants: Grants) -> 
         kind,
         parents: parents.iter().copied().map(id).collect(),
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants,
     }

@@ -40,6 +40,7 @@ fn key_error() -> Error {
 pub enum Provider {
     Resend,
     Brevo,
+    FakeSms,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,7 +68,12 @@ impl Metadata {
         validate_account(&self.account)?;
         if self.label.len() > 128
             || self.scopes.len() > 1
-            || self.scopes.iter().any(|s| s != "email.send")
+            || self.scopes.iter().any(|s| {
+                s != match self.provider {
+                    Provider::Resend | Provider::Brevo => "email.send",
+                    Provider::FakeSms => "sms.send",
+                }
+            })
         {
             return Err(invalid());
         }
@@ -75,9 +81,9 @@ impl Metadata {
     }
     pub fn schema() -> serde_json::Value {
         serde_json::json!({"type":"object","additionalProperties":false,"required":["label","provider","account","enabled","scopes"],"properties":{
-            "label":{"type":"string","maxLength":128,"x-maxUtf8Bytes":128},"provider":{"enum":["resend","brevo"]},
+            "label":{"type":"string","maxLength":128,"x-maxUtf8Bytes":128},"provider":{"enum":["resend","brevo","fake_sms"]},
             "account":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[A-Za-z0-9._:-]+$"},
-            "enabled":{"type":"boolean"},"scopes":{"type":"array","maxItems":1,"uniqueItems":true,"items":{"enum":["email.send"]}}
+            "enabled":{"type":"boolean"},"scopes":{"type":"array","maxItems":1,"uniqueItems":true,"items":{"enum":["email.send","sms.send"]}}
         }})
     }
 }

@@ -6,7 +6,7 @@ the authenticated HTTP API. Its only binary invocation is
 line-framed protocol. Both bootstrap paths are being accepted as part of N6, so
 this guide describes the frozen configuration and protocol contract, not an
 accepted deployment release. Calculation, equipment, invoicing, measurement,
-effect-demo and quantity are explicit model choices. The [G10 program](../research/56-node-and-index-redesign-program.md)
+effect-demo, quantity and services are explicit model choices. The [G10 program](../research/56-node-and-index-redesign-program.md)
 records current acceptance status and evidence boundaries.
 
 Generate an issuer key with an existing tool; never use public test fixture keys:
@@ -44,7 +44,11 @@ has these fields:
 {"tenant":"00000000-0000-4000-8000-000000000001","actor":"00000000-0000-4000-8000-000000000002","epoch":0,"ttl":300,"key_id":"main"}
 ```
 
-Keep the private key outside the server; it needs only verification public keys.
+For external issuance the server needs only verification public keys. Services
+may instead configure [private delivered proof](a1-proof-sessions.md), which keeps
+its signing key in a separate private runtime file and exposes only fixed proof
+routes. The operator issuer obtains mandatory session generation from the store;
+an external issuer must use that same trusted generation, never a client override.
 Supply the token as `Authorization: Bearer <token>`
 on `POST /rpc`, with `Content-Type: application/json`. Use the structured methods
 in the [operation guide](local-prototype.md), plus `session.describe {}`,
@@ -59,10 +63,11 @@ with the operation ID for retries and `operations.status`. See
 receipt archiving. Never refresh an uncertain request's context to evade expiry.
 
 The token is a deliberately narrow standard JWT profile: `alg=EdDSA`, `typ=JWT`,
-configured `kid`, and exactly `iss`, `aud`, canonical UUID `sub` and `tenant`,
+configured `kid`, and exactly `iss`, `aud`, canonical UUID `sub`, `tenant` and `generation`,
 integer `epoch`, `iat`, `nbf`, `exp`. Issuer/audience/signature/expiry/not-before,
-maximum lifetime and duplicate keys are checked. This is not an interactive
-login or a general OIDC identity-token endpoint. A trusted issuer maps verified
+maximum lifetime and duplicate keys are checked. Supported restore rotates the
+protected generation, rejecting pre-restore JWTs even if old epochs are restored.
+A trusted issuer or the Services delivered-proof flow maps verified
 identity to these service credentials. Roles are never accepted from a token.
 Publish overlapping key IDs for rotation, change the issuer configuration and
 restart; remove old keys after the token window. Increment a principal's epoch
@@ -86,8 +91,14 @@ reconcile the same operation ID. SIGINT/SIGTERM drains accepted work.
 
 `GET /health` is a public liveness response only. It certifies neither storage
 integrity nor a particular actor's access. No developer inspector, raw KV write,
-private contract, token issuer or fixture bypass is exposed by HTTP. RPC batches
+private contract, arbitrary token issuer or fixture bypass is exposed by HTTP. RPC batches
 and notifications remain unsupported. Replies use `Cache-Control: no-store`.
+
+Configured Services additionally exposes `POST /auth/begin`, `/auth/consume` and
+`/auth/status`, each limited to 4096 bytes. Email and phone proof, five atomic
+attempts, fixed session issuance and original recovery use private transactional
+receipts. Provider I/O and signing follow commit. See the
+[A1/A2 contract](a1-proof-sessions.md) for configuration, admission and custody.
 
 Terminate TLS and apply connection/header/body-read timeouts and request-rate
 limits at a supported reverse proxy before exposing this process to a public

@@ -95,7 +95,7 @@ test('retained credential revisions and admission forests derive from immutable 
   const credential = { contract: 1001, tenant, owner: tenant, created_at: '0', input: { enabled: true, provider: 'resend', account: 'mail' },
     derived: { has_secret: true, secret_revision: '2', use_epoch: '0', incarnation: NODE_ID } };
   const email = { contract: 1002, tenant, owner: tenant, created_at: '0', input, derived: null };
-  const pin = { credential: ROOT_ID, incarnation: NODE_ID, provider: 'resend', account: 'mail', use_epoch: '0', secret_revision: '1', selection: input.selection };
+  const pin = { credential: ROOT_ID, incarnation: NODE_ID, provider: 'resend', account: 'mail', use_epoch: '0', secret_revision: '1', selection: input.selection, server_policy: null, purpose: 'email.send' };
   const catalog = { model: 'public-test-model', capabilities: { credentials: { contract: 1001 } },
     contracts: [{ code: 1001, access_indexes: [] }, { code: 1002, access_indexes: [] }] };
   const raw = (key, value) => ({ key, value: hex(JSON.stringify(value)) });
@@ -515,7 +515,8 @@ function hex(text) { return Buffer.from(text, 'utf8').toString('hex'); }
 function backupWith(rows) {
   const payload = { format: 'rebase-authorized-observation-1', complete: true, tables: { native_kv: rows } };
   for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
-    'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) payload.tables[name] = [];
+    'auth_challenges', 'auth_receipts', 'auth_heads', 'auth_handles', 'auth_runtime', 'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) payload.tables[name] = [];
+  payload.tables.local_runtime = [{ key: Buffer.from('header').toString('hex'), value: Buffer.from(JSON.stringify({ format: 'rebase-store-11', store_id: '00000000-0000-0000-0000-0000000000f1', session_generation: '00000000-0000-0000-0000-0000000000f2', cursor_key: 'ab'.repeat(32), operation_epoch: '0' })).toString('hex') }];
   const backup = { format: 'rebase-backup-1', sha256: '', payload };
   resign(backup);
   return backup;

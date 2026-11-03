@@ -180,6 +180,10 @@ pub(crate) fn backoff(now: i64, observation: u8) -> Result<i64> {
 }
 
 impl<B: Binding> Execution<B> {
+    pub(crate) fn declaration(&self) -> Result<ActionDeclaration> {
+        B::effect_action(self.action)
+            .ok_or_else(|| local::corrupt("unknown compiled effect action"))
+    }
     pub(crate) fn same_intent(&self, other: &Self) -> bool {
         self.id == other.id
             && self.codec == other.codec
@@ -349,7 +353,7 @@ impl<B: Binding> Execution<B> {
         }
         ensure(
             (self.application == Application::NotRequired)
-                == (self.phase == Phase::Succeeded && !B::effect_application_required()),
+                == (self.phase == Phase::Succeeded && !self.declaration()?.application_required()),
             "effect optional application",
         )?;
         if let Some(start) = &self.started {

@@ -12,6 +12,7 @@ use rebase_semantic_proof::{
     native_codec::{self, Address, Key, StoredValue},
     native_slice::Context,
 };
+mod common;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
 use uuid::Uuid;
@@ -289,7 +290,7 @@ fn measurements_use_native_members_windows_final_unit_repairs_replay_and_lifecyc
     let restored = dir.0.join("restored.redb");
     lifecycle::restore(&backup, &restored, model.clone()).unwrap();
     let restored = Store::<Measurement>::open(&restored, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), before);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
     drop(restored);
     drop(store);
     let store = Store::<Measurement>::open(&path, model.clone()).unwrap();
@@ -496,6 +497,7 @@ fn observation_report_and_native_corruptions_fail_check_startup_and_verified_res
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
         identity: IdentityConfig {
             issuer: "measurement-test".into(),
@@ -1003,7 +1005,7 @@ fn observation_reports_retarget_and_repair_units_in_both_orders_with_complete_ro
         let restored = dir.0.join(format!("restored-{reverse}.redb"));
         lifecycle::restore(&backup, &restored, model.clone()).unwrap();
         let restored = Store::<Measurement>::open(&restored, model.clone()).unwrap();
-        assert_eq!(restored.observe_for_verification().unwrap(), before);
+        common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
         assert_eq!(report(&restored, id(30)), report(&store, id(30)));
         drop(store);
         let reopened = Store::<Measurement>::open(&path, model.clone()).unwrap();

@@ -226,6 +226,7 @@ fn authority_change<B: Binding>(store: &Store<B>, principal: Uuid) -> Result<()>
         kind: PrincipalKind::User,
         parents: vec![id(1)],
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants: Grants::default(),
     });

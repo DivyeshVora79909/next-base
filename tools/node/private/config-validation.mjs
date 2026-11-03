@@ -73,6 +73,7 @@ export function validateServiceConfigurationShape(configuration, label = 'servic
   const keys = ['listen', 'identity', 'max_inflight', 'request_timeout_seconds', 'effects'];
   if (Object.hasOwn(configuration, 'credentials')) keys.push('credentials');
   if (Object.hasOwn(configuration, 'email')) keys.push('email');
+  if (Object.hasOwn(configuration, 'authentication')) keys.push('authentication');
   assertExactKeys(configuration, new Set(keys), label);
   if (configuration.credentials !== undefined && configuration.credentials !== null) {
     assertExactKeys(configuration.credentials, new Set(['keyring', 'platform']), `${label}.credentials`);
@@ -84,7 +85,7 @@ export function validateServiceConfigurationShape(configuration, label = 'servic
   if (configuration.email !== undefined && configuration.email !== null) {
     const email = configuration.email;
     const fields = ['resend_origin', 'brevo_origin', 'policies'];
-    for (const optional of ['mode', 'probe_directory']) if (Object.hasOwn(email, optional)) fields.push(optional);
+    for (const optional of ['mode', 'probe_directory', 'sms_origin']) if (Object.hasOwn(email, optional)) fields.push(optional);
     assertExactKeys(email, new Set(fields), `${label}.email`);
     if (configuration.effects !== null || !configuration.credentials || !Array.isArray(email.policies) || email.policies.length > 16
       || (email.mode !== undefined && !['disabled', 'delivery', 'reconcile'].includes(email.mode))) {
@@ -94,6 +95,17 @@ export function validateServiceConfigurationShape(configuration, label = 'servic
       throw new ConfigurationError('requires a fixed fake loopback origin', `${label}.email.${field}`);
     }
     if (email.probe_directory !== undefined && email.probe_directory !== null) validateAbsolutePath(email.probe_directory, `${label}.email.probe_directory`);
+  }
+  if (configuration.authentication !== undefined && configuration.authentication !== null) {
+    const auth = configuration.authentication;
+    assertExactKeys(auth, new Set(['keyring', 'policies', 'active_signing_key', 'signing_keys']), `${label}.authentication`);
+    validateAbsolutePath(auth.keyring, `${label}.authentication.keyring`);
+    if (!configuration.credentials || !configuration.email || !Array.isArray(auth.policies) || auth.policies.length < 1 || auth.policies.length > 2
+      || !isRecord(auth.signing_keys) || Object.keys(auth.signing_keys).length < 1 || Object.keys(auth.signing_keys).length > 16
+      || typeof auth.active_signing_key !== 'string' || !Object.hasOwn(auth.signing_keys, auth.active_signing_key)) {
+      throw new ConfigurationError('requires fixed delivery policies and explicit signing custody', `${label}.authentication`);
+    }
+    for (const [id, file] of Object.entries(auth.signing_keys)) validateAbsolutePath(file, `${label}.authentication.signing_keys.${id}`);
   }
   if (typeof configuration.listen !== 'string' || !configuration.listen || configuration.listen.includes('\0')) {
     throw new ConfigurationError('must be an explicit socket address', `${label}.listen`);

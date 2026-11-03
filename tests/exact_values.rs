@@ -375,6 +375,7 @@ async fn exact_values_cross_native_binding_http_receipts_and_reopening() {
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
     };
     let token = identity::issue(
@@ -387,6 +388,7 @@ async fn exact_values_cross_native_binding_http_receipts_and_reopening() {
             key_id: "test".into(),
         },
         include_bytes!("fixtures/test-ed25519-private.pem"),
+        store.session_generation().unwrap(),
     )
     .unwrap();
     let listener = tokio::net::TcpListener::bind(cfg.listen).await.unwrap();

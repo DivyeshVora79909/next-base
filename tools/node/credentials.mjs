@@ -26,9 +26,10 @@ function decode(value, min, max) {
 export function validateCredentialMetadata(value) {
   object(value, ['label', 'provider', 'account', 'enabled', 'scopes']);
   if (typeof value.label !== 'string' || Buffer.byteLength(value.label) > 128 || !value.label.isWellFormed()
-    || !['resend', 'brevo'].includes(value.provider) || typeof value.account !== 'string'
+    || !['resend', 'brevo', 'fake_sms'].includes(value.provider) || typeof value.account !== 'string'
     || !/^[A-Za-z0-9._:-]{1,128}$/.test(value.account) || typeof value.enabled !== 'boolean'
-    || !Array.isArray(value.scopes) || value.scopes.length > 1 || value.scopes.some((s) => s !== 'email.send')) throw fail();
+    || !Array.isArray(value.scopes) || value.scopes.length > 1
+    || value.scopes.some((s) => s !== (value.provider === 'fake_sms' ? 'sms.send' : 'email.send'))) throw fail();
   return { label: value.label, provider: value.provider, account: value.account, enabled: value.enabled, scopes: [...value.scopes] };
 }
 export function credentialIngressAad(context, expiresAt) {

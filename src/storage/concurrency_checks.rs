@@ -261,6 +261,7 @@ fn graph_fixture() -> Result<Graph> {
             kind: PrincipalKind::User,
             parents,
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,

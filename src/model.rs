@@ -601,7 +601,24 @@ impl<B: Binding> Prepared<B> {
                 }
             }
         }
-        if let Some(action) = B::effect_action() {
+        let actions = B::effect_actions();
+        if actions.len() > 16
+            || actions
+                .iter()
+                .map(|action| action.code)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != actions.len()
+            || actions
+                .iter()
+                .map(|action| action.source_contract)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != actions.len()
+        {
+            return Err(model_error("effect action inventory"));
+        }
+        for action in actions {
             let source = contracts
                 .get(&action.source_contract)
                 .ok_or_else(|| model_error("unknown effect source contract"))?;
@@ -612,11 +629,22 @@ impl<B: Binding> Prepared<B> {
                 || [action.name, action.version, action.provider_account]
                     .iter()
                     .any(|v| v.is_empty() || v.len() > 128 || !v.is_ascii())
-                || source.visibility != Visibility::Public
-                || target.visibility != Visibility::Public
+                || source.visibility
+                    != if action.public() {
+                        Visibility::Public
+                    } else {
+                        Visibility::Engine
+                    }
+                || target.visibility
+                    != if action.public() {
+                        Visibility::Public
+                    } else {
+                        Visibility::Engine
+                    }
                 || source.fields.iter().any(|f| f.mutable)
-                || (action.application_fields.is_empty() == B::effect_application_required())
-                || (B::effect_source_anchor()
+                || (action.authority == crate::effects::ActionAuthority::TargetUpdate)
+                    != action.application_required()
+                || (action.source_anchor()
                     && (action.source_contract != action.target_contract
                         || action.reference_slot != 0))
                 || action
@@ -629,7 +657,7 @@ impl<B: Binding> Prepared<B> {
                     .application_fields
                     .iter()
                     .any(|name| !target.fields.iter().any(|f| f.name == *name && f.mutable))
-                || (!B::effect_source_anchor()
+                || (!action.source_anchor()
                     && !source.references.iter().any(|r| {
                         r.slot == action.reference_slot
                             && !r.optional
@@ -674,8 +702,8 @@ impl<B: Binding> Prepared<B> {
             hash.update((bytes.len() as u64).to_be_bytes());
             hash.update(bytes);
         }
-        // An absent action preserves the existing model identity exactly.
-        if let Some(action) = B::effect_action() {
+        // Every compiled action participates, including private delivery semantics.
+        for action in B::effect_actions() {
             let bytes = serde_json::to_vec(&(action, B::effect_outcome_schema()))
                 .map_err(|e| model_error(e.to_string()))?;
             hash.update(b"rebase-effect-action-v1\0");
@@ -855,7 +883,7 @@ fn model_capabilities<B: Binding>() -> Value {
         "access.describe",
         "access.replace",
     ];
-    if B::effect_action().is_some() {
+    if B::effect_actions().iter().any(|action| action.public()) {
         methods.extend(["effects.status", "effects.cancel"]);
     }
     if B::credential_enabled() {
@@ -884,7 +912,10 @@ fn model_capabilities<B: Binding>() -> Value {
         "root_members":{"policy":crate::root_page::RootPagePolicy::default(),
             "declaration":"members and summary; raw topology/count disclosure, per-record projection required",
             "order":"native key, UUID, membership slot; occurrence ranks are not visible-record ranks"}});
-    if let Some(action) = B::effect_action() {
+    if let Some(action) = B::effect_actions()
+        .into_iter()
+        .find(|action| action.public())
+    {
         catalog["effects"] = crate::effects::capabilities::<B>(&action);
     }
     if B::identity_enabled() {

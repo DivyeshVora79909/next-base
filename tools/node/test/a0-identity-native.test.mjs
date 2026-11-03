@@ -26,35 +26,40 @@ test('A0 real signed HTTP preserves JWT recency, exact identity claims and secre
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     const identity = { issuer: 'a0-independent-signing-fixture', audience: 'a0-test', max_token_seconds: 3600,
       public_keys: { local: publicKey.export({ type: 'spki', format: 'pem' }).toString() } };
+    let generation;
     // Independently encode and sign exact issuance times. This must pass the real
     // HTTP verifier; a Store session or client-authored timestamp is insufficient.
     function token(subject, age = 0, epoch = 0) {
       const now = Math.floor(Date.now() / 1000), issued = now - age;
       const header = Buffer.from(JSON.stringify({ alg: 'EdDSA', typ: 'JWT', kid: 'local' })).toString('base64url');
       const claims = Buffer.from(JSON.stringify({ iss: identity.issuer, aud: identity.audience,
-        sub: subject, tenant, epoch, iat: issued, nbf: issued, exp: now + 600 })).toString('base64url');
+        sub: subject, tenant, epoch, generation, iat: issued, nbf: issued, exp: now + 600 })).toString('base64url');
       const input = `${header}.${claims}`;
       return `${input}.${sign(null, Buffer.from(input), privateKey).toString('base64url')}`;
     }
-    const methods = ['store.check', 'store.inspect', 'store.backup', 'service.start', 'service.stop'];
+    const methods = ['store.check', 'store.inspect', 'store.backup', 'service.start', 'service.stop', 'identity.issue'];
     native = await openNative(resolveConfig({ overrides: { native: { binary, environment: {}, configuration: {
       model: 'services', backend: { kind: 'redb', cluster_file: null },
       target: { mode: 'create', path: path.join(directory, 'store.redb'), tenant, actor }, operator_methods: methods,
     } } } }));
     const operator = openOperator(native, { scope: native.scope, methods });
+    const issued = await operator.issueIdentity({ identity, request: { tenant, actor, epoch: 0, ttl: 300, key_id: 'local' },
+      privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() });
+    generation = JSON.parse(Buffer.from(issued.token.split('.')[1], 'base64url')).generation;
+    assert.match(generation, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     const catalog = await native.catalog({ scope: 'developer' });
     const prepared = prepareModel(catalog, { native, selector: 'services' }); const model = prepared.identity;
     assert.equal(catalog.capabilities.identities.contract, 1003);
     const service = await operator.startService({ config: { listen: '127.0.0.1:0', identity,
       max_inflight: 4, request_timeout_seconds: 10, effects: null, credentials: null, email: null } });
     const freshToken = token(actor), staleToken = token(actor, 601);
-    const fresh = connect({ endpoint: service.endpoint, credential: freshToken });
-    const stale = connect({ endpoint: service.endpoint, credential: staleToken });
+    let fresh = connect({ endpoint: service.endpoint, credential: freshToken });
+    let stale = connect({ endpoint: service.endpoint, credential: staleToken });
     const future = connect({ endpoint: service.endpoint, credential: token(actor, -60) });
     await assert.rejects(future.call('session.describe'), { code: 'unauthenticated' });
     const access = structuredClone(await fresh.call('access.describe', { model }));
     access.graph.principals.push(...[[child, actor], [outside, tenant]].map(([id, parent]) => ({
-      id, kind: 'user', parents: [parent], active: true, credential_epoch: 0,
+      id, kind: 'user', parents: [parent], active: true, login_access: false, credential_epoch: 0,
       grants: { admin: false, contracts: { 1003: ['read', 'create', 'update', 'delete'] } },
     })));
     await fresh.call('access.replace', { model, if_revision: access.revision, graph: access.graph });
@@ -91,6 +96,9 @@ test('A0 real signed HTTP preserves JWT recency, exact identity claims and secre
     const updated = await fresh.execute(await prepare(fresh, [change(before, { value: 'new@example.com' })], [email]));
     assert.equal(updated.result.records[0].record.derived.identity_revision, '2');
     assert.equal(updated.result.records[0].record.created_at, before.created_at);
+    await assert.rejects(fresh.call('records.get', { model, id: email }), { code: 'forbidden' });
+    fresh = connect({ endpoint: service.endpoint, credential: token(actor, 0, 1) });
+    stale = connect({ endpoint: service.endpoint, credential: token(actor, 601, 1) });
     const childIdentity = randomUUID();
     await stale.execute(await prepare(stale, [create(childIdentity, child, 'child@example.com')]));
     await assert.rejects(fresh.execute(await prepare(fresh, [create(randomUUID(), outside, 'outside@example.com')])), { code: 'forbidden' });
@@ -116,6 +124,8 @@ test('A0 real signed HTTP preserves JWT recency, exact identity claims and secre
     await fresh.execute(await prepare(fresh, [current, currentPhone].map(record => ({
       op: 'delete', id: record.id, if_version: record.version,
     }))));
+    await assert.rejects(fresh.call('records.get', { model, id: email }), { code: 'forbidden' });
+    fresh = connect({ endpoint: service.endpoint, credential: token(actor, 0, 2) });
     assert.equal(await fresh.call('records.get', { model, id: email }), null);
     assert.equal(await fresh.call('records.get', { model, id: phone }), null);
     assert.equal((await operator.check()).status, 'valid');

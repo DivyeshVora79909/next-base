@@ -229,6 +229,7 @@ fn graph<B: Binding>(store: &Store<B>, codes: &[u16]) -> Result<()> {
             // keeping the users in separate data partitions.
             parents: vec![id(2)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,
@@ -865,6 +866,7 @@ fn scoped_derived(
         kind: PrincipalKind::User,
         parents: vec![id(1)],
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants: Grants::default(),
     });

@@ -15,6 +15,7 @@ use std::{
 use uuid::Uuid;
 
 pub const MAX_TOKEN_BYTES: usize = 4096;
+pub const CLAIMS_PROFILE: &str = "rebase-eddsa-tenant-subject-epoch-generation-2";
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IdentityConfig {
@@ -34,6 +35,8 @@ pub struct Claims {
     #[serde(with = "uuid_text")]
     pub tenant: Uuid,
     pub epoch: u64,
+    #[serde(with = "uuid_text")]
+    pub generation: Uuid,
     pub iat: u64,
     pub nbf: u64,
     pub exp: u64,
@@ -140,7 +143,8 @@ impl Verifier {
             .map_err(|_| invalid())?
             .claims;
         let now = now()?;
-        if claims.tenant != tenant
+        if claims.generation.is_nil()
+            || claims.tenant != tenant
             || claims.iat > now
             || claims.nbf > now
             || claims.nbf < claims.iat
@@ -162,6 +166,7 @@ pub fn issue(
     config: &IdentityConfig,
     request: &TokenRequest,
     private_pem: &[u8],
+    generation: Uuid,
 ) -> Result<String> {
     let TokenRequest {
         tenant,
@@ -170,7 +175,6 @@ pub fn issue(
         ttl,
         key_id: kid,
     } = request;
-    let verifier = Verifier::new(config.clone())?;
     if !config.public_keys.contains_key(kid) || *ttl == 0 || *ttl > config.max_token_seconds {
         return Err(Error::new("invalid_input", "credential key/lifetime"));
     }
@@ -181,15 +185,31 @@ pub fn issue(
         sub: *actor,
         tenant: *tenant,
         epoch: *epoch,
+        generation,
         iat: at,
         nbf: at,
         exp: at.checked_add(*ttl).ok_or_else(invalid)?,
     };
+    issue_pinned_claims(config, &claims, kid, private_pem)
+}
+
+/// Sign a committed, immutable issuance decision. This never chooses new claims,
+/// generation, times or keys during recovery; Ed25519 returns identical bytes.
+pub fn issue_pinned_claims(
+    config: &IdentityConfig,
+    claims: &Claims,
+    kid: &str,
+    private_pem: &[u8],
+) -> Result<String> {
+    let verifier = Verifier::new(config.clone())?;
+    if !config.public_keys.contains_key(kid) || !valid_kid(kid) {
+        return Err(Error::new("invalid_input", "credential key/lifetime"));
+    }
     let mut header = Header::new(Algorithm::EdDSA);
     header.kid = Some(kid.into());
     let key = EncodingKey::from_ed_pem(private_pem)
         .map_err(|_| Error::new("invalid_input", "Ed25519 private PEM required"))?;
-    let token = jsonwebtoken::encode(&header, &claims, &key).map_err(|_| invalid())?;
-    verifier.verify(&token, *tenant)?; // catch mismatched public/private keys offline
+    let token = jsonwebtoken::encode(&header, claims, &key).map_err(|_| invalid())?;
+    verifier.verify(&token, claims.tenant)?; // check key correspondence and pinned lifetime
     Ok(token)
 }

@@ -212,15 +212,20 @@ machinery while adding strict typed capabilities. E0 records the service contrac
 C3/C4 and [E1 credentials](e1-credentials.md) are accepted. E1 also fixes managed
 UUID lifetime creation metadata and array-reference tentative fanout selection.
 [E2/R0](e2-email.md) and [A0 identities](a0-identity.md) are accepted.
-[A1–A2 private proof and sessions](a1-proof-sessions.md), E3, E5 and fresh release
-verification follow in dependency order.
+[A1–A2 private proof and sessions](a1-proof-sessions.md) are accepted: both fake
+email/SMS paths, five attempts, one-use original issuance recovery and restored-session
+fencing. See [evidence](checkpoints/a1-proof-sessions.json). E3 objects, E5 full-pipeline
+recovery and fresh release/bootstrap verification remain required and unaccepted.
+Work stops after A1/A2 at the user's request; resume with E3.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |
 | E0 | Current/absent capabilities, modes and recovery obligations | C0 and existing effect evidence; planning only |
 | E1 | Accepted Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
 | E2 | Accepted EmailSend, pinned secrets, independent fake Resend/Brevo transports and R0 charged starts | E1; shared worker and exact original recovery |
-| E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2; one selected object adapter |
+| A0 | Accepted protected email/phone identities and exact claims | E1–E2 |
+| A1/A2 | Accepted private delivered proof and recoverable EdDSA sessions | A0; E2/R0 worker, credential and receipt guarantees |
+| E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2, A1/A2; one selected object adapter |
 | E4 | Optional recurrence producing ordinary one-shot jobs | E2 and protected occurrence uniqueness; no workflow engine |
 | E5 | Independent fake full-pipeline, failure and recovery verification | Each selected E feature; C4 catalog tooling where used |
 

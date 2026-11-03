@@ -56,7 +56,12 @@ fn setup(db: Database) -> Result<(Store<Services>, Captures)> {
     Ok((store, captures))
 }
 fn caller(store: &Store<Services>, actor: u128) -> Result<Store<Services>> {
-    store.authenticated_session(id(actor), 0, crate::identity::now()?)
+    store.authenticated_session(
+        id(actor),
+        0,
+        crate::identity::now()?,
+        store.session_generation()?,
+    )
 }
 fn create(source: u128, owner: u128, kind: Kind, value: &str) -> Value {
     json!({"op":"create","id":id(source),"contract":IDENTITY,"owner":id(owner),"fields":{"kind":kind,"value":value}})

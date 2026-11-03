@@ -1,4 +1,5 @@
 //! Independent source-literal acceptance for ready quantity publications.
+mod common;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{ToPrimitive, Zero};
@@ -331,7 +332,7 @@ fn cas_replay_reopen_and_lifecycle_preserve_quantities() {
     let path = dir.0.join("restored.redb");
     lifecycle::restore(&backup, &path, model.clone()).unwrap();
     let restored = Store::<Quantity>::open(&path, model).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), before);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
     restored.check_integrity().unwrap();
     assert_eq!(value(&restored, src), 18);
 }

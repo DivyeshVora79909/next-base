@@ -41,7 +41,7 @@ test('E2 real owned worker dispatches both independent adapters with bearer-free
     const config = { listen: '127.0.0.1:0', identity, max_inflight: 4, request_timeout_seconds: 10, effects: null, credentials: { keyring, platform: [] },
       email: { resend_origin: resend.endpoint, brevo_origin: brevo.endpoint, mode: 'disabled', probe_directory: probes, policies: ['resend', 'brevo'].map(provider => ({ provider, account, purpose: 'email.send', window_ms: '1000', limit: 3 })) } };
     service = await operator.startService({ config });
-    const { token } = await operator.issueIdentity({ identity, request: { tenant, actor, epoch: 0, ttl: 300, key_id: 'local' }, privateKeyPem: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() });
+    let { token } = await operator.issueIdentity({ identity, request: { tenant, actor, epoch: 0, ttl: 300, key_id: 'local' }, privateKeyPem: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() });
     let client = connect({ endpoint: service.endpoint, credential: token });
     const graph = structuredClone(await client.call('access.describe', { model }));
     graph.graph.principals.find(principal => principal.id === actor).grants.contracts['1001'] = ['use'];
@@ -194,6 +194,9 @@ test('E2 real owned worker dispatches both independent adapters with bearer-free
     assert.equal((await operator.verifyCredentials({ keyring })).status, 'verified');
     const countsBeforeRestore = await Promise.all([resend.calls(), brevo.calls()]);
     service = await operator.startService({ config }); client = connect({ endpoint: service.endpoint, credential: token });
+    await assert.rejects(client.call('effects.status', { model, execution_id: missingKey.execution }), { code: 'forbidden' });
+    ({ token } = await operator.issueIdentity({ identity, request: { tenant, actor, epoch: 0, ttl: 300, key_id: 'local' }, privateKeyPem: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() }));
+    client = connect({ endpoint: service.endpoint, credential: token });
     const restoredStatus = await client.call('effects.status', { model, execution_id: missingKey.execution });
     assert.equal(restoredStatus.phase, 'uncertain'); assert.equal(restoredStatus.attempts, 1); assert.equal(restoredStatus.observations, 0);
     assert.equal(restoredStatus.worker_mode, 'disabled'); assert.equal(restoredStatus.quarantined, true);

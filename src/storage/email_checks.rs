@@ -43,27 +43,27 @@ fn require(ok: bool, detail: &str) -> Result<()> {
 }
 type BeforeCommit = Box<dyn FnOnce() -> Result<()> + Send>;
 #[derive(Default)]
-struct Plan {
-    after: Option<usize>,
-    lose_ack: bool,
-    before_commit: Option<BeforeCommit>,
+pub(crate) struct Plan {
+    pub(crate) after: Option<usize>,
+    pub(crate) lose_ack: bool,
+    pub(crate) before_commit: Option<BeforeCommit>,
 }
 #[derive(Default)]
-struct Control {
+pub(crate) struct Control {
     next: Plan,
-    last_writes: usize,
+    pub(crate) last_writes: usize,
 }
-type Controls = Arc<Mutex<Control>>;
-fn arm(controls: &Controls, plan: Plan) -> Result<()> {
+pub(crate) type Controls = Arc<Mutex<Control>>;
+pub(crate) fn arm(controls: &Controls, plan: Plan) -> Result<()> {
     controls
         .lock()
         .map_err(|_| failure("fault control lock"))?
         .next = plan;
     Ok(())
 }
-struct Controlled {
-    db: Database,
-    controls: Controls,
+pub(crate) struct Controlled {
+    pub(crate) db: Database,
+    pub(crate) controls: Controls,
 }
 impl Backend for Controlled {
     fn limits(&self) -> Limits {

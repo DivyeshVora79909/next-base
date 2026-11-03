@@ -24,6 +24,11 @@ The barrel exports these groups:
   model, store, actor, credential epoch and operation context; `execute` and
   `status` recheck the captured target before sending. `savePlan` persists a
   detached plan with write-once semantics.
+- `prepareAuthentication` and `prepareCodeProof` prepare transient anonymous
+  proof operations. Their `execute()` and `status()` retain the exact original
+  operation and recovery secret after an unknown response. They require HTTPS
+  or loopback HTTP and cannot be serialized into saved mutation plans. See
+  [proof and sessions](a1-proof-sessions.md) for custody and process-loss limits.
 - `preparePopulation`, `propose`, `accept` and `reject` manage caller-owned
   population state. The proposal is local input generation; the server still
   enforces authority, references, limits and invariants.

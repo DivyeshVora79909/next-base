@@ -7,7 +7,8 @@ const expectedExports = [
   'checkSourceSnapshot', 'churnProfile', 'churnScenario', 'connect', 'describeReleaseBuild',
   'evaluateSources', 'explore', 'faultProfile', 'faultScenario', 'logicalReplay',
   'observeResources', 'openFdbEnvironment', 'openNative', 'openOperator', 'overloadProfile',
-  'overloadScenario', 'packageRelease', 'parseEnvironment', 'prepareModel', 'preparePopulation',
+  'overloadScenario', 'packageRelease', 'parseEnvironment', 'prepareAuthentication', 'prepareCodeProof',
+  'prepareModel', 'preparePopulation',
   'prepareReleaseSource', 'propose', 'reject', 'resolveConfig', 'runWorkload', 'savePlan',
   'shrinkFailure', 'sourceOracle', 'stageSources', 'startFakeEmailProvider', 'startFakeProvider', 'verifyRelease', 'walk',
 ].sort();

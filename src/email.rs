@@ -161,11 +161,26 @@ impl EmailOutcome {
         request: &EmailRequest,
         execution: Uuid,
     ) -> Result<crate::effects::Disposition> {
+        if self.provider == Provider::FakeSms {
+            return Err(invalid());
+        }
+        self.validate_hash(&request.request_hash()?, execution)
+    }
+    /// Private delivery binds an opaque ciphertext hash, never a plaintext OTP digest.
+    pub fn validate_hash(
+        &self,
+        request_hash: &str,
+        execution: Uuid,
+    ) -> Result<crate::effects::Disposition> {
         use crate::effects::Disposition;
         crate::credentials::crypto::validate_account(&self.account)?;
         if execution.is_nil()
             || self.execution_id != execution
-            || self.request_hash != request.request_hash()?
+            || self.request_hash != request_hash
+            || request_hash.len() != 64
+            || !request_hash
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             || self.receipt.as_ref().is_some_and(|receipt| {
                 receipt.is_empty()
                     || receipt.len() > 128
@@ -196,7 +211,7 @@ impl EmailOutcome {
     }
     pub fn schema() -> Value {
         json!({"type":"object","additionalProperties":false,"required":["execution_id","provider","account","request_hash","disposition","receipt"],"properties":{
-            "execution_id":{"type":"string","format":"uuid"},"provider":{"enum":["resend","brevo"]},"account":{"type":"string","pattern":"^[A-Za-z0-9._:-]{1,128}$"},
+            "execution_id":{"type":"string","format":"uuid"},"provider":{"enum":["resend","brevo","fake_sms"]},"account":{"type":"string","pattern":"^[A-Za-z0-9._:-]{1,128}$"},
             "request_hash":{"type":"string","pattern":"^[0-9a-f]{64}$"},"disposition":{"enum":["waiting","succeeded","not_accepted","failed"]},
             "receipt":{"anyOf":[{"type":"null"},{"type":"string","pattern":"^[A-Za-z0-9_:-]{1,128}$"}]}
         }})
@@ -207,10 +222,15 @@ impl EmailOutcome {
 pub enum Purpose {
     #[serde(rename = "email.send")]
     EmailSend,
+    #[serde(rename = "sms.send")]
+    SmsSend,
 }
 impl Purpose {
     pub fn as_str(self) -> &'static str {
-        "email.send"
+        match self {
+            Self::EmailSend => "email.send",
+            Self::SmsSend => "sms.send",
+        }
     }
 }
 
@@ -434,6 +454,52 @@ mod tests {
             subject: "subject".into(),
             text: "body\nsecond line".into(),
         }
+    }
+    #[test]
+    fn phone_outcomes_bind_opaque_delivery_hash_without_accepting_email_requests() {
+        let execution = Uuid::from_u128(19);
+        let hash = "ab".repeat(32);
+        let outcome = EmailOutcome {
+            execution_id: execution,
+            provider: Provider::FakeSms,
+            account: "sms-account".into(),
+            request_hash: hash.clone(),
+            disposition: crate::effects::Disposition::Succeeded,
+            receipt: Some("sms:accepted".into()),
+        };
+        assert_eq!(
+            outcome.validate_hash(&hash, execution).unwrap(),
+            crate::effects::Disposition::Succeeded
+        );
+        assert!(
+            outcome
+                .validate_binding(Provider::FakeSms, "sms-account")
+                .is_ok()
+        );
+        assert!(
+            outcome
+                .validate_binding(Provider::Resend, "sms-account")
+                .is_err()
+        );
+        assert!(
+            outcome
+                .validate_binding(Provider::FakeSms, "other-account")
+                .is_err()
+        );
+        assert!(outcome.validate_hash(&hash, Uuid::from_u128(20)).is_err());
+        assert!(outcome.validate_hash(&"cd".repeat(32), execution).is_err());
+        let mut changed = outcome.clone();
+        changed.request_hash = request().request_hash().unwrap();
+        assert!(changed.validate(&request(), execution).is_err());
+        for invalid in ["abcdef".to_owned(), "AB".repeat(32), "gg".repeat(32)] {
+            changed.request_hash = invalid.clone();
+            assert!(changed.validate_hash(&invalid, execution).is_err());
+        }
+        changed = outcome;
+        changed.disposition = crate::effects::Disposition::NotAccepted;
+        assert!(changed.validate_hash(&hash, execution).is_err());
+        changed.receipt = None;
+        assert!(changed.validate_hash(&hash, execution).is_ok());
     }
     #[test]
     fn normalization_is_idempotent_and_hash_binds_exact_intent() {

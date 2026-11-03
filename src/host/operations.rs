@@ -116,14 +116,14 @@ fn authorize_identity<B: Binding>(
     store: &local::Store<B>,
     scope: &Scope,
     request: &crate::identity::TokenRequest,
-) -> Result<()> {
+) -> Result<Uuid> {
     let session = store.session(request.actor, request.epoch)?;
     let (read, _, header) = session.read(store.model().identity())?;
     if header.store_id != scope.store {
         return Err(Error::new("wrong_target", "identity store scope changed"));
     }
     session.authority(&read)?;
-    Ok(())
+    Ok(header.session_generation)
 }
 
 impl<B: Binding> SelectedModel<B> {
@@ -230,9 +230,9 @@ impl<B: Binding> SelectedModel<B> {
                 if p.private_key_pem.len() > 4096 {
                     return Err(Error::new("invalid_input", "private key byte limit"));
                 }
-                authorize_identity(&store, &p.scope, &p.request)?;
+                let generation = authorize_identity(&store, &p.scope, &p.request)?;
                 Ok(
-                    json!({"token":crate::identity::issue(&p.identity,&p.request,p.private_key_pem.as_bytes())?}),
+                    json!({"token":crate::identity::issue(&p.identity,&p.request,p.private_key_pem.as_bytes(),generation)?}),
                 )
             }
             "credentials.plan" => {

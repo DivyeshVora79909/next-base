@@ -20,7 +20,7 @@ pub const MAX_OWNER_STREAMS: usize = 1280;
 /// Owner-only disclosure and action-specific mutation authority.
 pub const OWNER_POLICY: &str = "owner-only-update-both-owners-accessible-delete-self-descendants-2";
 /// Ordinary resource scope is independent of administrative action grants.
-pub const SCOPE_POLICY: &str = "owner-only-self-descendants-direct-group-parents-2";
+pub const SCOPE_POLICY: &str = "owner-only-self-descendants-direct-group-parents-login-access-3";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -73,6 +73,8 @@ pub struct Principal {
     pub kind: PrincipalKind,
     pub parents: Vec<Uuid>,
     pub active: bool,
+    /// Explicit User eligibility for delivered-code login, never inherited.
+    pub login_access: bool,
     /// Increment to revoke all previously issued credentials for this principal.
     pub credential_epoch: u64,
     pub grants: Grants,
@@ -94,6 +96,7 @@ pub struct Scope {
     #[serde(with = "uuid_text")]
     pub actor: Uuid,
     pub active: bool,
+    pub login_access: bool,
     pub credential_epoch: u64,
     pub grants: Grants,
     pub accessible: BTreeSet<Uuid>,
@@ -106,6 +109,7 @@ impl Scope {
             tenant: context.tenant,
             actor: context.actor,
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: true,
@@ -162,6 +166,7 @@ impl Graph {
                     kind: PrincipalKind::Tenant,
                     parents: vec![],
                     active: true,
+                    login_access: false,
                     credential_epoch: 0,
                     grants: Grants::default(),
                 },
@@ -170,6 +175,7 @@ impl Graph {
                     kind: PrincipalKind::User,
                     parents: vec![context.tenant],
                     active: true,
+                    login_access: false,
                     credential_epoch: 0,
                     grants: Grants {
                         admin: true,
@@ -200,7 +206,8 @@ impl Graph {
         let mut children = BTreeMap::<Uuid, BTreeSet<Uuid>>::new();
         let mut pending = BTreeMap::new();
         for p in nodes.values() {
-            if p.id != self.tenant && (p.kind == PrincipalKind::Tenant || p.parents.is_empty())
+            if p.login_access && p.kind != PrincipalKind::User
+                || p.id != self.tenant && (p.kind == PrincipalKind::Tenant || p.parents.is_empty())
                 || p.parents.len() > MAX_PARENTS
                 || p.parents.iter().collect::<BTreeSet<_>>().len() != p.parents.len()
                 || p.parents.iter().any(|id| !nodes.contains_key(id))
@@ -259,6 +266,7 @@ impl Graph {
                     tenant: self.tenant,
                     actor: p.id,
                     active: p.active,
+                    login_access: p.login_access,
                     credential_epoch: p.credential_epoch,
                     grants,
                     accessible,

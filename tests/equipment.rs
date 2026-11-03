@@ -6,6 +6,7 @@ use rebase_semantic_proof::{
     models::equipment::Equipment,
     native_slice::Context,
 };
+mod common;
 use serde_json::{Value, json};
 use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
@@ -149,7 +150,7 @@ fn independent_equipment_model_reuses_mutation_receipts_queries_and_storage() {
     let restored_path = dir.0.join("restore.redb");
     lifecycle::restore(&backup, &restored_path, model.clone()).unwrap();
     let restored = Store::<Equipment>::open(&restored_path, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), before);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
     drop(restored);
     drop(store);
     assert!(Store::open(&path, Arc::new(PreparedModel::load().unwrap())).is_err());

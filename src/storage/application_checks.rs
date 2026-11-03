@@ -67,6 +67,31 @@ fn image<B: Binding>(store: &Store<B>) -> Result<Value> {
     )?;
     Ok(image)
 }
+fn restore_generation(before: &Value, after: &Value) -> Result<()> {
+    let header = |image: &Value| -> Result<Value> {
+        let text = image["tables"]["local_runtime"][0]["value"]
+            .as_str()
+            .ok_or_else(|| Error::new("application_conformance", "runtime header bytes"))?;
+        serde_json::from_slice(&local::unhex(text)?).map_err(local::storage)
+    };
+    let mut previous = header(before)?;
+    let current = header(after)?;
+    require(
+        previous["session_generation"] != current["session_generation"],
+        "restore failed to rotate session generation",
+    )?;
+    require(
+        current["session_generation"]
+            .as_str()
+            .is_some_and(|text| Uuid::parse_str(text).is_ok_and(|id| !id.is_nil())),
+        "invalid restored generation",
+    )?;
+    previous["session_generation"] = current["session_generation"].clone();
+    require(
+        previous == current,
+        "restore changed original receipt context or store identity",
+    )
+}
 fn receipt_absent<B: Binding>(store: &Store<B>, operation: Uuid) -> Result<()> {
     let read = store.db.begin_read()?;
     require(
@@ -260,7 +285,6 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         "owner_records",
         "authority",
         "operations",
-        "local_runtime",
         "effect_facts",
         "effect_inbox",
     ] {
@@ -269,6 +293,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             "restore changed preserved application data",
         )?;
     }
+    restore_generation(&after_lost, &restored_image)?;
     for row in restored_image["tables"]["effect_executions"]
         .as_array()
         .expect("complete execution inventory")
@@ -357,8 +382,13 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
         factory("quantity-restored")?,
         Arc::new(Prepared::load()?),
     )?;
+    let restored_quantity_image = image(&restored_quantity)?;
+    restore_generation(&quantity_image, &restored_quantity_image)?;
+    let mut expected_quantity = quantity_image;
+    expected_quantity["tables"]["local_runtime"] =
+        restored_quantity_image["tables"]["local_runtime"].clone();
     require(
-        image(&restored_quantity)? == quantity_image,
+        restored_quantity_image == expected_quantity,
         "quantity restore changed complete application tables",
     )?;
     cases.push("backup-restore-exact-complete-inventory");
@@ -454,6 +484,7 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             kind: crate::access::PrincipalKind::User,
             parents: vec![id(1)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: crate::access::Grants {
                 admin: true,

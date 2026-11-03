@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseFrame } from './private/json-codec.mjs';
+import { checkProofInventory, checkRuntimeHeader } from './private/proof-storage.mjs';
 
 const MAX_BACKUP_BYTES = 64 * 1024 * 1024;
 const MAX_SNAPSHOT_ROWS = 81_920;
@@ -7,7 +8,8 @@ const MAX_TREE_DEPTH = 64;
 const MAX_TREE_NODES = 81_920;
 const REQUIRED_TABLES = new Set(['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox',
   'effect_runtime', 'email_rate_scopes', 'email_rate_starts', 'email_rate_points',
-  'local_runtime', 'native_kv', 'operations', 'public_records', 'query_epochs', 'receipt_slots']);
+  'local_runtime', 'native_kv', 'operations', 'public_records', 'query_epochs', 'receipt_slots',
+  'auth_challenges', 'auth_receipts', 'auth_heads', 'auth_handles', 'auth_runtime']);
 const HEX = /^[0-9a-f]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DECIMAL = /^(0|-?[1-9][0-9]*)$/;
@@ -46,7 +48,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   object(backup.payload.tables, 'backup tables');
   const tableNames = Object.keys(backup.payload.tables).sort();
   requireThat([...REQUIRED_TABLES].every(name => tableNames.includes(name))
-    && (tableNames.length === 14 || (tableNames.length === 16
+    && (tableNames.length === 19 || (tableNames.length === 21
       && tableNames.includes('authority') && tableNames.includes('owner_records'))), 'backup application table inventory differs');
   for (const [name, tableRows] of Object.entries(backup.payload.tables)) {
     requireThat(Array.isArray(tableRows) && tableRows.length <= maxRows, `table ${name} exceeds the bounded inventory`);
@@ -57,6 +59,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
       tableKeys.add(row.key);
     }
   }
+  const header = checkRuntimeHeader(backup.payload.tables.local_runtime);
   const rows = backup.payload.tables.native_kv;
   const roots = new Map();
   const nodes = new Map();
@@ -142,6 +145,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   const identityInventory = checkIdentityInventory(catalog, recordsById, identityClaims,
     authenticationRevisions, backup.payload.tables.authority, metadata);
   const emailAdmissionCount = checkEmailAdmissions(backup.payload.tables, executions);
+  const proofInventory = checkProofInventory(backup.payload.tables, recordsById, executions, metadata, header, catalog);
   // Public source records define the complete owner catalog. Managed outputs
   // remain native records but are deliberately absent from both catalogs.
   const expectedOwners = new Map();
@@ -151,6 +155,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     requireThat(idBytes.length === 16, 'invalid public index key');
     const record = recordsById.get(formatUuid(idBytes));
     requireThat(record !== undefined, 'public index has no source record');
+    requireThat(record.contract !== 1004, 'private authentication delivery has a public index entry');
     requireThat(Number.isInteger(row.contract) && row.contract > 0 && row.contract <= 65535
       && record.contract === row.contract, 'public index contract differs');
     requireThat(typeof record.owner === 'string' && UUID.test(record.owner), 'source owner is invalid');
@@ -294,11 +299,12 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     credentialSecretInventory, credentialSecretCount: secrets.size, credentialSecretAuthentication: 'not_evaluated',
     emailAdmissionInventory: 'checked', emailAdmissionCount,
     identityInventory, identityClaimCount: identityClaims.size, authenticationRevisionCount: authenticationRevisions.size,
+    ...proofInventory,
     accessSourceMembership: accessExpected ? 'checked' : 'not_evaluated', accessRootCount: accessRoots.size, accessNodeCount: accessNodes.size,
     rootCount: roots.size, nodeCount: nodes.size, nativeKvRows: rows.length, snapshotBytes: backupBytes.length };
   if (includeObservation) {
     const identityCode = catalog?.capabilities?.identities?.contract ?? 1003;
-    observation.records = observation.records.map(row => {
+    observation.records = observation.records.filter(row => row.record.contract !== 1004).map(row => {
       if (row.record.contract !== identityCode) return row;
       const { identity_revision, verified_revision, verified_at } = row.record.derived;
       return { ...row, record: { ...row.record, derived: { identity_revision, verified_revision, verified_at } } };
@@ -356,6 +362,7 @@ function checkIdentityInventory(catalog, records, claims, revisions, authorityRo
     object(principal, 'identity principal');
     nonnilUuid(principal.id, 'identity principal');
     requireThat(!principals.has(principal.id) && ['tenant', 'group', 'user'].includes(principal.kind), 'identity principal inventory differs');
+    requireThat(typeof principal.login_access === 'boolean' && (principal.kind === 'user' || !principal.login_access), 'identity principal login access differs');
     principals.set(principal.id, principal);
   }
   for (const owner of revisions.keys()) requireThat(principals.get(owner)?.kind === 'user', 'authentication revision owner is not a User');
@@ -434,7 +441,7 @@ function checkSecretInventory(catalog, records, secrets, executions) {
   for (const [key, execution] of executions) {
     if (execution.email_binding === null || execution.email_binding === undefined) continue;
     const pin = execution.email_binding;
-    exactKeys(pin, ['credential', 'incarnation', 'provider', 'account', 'use_epoch', 'secret_revision', 'selection'], 'email credential binding');
+    exactKeys(pin, ['credential', 'incarnation', 'provider', 'account', 'use_epoch', 'secret_revision', 'selection', 'server_policy', 'purpose'], 'email credential binding');
     nonnilUuid(pin.credential, 'email credential identity'); nonnilUuid(pin.incarnation, 'email credential incarnation');
     providerAccount(pin, 'email credential binding');
     canonicalU64(pin.use_epoch, 'email credential use epoch');
@@ -444,14 +451,22 @@ function checkSecretInventory(catalog, records, secrets, executions) {
       && source.input.provider === pin.provider && source.input.account === pin.account, 'email credential binding differs from source');
     const anchor = records.get(execution.source);
     requireThat(UUID.test(execution.id ?? '') && execution.id.replaceAll('-', '') === key && execution.target === execution.source
-      && anchor?.contract === 1002 && anchor.tenant === execution.tenant && canonicalJson(anchor.input) === canonicalJson(execution.request), 'email retained source/request differs');
-    requireThat(canonicalJson(pin.selection) === canonicalJson(execution.request.selection), 'email credential selection differs');
-    if (pin.selection?.kind === 'byoc') {
-      exactKeys(pin.selection, ['kind', 'credential'], 'email credential selection');
-      requireThat(pin.selection.credential === pin.credential, 'email BYOC credential differs');
+      && anchor?.contract === (pin.server_policy === null ? 1002 : 1004) && anchor.tenant === execution.tenant
+      && canonicalJson(anchor.input) === canonicalJson(execution.request), 'email retained source/request differs');
+    if (pin.server_policy !== null) {
+      requireThat(pin.selection === null && pin.server_policy.credential === pin.credential
+        && pin.server_policy.provider === pin.provider && pin.server_policy.account === pin.account
+        && pin.purpose === (pin.provider === 'fake_sms' ? 'sms.send' : 'email.send'), 'authentication credential policy differs');
     } else {
-      exactKeys(pin.selection, ['kind', 'slot'], 'email credential selection');
-      requireThat(pin.selection.kind === 'platform' && pin.selection.slot === 'transactional_email', 'email platform selection differs');
+      requireThat(pin.purpose === 'email.send' && pin.provider !== 'fake_sms', 'ordinary email purpose differs');
+      requireThat(canonicalJson(pin.selection) === canonicalJson(execution.request.selection), 'email credential selection differs');
+      if (pin.selection?.kind === 'byoc') {
+        exactKeys(pin.selection, ['kind', 'credential'], 'email credential selection');
+        requireThat(pin.selection.credential === pin.credential, 'email BYOC credential differs');
+      } else {
+        exactKeys(pin.selection, ['kind', 'slot'], 'email credential selection');
+        requireThat(pin.selection.kind === 'platform' && pin.selection.slot === 'transactional_email', 'email platform selection differs');
+      }
     }
     const secret = `${pin.credential}/${pin.secret_revision}`;
     requireThat(secrets.get(secret)?.incarnation === pin.incarnation, 'email retained credential revision is missing');
@@ -463,7 +478,7 @@ function checkSecretInventory(catalog, records, secrets, executions) {
 
 function nonnilUuid(value, label) { requireThat(UUID.test(value ?? '') && value !== '00000000-0000-0000-0000-000000000000', `${label} is invalid`); }
 function providerAccount(value, label) {
-  requireThat(['resend', 'brevo'].includes(value.provider) && typeof value.account === 'string' && /^[A-Za-z0-9._:-]{1,128}$/u.test(value.account), `${label} is invalid`);
+  requireThat(['resend', 'brevo', 'fake_sms'].includes(value.provider) && typeof value.account === 'string' && /^[A-Za-z0-9._:-]{1,128}$/u.test(value.account), `${label} is invalid`);
 }
 function decodeRows(rows, maximum, label) {
   requireThat(rows.length <= maximum, `${label} exceeds bounded inventory`);
@@ -477,7 +492,7 @@ function decodeRows(rows, maximum, label) {
   }
   return result;
 }
-function quotaScope(provider, account) { return { provider, account, purpose: 'email.send' }; }
+function quotaScope(provider, account) { return { provider, account, purpose: provider === 'fake_sms' ? 'sms.send' : 'email.send' }; }
 function quotaKey(scope) { return createHash('sha256').update('next-base/email-rate-scope/1\0').update(JSON.stringify(scope)).digest('hex'); }
 function checkEmailAdmissions(tables, executions) {
   const headers = decodeRows(tables.email_rate_scopes, 16, 'email admission policies');
@@ -491,7 +506,7 @@ function checkEmailAdmissions(tables, executions) {
     exactKeys(header, ['format', 'policy', 'last_at'], 'email admission header');
     exactKeys(header.policy, ['provider', 'account', 'purpose', 'window_ms', 'limit'], 'email admission policy');
     const p = header.policy; providerAccount(p, 'email admission policy');
-    requireThat(header.format === 'email-rate-admission-1' && p.purpose === 'email.send'
+    requireThat(header.format === 'email-rate-admission-1' && p.purpose === quotaScope(p.provider, p.account).purpose
       && key === quotaKey(quotaScope(p.provider, p.account)), 'email admission scope identity differs');
     requireThat(canonicalTime(p.window_ms) > 0n && BigInt(p.window_ms) <= 86_400_000n
       && Number.isInteger(p.limit) && p.limit >= 1 && p.limit <= 64, 'email admission policy bounds');

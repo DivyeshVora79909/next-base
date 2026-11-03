@@ -22,6 +22,7 @@ fn principal(n: u128, parents: Vec<Uuid>) -> Principal {
         kind: PrincipalKind::User,
         parents,
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants: Grants {
             admin: false,

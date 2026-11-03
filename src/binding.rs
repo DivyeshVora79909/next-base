@@ -116,14 +116,13 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
             "credential model required",
         ))
     }
-    fn effect_source_anchor() -> bool {
-        false
+    fn auth_delivery(
+        _input: &Self::Input,
+    ) -> Option<&crate::authentication::proof_types::AuthDelivery> {
+        None
     }
     fn effect_request_limit() -> usize {
         crate::effects::MAX_REQUEST
-    }
-    fn effect_application_required() -> bool {
-        true
     }
     fn effect_validate_binding(
         _outcome: &Self::Outcome,
@@ -135,8 +134,13 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
             "email provider binding unavailable",
         ))
     }
-    fn effect_action() -> Option<crate::effects::ActionDeclaration> {
-        None
+    fn effect_actions() -> Vec<crate::effects::ActionDeclaration> {
+        vec![]
+    }
+    fn effect_action(code: u16) -> Option<crate::effects::ActionDeclaration> {
+        Self::effect_actions()
+            .into_iter()
+            .find(|action| action.code == code)
     }
     fn effect_template(_input: &Self::Input) -> Result<Option<crate::effects::Template>> {
         Ok(None)

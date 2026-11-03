@@ -8,6 +8,7 @@ use rebase_semantic_proof::{
     root_page::{RootPagePolicy, RootPageRequest},
     security::ReplaceGraph,
 };
+mod common;
 use serde_json::{Value, json};
 use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
@@ -68,6 +69,7 @@ fn graph() -> Graph {
             kind,
             parents: vec![id(parent)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: grants(if n == 9 {
                 &[Action::Create, Action::Update]
@@ -534,7 +536,7 @@ fn transfer_fences_both_owner_cursors_and_replay_uses_current_disclosure() {
     admin.backup(&backup).unwrap();
     rebase_semantic_proof::lifecycle::restore(&backup, &restore, model.clone()).unwrap();
     let restored = Store::open(&restore, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), image);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), image.clone());
     restored.check_integrity().unwrap();
     drop((left, right, other, admin));
     let reopened = Store::open(directory.file(), model.clone()).unwrap();
@@ -687,7 +689,7 @@ fn owner_only_producer_transfer_moves_all_outputs_without_rekeying_business_tree
     admin.backup(&backup).unwrap();
     rebase_semantic_proof::lifecycle::restore(&backup, &restore, model.clone()).unwrap();
     let restored = Store::open(&restore, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), noop);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), noop.clone());
     restored.check_integrity().unwrap();
     drop((caller, sibling, admin));
     let reopened = Store::open(directory.file(), model).unwrap();

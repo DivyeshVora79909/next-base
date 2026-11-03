@@ -22,3 +22,4 @@ export {
 export {
   prepareReleaseSource, describeReleaseBuild, packageRelease, verifyRelease,
 } from './release.mjs';
+export { prepareAuthentication, prepareCodeProof } from './authentication.mjs';

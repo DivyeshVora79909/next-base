@@ -1,4 +1,7 @@
 //! Protected email/phone source identity. Proof and session issuance follow in A1/A2.
+pub mod proof;
+pub mod proof_crypto;
+pub mod proof_types;
 #[cfg(test)]
 mod tests;
 pub mod types;
@@ -26,9 +29,14 @@ impl<B: Binding> Store<B> {
         actor: Uuid,
         epoch: u64,
         issued_at: u64,
+        generation: Uuid,
     ) -> Result<Self> {
+        if generation.is_nil() {
+            return Err(crate::access::denied());
+        }
         let mut session = self.session(actor, epoch)?;
         session.issued_at = Some(issued_at);
+        session.session_generation = Some(generation);
         Ok(session)
     }
 }

@@ -435,6 +435,7 @@ pub(crate) mod test_support {
                 kind,
                 parents: vec![id(parent)],
                 active: true,
+                login_access: false,
                 credential_epoch: 0,
                 grants: Grants {
                     admin: false,

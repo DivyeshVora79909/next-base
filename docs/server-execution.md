@@ -3,8 +3,9 @@
 E1 credentials and bounded grants are accepted in the
 [credential checkpoint](checkpoints/e1-credentials.json). [E2/R0](e2-email.md) now
 accepts durable EmailSend, pinned secret revisions, independent fake Resend/Brevo
-transports and charged submission admission. A0–A2, objects and E5 remain planned
-until their own acceptance checks pass.
+transports and charged submission admission. A0 identities are accepted;
+[A1/A2](a1-proof-sessions.md) private proof and recoverable sessions are accepted
+in the bounded fake-provider profile. Objects and E5 remain planned.
 
 This is a design and acceptance map, not implemented provider functionality.
 Read with [external effects](external-effects.md), [architecture](architecture.md),
@@ -15,7 +16,7 @@ Read with [external effects](external-effects.md), [architecture](architecture.m
 | Capability | Current native implementation | Planned boundary |
 | --- | --- | --- |
 | HTTP/runtime | Axum, Tokio, bounded blocking RPC, owned shutdown | Retain admission and recovery guarantees |
-| Provider action | EmailSend with independent Resend/Brevo fake loopback transports; original effect-demo retained | Private authentication delivery and objects |
+| Provider action | EmailSend and private AuthDelivery with distinct Resend/Brevo/FakeSms protocols; original effect-demo retained | Objects and live-provider acceptance |
 | Credentials | Encrypted owner-scoped records, explicit Use grants and accepted revision retention | Additional typed provider credential profiles |
 | Execution | Transactional intent, receipts, leases, facts, application | Reuse for composed durable jobs |
 | Scheduling | One-shot `execute_at` / `not_after` | Optional recurring occurrence materializer |

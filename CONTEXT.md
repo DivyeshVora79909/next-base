@@ -1,5 +1,59 @@
 # Current checkpoint
 
+## A1/A2 — Private delivered proof and recoverable sessions
+
+Implemented and verified. Acceptance passed 442 Rust all-target tests (0 ignored),
+all 253 Node tests (0 skipped) on Node 26.12.0 with every native fixture using the
+freshly rebuilt host, formatting and default/FDB all-target Clippy with warnings denied.
+Actual FoundationDB 7.3.77 on one local process/host passed coordination/lifecycle/
+application/effects/predicates/credentials/email/identity/proof at
+20/14/19/27/24/6/12/11/10; redb sequential controls at 17/10/13/27/16/6/12/11/10.
+Proof acceptance includes original concurrent begins/consumes, factor/login revocation
+races, rollback after all 11 begin and 6 consume physical writes plus final abort,
+durable ACK loss, exact original recovery and reopen. See
+[A1/A2 evidence](docs/checkpoints/a1-proof-sessions.json). This is local correctness,
+not multi-host, live-provider or deployment-release acceptance.
+
+Services adds engine-private AuthDelivery (1004) on the shared worker. Three fixed
+anonymous routes commit encrypted challenges, keyed request/recovery fingerprints,
+exact predecessor/handle indexes and admission receipts. Both eligible and suppressed
+identifiers coalesce without extra delivery or a refreshed five-attempt budget.
+Codes bind the complete immutable challenge; provider hashes bind ciphertext.
+Server credential policies grant no client Use. Success commits one fixed 900-second
+EdDSA issuance decision; signing and exact original recovery follow commit. Distinct
+fake Resend/Brevo email and FakeSms transports preserve charged starts, lease fencing,
+unknown-outcome reconciliation and ordinary EmailSend behavior.
+
+Mandatory signed/runtime session generation rotates on supported restore. Explicit
+User login_access changes and factor replacement/removal revoke protected epochs;
+self removal is final-authorized before internal revocation. Native/Node independent
+checks derive attempts, issuance, lifetimes, heads, admission and verification from
+receipts and source facts, rejecting forged caches and impossible histories. Owner-only
+access, both-owner transfers, managed creation metadata, atomic indexes/cursors,
+rollback and absence of a source population counter remain intact.
+
+Store `rebase-store-11`, effects `rebase-effects-6`, proof `auth-proof-1`, claims
+`rebase-eddsa-tenant-subject-epoch-generation-2` and the new Services behavior are
+breaking identities; native codec remains `native-slice-kv-16`. Recreate old stores.
+Proof/signing keys stay external and private. Admission-key retirement and online
+retention compaction are not supplied; capacity recovery requires explicit recreation.
+Node proof operations retain transient original evidence in closures, reject saved
+plans and remote cleartext HTTP, and recover exact input after lost responses.
+Client-process-loss persistence is not provided.
+
+Final checks cover delivery, correct fifth/rejected sixth, one use, policy/revision
+revocation, secret nondisclosure, source-derived inventories, original recovery,
+restart, restore and corruption rejection. The reviewed legacy comparison is
+source-only at ReBase `1560ba176ff5e92b565e872701fcbea99132ea08`; it is not a fresh
+legacy runtime or live-provider measurement. See [contract](docs/a1-proof-sessions.md).
+
+User requested stopping after this checkpoint. Next required work is E3 objects,
+then E5 full fake-pipeline recovery and fresh committed-source release/bootstrap
+verification. These are outstanding, unimplemented/unaccepted scope; this checkpoint
+does not claim the full deployable suite. Password mode, C5 live invalidations,
+E4 recurrence, frontend, live providers and TiKV remain deferred. Retention bounds,
+one-host adapter evidence and fake protocols are not unrestricted capacity claims.
+
 ## A0 — Protected email and phone identities
 
 Implemented and verified. The services catalog declares immutable User-owned Identity
@@ -18,7 +72,7 @@ Missing/regressed proof history rejects instead of being silently recreated. Rep
 settlements preserve each call's entry state and unchanged source version; full reverts
 restore the database-original source token without dropping protected reads. E1 managed
 creation metadata, tentative array fanout, both-owner transfers and no population counter
-remain intact. A0 establishes proof fences; factor-removal session revocation is still A2.
+remain intact. A0 established proof fences; A1/A2 above adds factor-removal session revocation.
 
 Acceptance: 400 Rust all-target tests passed (0 ignored), 224 full Node tests passed
 (0 skipped) using Node 26.12.0 and a freshly built default host. Formatting and default/FDB
@@ -32,11 +86,10 @@ indexes/cursors and backup/restore. An initial Node run used Node 18 for shebang
 rerunning with Node 26 on PATH passed all 224. See [A0 evidence](docs/checkpoints/a0-identities.json)
 and [contract](docs/a0-identity.md). This is local correctness, not distributed capacity.
 
-Next: implement [A1/A2 private delivered proof and recoverable sessions](docs/a1-proof-sessions.md).
-The selected bounded profile requires fake email AND phone delivery, five atomic attempts,
-one use, encrypted private intent, original issuance recovery and restored-session fencing.
-These remain unimplemented/unaccepted, followed by E3 objects, E5 full fake-pipeline
-recovery and fresh committed-source release/bootstrap. Optional password mode, C5 live
+The subsequent [A1/A2 checkpoint](docs/a1-proof-sessions.md) implements fake email
+and phone delivery, five atomic attempts, one use, encrypted private intent, original
+issuance recovery and restored-session fencing. E3 objects, E5 full fake-pipeline
+recovery and fresh committed-source release/bootstrap remain outstanding. Optional password mode, C5 live
 invalidations, E4 recurrence, frontend, live providers and TiKV remain deferred.
 
 ## E2/R0 — Durable EmailSend and charged submission admission
@@ -84,10 +137,9 @@ remain green. See [E2 evidence](docs/checkpoints/e2-email-rate.json) and
 [E2 contract and entrypoints](docs/e2-email.md). This is local correctness evidence,
 not live provider or multi-host capacity acceptance.
 
-Next dependency: [A0 protected identities](docs/a0-identity.md), then A1 private
-email/phone proof delivery and A2 sessions, E3 objects, E5 full fake-pipeline recovery,
-and fresh committed-source release/bootstrap verification. These remain required,
-unimplemented/unaccepted scope. Optional password mode, C5 live invalidations, E4
+Subsequent work: [A0 protected identities](docs/a0-identity.md) is accepted and
+A1/A2 proof/sessions is recorded above. E3 objects, E5 full fake-pipeline recovery
+and fresh committed-source release/bootstrap remain required and unaccepted. Optional password mode, C5 live invalidations, E4
 recurrence, frontend, live providers and TiKV remain deferred. The A0 document records
 its concrete implementation contract and source-only legacy comparison.
 
@@ -313,7 +365,7 @@ owner access streams and general non-time reactive cuts remain pending; see [con
 
 Ordinary data scope is self, strict descendants and direct group parents; direct tenant-parent records are excluded. Tenant-grant inheritance remains a separate legacy rule. Admin grants do not widen ordinary data scope. Operator control-plane administration
 remains separate. [Email/phone authentication](docs/email-phone-authentication.md)
-is planned; current JWT verification is implemented, delivered login proof is not.
+now includes A0 identities and the A1/A2 delivered-proof/session implementation above.
 
 ## C2.A — Engine-owned reverse-reference indexes
 
@@ -475,9 +527,9 @@ constraint generation remains C4. Do not claim legacy feature parity from names.
 
 ## Server extensions and evidence boundaries
 
-E1 credentials and bounded grants are accepted as described above. E2–E5 EmailSend
-with independent Resend/Brevo bindings, object lifecycle, optional recurrence and
-full-pipeline acceptance remain planned.
+E1 credentials, E2/R0 EmailSend and A0 identities are accepted as described above;
+A1/A2 proof/session status is recorded at the top. E3 object lifecycle and E5 full-pipeline
+acceptance remain outstanding; E4 recurrence remains deferred.
 Reuse committed intent/start/fence/fact/application and unknown-outcome recovery.
 Unrelated external provider I/O follows commit, outside the native transaction.
 Do not mandate public v1/v2 operations; accepted jobs pin semantics/provider/account.

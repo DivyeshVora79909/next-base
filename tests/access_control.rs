@@ -36,6 +36,7 @@ fn person(n: u128, parents: &[u128]) -> Principal {
         kind: PrincipalKind::User,
         parents: parents.iter().copied().map(id).collect(),
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants: grants(),
     }

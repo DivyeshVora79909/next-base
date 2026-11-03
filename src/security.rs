@@ -1,6 +1,9 @@
 //! Embedded authority persistence. No token parsing or domain calculation here.
+#[cfg(test)]
+mod session_tests;
 
 use crate::binding::Binding;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::storage::{ReadTransaction, ReadableTable, TableDefinition, WriteTransaction};
@@ -23,7 +26,7 @@ pub(crate) const OWNERS: TableDefinition<&[u8], u16> = TableDefinition::new("own
 pub(crate) const GRAPH: &[u8] = b"graph";
 pub(crate) const REVISION: &[u8] = b"revision";
 
-/// Administration-only CAS counter; domain mutations never rewrite it.
+/// Graph CAS counter, advanced by operator changes and internal session revocation.
 pub(crate) fn authority_revision(
     table: &impl ReadableTable<&'static [u8], &'static [u8]>,
 ) -> Result<u64> {
@@ -156,6 +159,148 @@ pub(crate) fn store_graph(write: &WriteTransaction, graph: &PreparedGraph) -> Re
     Ok(())
 }
 
+pub(crate) fn write_header(write: &WriteTransaction) -> Result<crate::local::RuntimeHeader> {
+    let table = write.open_table(crate::local::RUNTIME)?;
+    let header = decode(
+        table
+            .get(crate::local::HEADER)?
+            .ok_or_else(|| corrupt("missing runtime header"))?
+            .value(),
+    )?;
+    crate::local::validate_header(&header)?;
+    Ok(header)
+}
+
+/// Derive revocations from old and final source lifetimes after every client
+/// command passed final authorization. Verification-only changes are excluded.
+pub(crate) fn identity_revocation_owners<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    ws: &mut Attempt<L, B>,
+) -> Result<BTreeSet<Uuid>> {
+    let mut owners = BTreeSet::new();
+    if !B::identity_enabled() {
+        return Ok(owners);
+    }
+    for id in ws.changed_records() {
+        let Some(StoredValue::Record(original)) = ws.original(&Key::Record(id))? else {
+            continue;
+        };
+        if B::identity_input(&original.input).is_none() {
+            continue;
+        }
+        let (_, old) = B::identity_values(&original)?;
+        let current = ws.record(id)?;
+        let unchanged = current
+            .as_ref()
+            .filter(|row| B::identity_input(&row.input).is_some())
+            .map(B::identity_values)
+            .transpose()?
+            .is_some_and(|(_, state)| {
+                state.incarnation == old.incarnation
+                    && state.identity_revision == old.identity_revision
+            });
+        if !unchanged {
+            owners.insert(original.owner);
+        }
+    }
+    Ok(owners)
+}
+
+/// Internal revocation writes share the already-authorized mutation transaction;
+/// they never authorize another client mutation or rewrite source population.
+pub(crate) fn stage_credential_revocations(
+    write: &WriteTransaction,
+    owners: &BTreeSet<Uuid>,
+) -> Result<()> {
+    if owners.is_empty() {
+        return Ok(());
+    }
+    let mut graph = write_graph(write)?.graph;
+    for owner in owners {
+        let principal = graph
+            .principals
+            .iter_mut()
+            .find(|principal| principal.id == *owner)
+            .filter(|principal| principal.kind == crate::access::PrincipalKind::User)
+            .ok_or_else(|| corrupt("revoked identity owner is not a User"))?;
+        principal.credential_epoch = principal
+            .credential_epoch
+            .checked_add(1)
+            .ok_or_else(|| Error::new("revision_exhausted", "credential epoch"))?;
+    }
+    let revision = authority_revision(&write.open_table(AUTHORITY)?)?
+        .checked_add(1)
+        .ok_or_else(|| Error::new("revision_exhausted", "authority counter"))?;
+    store_graph(write, &graph.prepare()?)?;
+    write
+        .open_table(AUTHORITY)?
+        .insert(REVISION, encode(&revision)?.as_slice())?;
+    Ok(())
+}
+
+fn advance_authentication_revisions<B: Binding>(
+    write: &WriteTransaction,
+    owners: &BTreeSet<Uuid>,
+) -> Result<()> {
+    if owners.is_empty() || !B::identity_enabled() {
+        return Ok(());
+    }
+    let mut table = write.open_table(KV)?;
+    for owner in owners {
+        let key = Key::AuthenticationRevision(*owner);
+        let previous = table
+            .get(key.encode())?
+            .map(|bytes| native_codec::decode_for::<B>(&key, bytes.value()))
+            .transpose()?;
+        let previous = match previous {
+            None => 0,
+            Some(StoredValue::AuthenticationRevision(value)) => value.revision,
+            _ => return Err(corrupt("principal authentication revision role")),
+        };
+        // An operator login toggle must not repair missing/regressed proof
+        // history. Protect this owner's Identity range, including its absence.
+        let identity = crate::models::services::IDENTITY;
+        let lower = owner_key(*owner, identity, Uuid::nil());
+        let upper = owner_key(*owner, identity, Uuid::from_u128(u128::MAX));
+        for row in write
+            .open_table(OWNERS)?
+            .range(lower.as_slice()..=upper.as_slice())?
+        {
+            let (address, contract) = row?;
+            if address.value().len() != 34 || contract.value() != identity {
+                return Err(corrupt("identity owner index"));
+            }
+            let source_id = Uuid::from_slice(&address.value()[18..])
+                .map_err(|_| corrupt("identity owner index"))?;
+            let source_key = Key::Record(source_id);
+            let bytes = table
+                .get(source_key.encode())?
+                .ok_or_else(|| corrupt("identity owner source missing"))?;
+            let StoredValue::Record(source) =
+                native_codec::decode_for::<B>(&source_key, bytes.value())?
+            else {
+                return Err(corrupt("identity owner source role"));
+            };
+            let (_, state) = B::identity_values(&source)?;
+            if source.owner != *owner || previous < state.identity_revision {
+                return Err(corrupt(
+                    "identity authentication revision missing or regressed",
+                ));
+            }
+        }
+        let revision = previous
+            .checked_add(1)
+            .ok_or_else(|| Error::new("revision_exhausted", "principal authentication revision"))?;
+        let bytes = native_codec::encode_for::<B>(
+            &key,
+            &StoredValue::AuthenticationRevision(
+                crate::authentication::types::AuthenticationRevision { revision },
+            ),
+        )?;
+        table.insert(key.encode().as_slice(), bytes.as_slice())?;
+    }
+    Ok(())
+}
+
 pub(crate) fn update_owner_index<B: Binding>(
     write: &WriteTransaction,
     native: &impl ReadableTable<&'static [u8], &'static [u8]>,
@@ -227,8 +372,10 @@ impl<B: Binding> Store<B> {
             secured: true,
             credential_epoch: Some(credential_epoch),
             issued_at: None,
+            session_generation: None,
             expected_store: self.expected_store,
             credentials: self.credentials.clone(),
+            authentication: self.authentication.clone(),
         })
     }
 
@@ -250,6 +397,7 @@ impl<B: Binding> Store<B> {
         if !self.secured {
             return Ok(Scope::local(self.context));
         }
+        self.check_session_generation(&crate::local::read_header(read)?)?;
         self.check_scope(load_scope(
             &read.open_table(AUTHORITY).map_err(storage)?,
             self.context.actor,
@@ -260,10 +408,21 @@ impl<B: Binding> Store<B> {
         if !self.secured {
             return Ok(Scope::local(self.context));
         }
+        self.check_session_generation(&write_header(write)?)?;
         self.check_scope(load_scope(
             &write.open_table(AUTHORITY).map_err(storage)?,
             self.context.actor,
         )?)
+    }
+
+    fn check_session_generation(&self, header: &crate::local::RuntimeHeader) -> Result<()> {
+        if self
+            .session_generation
+            .is_some_and(|generation| generation != header.session_generation)
+        {
+            return Err(denied());
+        }
+        Ok(())
     }
 
     pub(crate) fn receipt_key(&self, operation: Uuid) -> Vec<u8> {
@@ -376,18 +535,19 @@ impl<B: Binding> Store<B> {
         if request.graph.tenant != meta.tenant {
             return Err(denied());
         }
-        let graph = request.graph.clone().prepare()?;
+        let mut graph = request.graph.clone().prepare()?;
         for p in &graph.graph.principals {
             for &code in p.grants.contracts.keys() {
                 self.model.public_contract(code)?;
             }
         }
         let old = write_graph(&write)?;
+        let mut login_changes = BTreeSet::new();
         for p in &old.graph.principals {
             let next = graph
                 .graph
                 .principals
-                .iter()
+                .iter_mut()
                 .find(|n| n.id == p.id)
                 .ok_or_else(|| {
                     Error::new(
@@ -404,7 +564,16 @@ impl<B: Binding> Store<B> {
                     "principal identity/credential lifecycle",
                 ));
             }
+            if p.login_access != next.login_access {
+                let revoked = p
+                    .credential_epoch
+                    .checked_add(1)
+                    .ok_or_else(|| Error::new("revision_exhausted", "credential epoch"))?;
+                next.credential_epoch = next.credential_epoch.max(revoked);
+                login_changes.insert(p.id);
+            }
         }
+        let graph = graph.graph.prepare()?;
         if old.graph == graph.graph {
             // FoundationDB does not validate conflict ranges for a read-only
             // commit. This administration-only same-value write makes the
@@ -421,6 +590,7 @@ impl<B: Binding> Store<B> {
             .checked_add(1)
             .ok_or_else(|| Error::new("revision_exhausted", "authority counter"))?;
         drop(native);
+        advance_authentication_revisions::<B>(&write, &login_changes)?;
         store_graph(&write, &graph)?;
         write
             .open_table(AUTHORITY)?

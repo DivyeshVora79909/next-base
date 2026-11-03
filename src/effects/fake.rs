@@ -21,7 +21,7 @@ pub struct Config {
 }
 impl Config {
     pub(crate) fn validate<B: Binding>(&self) -> Result<()> {
-        let action = B::effect_action()
+        let action = B::effect_action(1)
             .ok_or_else(|| Error::new("invalid_input", "model has no fake provider"))?;
         let url = reqwest::Url::parse(&self.endpoint)
             .map_err(|_| Error::new("invalid_input", "fake provider endpoint"))?;

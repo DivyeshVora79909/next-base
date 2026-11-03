@@ -10,7 +10,7 @@ E-series acceptance; ordinary async functions are not durable execution records.
 ## Implemented authority and transaction boundary
 
 [`identity.rs`](../src/identity.rs) verifies EdDSA JWT signature, issuer, audience, tenant,
-subject and time bounds. [`server.rs`](../src/server.rs) authenticates transport ingress;
+subject, mandatory session generation and time bounds. [`server.rs`](../src/server.rs) authenticates transport ingress;
 TLS terminates at the configured trusted deployment boundary. A subject identifies a principal,
 not an owner supplied by an untrusted claim. JWT verification does not grant a client scope.
 [`access.rs`](../src/access.rs) prepares the tenant principal DAG. The current direction is breaking owner-only access: ModelRecord has an owner and no reader field,
@@ -24,8 +24,9 @@ which enables group-owned sharing. Update accepts optional canonical UUID `owner
 metadata, requiring Update permission and access to both old and new owners. Omission
 retains ownership; an owner-only edit accepts empty `set`/`unset`. Destination scope is
 checked before CAS diagnostics and final records are checked before publication. The
-policy identity changes with these semantics; codec remains `native-slice-kv-12`, and
-earlier prepared identities require explicit store recreation. See the
+policy identity changes with these semantics. The transfer checkpoint used
+`native-slice-kv-12`; current A1/A2 format identities appear below, and changed
+prepared identities require explicit store recreation. See the
 [transfer checkpoint](checkpoints/c2-ownership-transfer.json). Historical C2.O acceptance is complete;
 see the [checkpoint](checkpoints/c2-owner-only.json). Verification passed 284 Rust
 all-target tests (0 ignored), all 174 full Node tests (0 skipped), formatting, and
@@ -36,8 +37,9 @@ Root reads authorize explicitly declared public summaries only; FULL summaries m
 include hidden contributors, without granting leaf, body or ID reads. See the current
 [roadmap](roadmap.md).
 
-[`security.rs`](../src/security.rs) loads current persisted authority and credential epochs
-inside transaction scope. Authority changes and operation-context fencing are separate from
+[`security.rs`](../src/security.rs) loads current persisted authority, credential epochs and signed session generation
+inside transaction scope. Supported restore rotates generation so restored old epochs
+cannot revive old JWTs; restart and receipt archive preserve it. Authority changes and operation-context fencing are separate from
 JWT expiry. Each attempt must use current authority; retries must not reuse stale permission
 results. [`local.rs`](../src/local.rs) authorizes client actions and new/changed reference targets;
 [`mutation.rs`](../src/mutation.rs) checks declared type, tenant, existence and final invariants.
@@ -100,7 +102,7 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
 count/count-only indexing is implemented in C1.1; business counts retain their
-own declared meaning. Current codec `native-slice-kv-14` requires explicit store recreation.
+own declared meaning. Current codec `native-slice-kv-16` requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.
@@ -129,7 +131,7 @@ Avoid a universal hot counter. Optional live invalidations would publish through
 after commit, with partitioned resume cursors and replay semantics; this is C5 work, not present API.
 
 Stored capacity counters and `Binding::Limits` are removed, with no accounting mode
-fallback. The current format uses `native-slice-kv-14` and requires explicit recreation; `Population` is source-derived read-only inventory
+fallback. The current format uses `native-slice-kv-16` and requires explicit recreation; `Population` is source-derived read-only inventory
 at open/checking, never persisted or scanned by normal mutations. Business validators,
 work/byte budgets, identity reservations and required owner/contract epochs remain.
 Historical [C3.0 evidence](checkpoints/c3-contention-baseline.json) records pre-change
@@ -140,8 +142,11 @@ conflict controls remain. See [results and continuation](c3-accounting-handoff.m
 these results do not establish multi-host performance or throughput.
 [A0 protected identities](a0-identity.md) add immutable User linkage, exact normalized
 claims and recent self-management. [Email/phone proof and login](a1-proof-sessions.md)
-remain planned; identity presence and operator graph replacement do not prove a
-factor or implement ordinary principal CRUD.
+are implemented, with final A1/A2 checkpoint acceptance pending. Dedicated anonymous routes commit private
+challenge/delivery/receipt state; five atomic attempts can produce one pinned
+900-second JWT decision. Suppressed and eligible identifiers share the same
+300-second coalescing behavior and bounded admission. Identity presence and
+operator graph replacement do not prove a factor or implement ordinary principal CRUD.
 Public root ranges and reverse subscriber routes now use `NativeRange<I::Key>`.
 Native numeric, string and composite keys preserve included/excluded group boundaries,
 old/new registration repair and final-graph causality. TimeRange remains an explicit
@@ -153,5 +158,14 @@ private credential envelopes are part of codec14. A generated UUID's timestamp
 survives inactivity; a Credential's internal incarnation fences delete/recreate
 authorization. See [E1](e1-credentials.md) for implemented custody/grant boundaries
 and accepted [E2/R0](e2-email.md) for durable email, retained secret revisions and
-charged physical-start admission. Current A0 source uses codec16 for the private
-identity dictionary and retained principal authentication revision.
+charged physical-start admission. A0 source uses native codec16 for the private
+identity dictionary and retained principal authentication revision. A1/A2 adds
+engine-private AuthDelivery contract/action 1004 and five private proof tables,
+with store `rebase-store-11`, effects `rebase-effects-6`, proof `auth-proof-1` and
+claims `rebase-eddsa-tenant-subject-epoch-generation-2`. Proof/signing keys remain
+external private custody. Both login toggles and factor replacement/removal revoke
+old sessions atomically; generated proof delivery grants no ordinary CRUD scope.
+Native/Node independent checks derive proof state from retained source/receipt
+facts and omit private delivery from ordinary projections. E3 objects, E5 full
+pipeline and fresh release/bootstrap verification remain outstanding; documented
+optional features stay deferred.

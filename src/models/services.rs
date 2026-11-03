@@ -18,12 +18,14 @@ use uuid::Uuid;
 pub const CREDENTIAL: u16 = 1001;
 pub const EMAIL_SEND: u16 = 1002;
 pub const IDENTITY: u16 = 1003;
+pub const AUTH_DELIVERY: u16 = 1004;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Input {
     Credential(Metadata),
     EmailSend(crate::email::SendInput),
     Identity(crate::authentication::types::Input),
+    AuthDelivery(crate::authentication::proof_types::AuthDelivery),
 }
 impl Input {
     pub(crate) fn credential(&self) -> Result<&Metadata> {
@@ -99,6 +101,7 @@ impl NativeInput for Input {
             Self::Credential(_) => CREDENTIAL,
             Self::EmailSend(_) => EMAIL_SEND,
             Self::Identity(_) => IDENTITY,
+            Self::AuthDelivery(_) => AUTH_DELIVERY,
         }
     }
     fn validate(&self) -> Result<()> {
@@ -106,6 +109,7 @@ impl NativeInput for Input {
             Self::Credential(metadata) => metadata.validate(),
             Self::EmailSend(email) => email.validate(),
             Self::Identity(identity) => identity.validate(),
+            Self::AuthDelivery(delivery) => delivery.validate(),
         }
     }
     fn bind(code: u16, fields: Value) -> Result<Self> {
@@ -127,6 +131,20 @@ impl NativeInput for Input {
             IDENTITY => Ok(Self::Identity(crate::authentication::types::Input::bind(
                 fields,
             )?)),
+            AUTH_DELIVERY => {
+                let delivery: crate::authentication::proof_types::AuthDelivery =
+                    serde_json::from_value(fields.clone()).map_err(|_| {
+                        Error::new("invalid_input", "private authentication delivery required")
+                    })?;
+                delivery.validate()?;
+                if serde_json::to_value(&delivery).map_err(crate::local::storage)? != fields {
+                    return Err(Error::new(
+                        "invalid_input",
+                        "canonical authentication delivery required",
+                    ));
+                }
+                Ok(Self::AuthDelivery(delivery))
+            }
             _ => Err(Error::new("invalid_input", "unknown services contract")),
         }
     }
@@ -141,7 +159,7 @@ impl Binding for Services {
     type Derived = System;
     type Outcome = crate::email::EmailOutcome;
     const NAME: &'static str = "services";
-    const BEHAVIOR: &'static str = "services-credential-email-identity-ascii-user-recent-self-3";
+    const BEHAVIOR: &'static str = "services-private-auth-delivery-pinned-server-authority-4";
     fn engine() -> Result<Model> {
         Ok(Model::from_behavior(Self::NAME, Self::BEHAVIOR))
     }
@@ -291,6 +309,42 @@ impl Binding for Services {
                 schema_source: "src/authentication/types.rs",
                 behavior_source: "src/authentication/mod.rs",
             },
+            Contract {
+                code: AUTH_DELIVERY,
+                name: "AuthDelivery",
+                visibility: Visibility::Engine,
+                schema: {
+                    let mut schema = crate::authentication::proof_types::AuthDelivery::schema();
+                    schema["$schema"] = json!(crate::model::SCHEMA_DIALECT);
+                    schema
+                },
+                fields: ["challenge", "generation", "payload", "expires_at"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, name)| InputField {
+                        code: position as u16 + 1,
+                        name,
+                        mutable: false,
+                    })
+                    .collect(),
+                published: vec![],
+                access_indexes: vec![],
+                uniqueness: vec![],
+                publication_inputs: vec![],
+                references: vec![],
+                roots: vec![],
+                memberships: vec![],
+                queries: vec![],
+                outputs: vec![],
+                calculations: vec![],
+                calculation_order: vec![],
+                rules: vec![
+                    "private server-authored ciphertext only",
+                    "current challenge and server credential policy authorize dispatch",
+                ],
+                schema_source: "src/authentication/proof_types.rs",
+                behavior_source: "src/authentication/proof.rs",
+            },
         ])
     }
     fn valid_derived(input: &Input, derived: Option<&System>) -> bool {
@@ -298,7 +352,7 @@ impl Binding for Services {
             (Input::Credential(metadata), Some(System::Credential(state))) => {
                 state.validate().is_ok() && (!metadata.enabled || state.has_secret)
             }
-            (Input::EmailSend(_), None) => true,
+            (Input::EmailSend(_) | Input::AuthDelivery(_), None) => true,
             (Input::Identity(_), Some(System::Identity(state))) => state.validate().is_ok(),
             _ => false,
         }
@@ -356,44 +410,73 @@ impl Binding for Services {
             _ => None,
         }
     }
-    fn effect_action() -> Option<crate::effects::ActionDeclaration> {
-        Some(crate::effects::ActionDeclaration {
-            code: EMAIL_SEND,
-            name: "EmailSend",
-            version: "email-send-1",
-            source_contract: EMAIL_SEND,
-            reference_slot: 0,
-            target_contract: EMAIL_SEND,
-            provider_account: "credential",
-            application_fields: vec![],
-        })
+    fn auth_delivery(input: &Input) -> Option<&crate::authentication::proof_types::AuthDelivery> {
+        match input {
+            Input::AuthDelivery(delivery) => Some(delivery),
+            _ => None,
+        }
     }
-    fn effect_source_anchor() -> bool {
-        true
+    fn effect_actions() -> Vec<crate::effects::ActionDeclaration> {
+        vec![
+            crate::effects::ActionDeclaration {
+                code: EMAIL_SEND,
+                name: "EmailSend",
+                version: "email-send-1",
+                source_contract: EMAIL_SEND,
+                reference_slot: 0,
+                target_contract: EMAIL_SEND,
+                provider_account: "credential",
+                application_fields: vec![],
+                authority: crate::effects::ActionAuthority::SourceUse,
+            },
+            crate::effects::ActionDeclaration {
+                code: AUTH_DELIVERY,
+                name: "AuthDelivery",
+                version: "auth-delivery-1",
+                source_contract: AUTH_DELIVERY,
+                reference_slot: 0,
+                target_contract: AUTH_DELIVERY,
+                provider_account: "credential",
+                application_fields: vec![],
+                authority: crate::effects::ActionAuthority::Authentication,
+            },
+        ]
     }
     fn effect_request_limit() -> usize {
         65536
     }
-    fn effect_application_required() -> bool {
-        false
-    }
     fn effect_template(input: &Input) -> Result<Option<crate::effects::Template>> {
-        Ok(
-            Self::email_input(input).map(|email| crate::effects::Template {
+        Ok(match input {
+            Input::EmailSend(email) => Some(crate::effects::Template {
                 target: Uuid::nil(),
                 execute_at: email.execute_at,
                 not_after: email.not_after,
             }),
-        )
+            Input::AuthDelivery(delivery) => Some(crate::effects::Template {
+                target: Uuid::nil(),
+                execute_at: None,
+                not_after: Some(delivery.expires_at),
+            }),
+            _ => None,
+        })
     }
     fn effect_outcome(
         request: &Input,
         execution: Uuid,
         outcome: &Self::Outcome,
     ) -> Result<crate::effects::Disposition> {
-        let email = Self::email_input(request)
-            .ok_or_else(|| Error::new("invalid_input", "email source required"))?;
-        outcome.validate(&email.email, execution)
+        match request {
+            Input::EmailSend(email) => outcome.validate(&email.email, execution),
+            Input::AuthDelivery(_) => {
+                let action =
+                    Self::effect_action(AUTH_DELIVERY).expect("compiled authentication action");
+                outcome.validate_hash(
+                    &crate::effects::hash_request::<Self>(request, &action)?,
+                    execution,
+                )
+            }
+            _ => Err(Error::new("invalid_input", "delivery source required")),
+        }
     }
     fn effect_outcome_schema() -> Value {
         crate::email::EmailOutcome::schema()
@@ -625,8 +708,11 @@ impl Binding for Services {
                 Self::identity_values(record)?;
             } else {
                 require(
-                    record.contract == EMAIL_SEND && record.derived.is_none(),
-                    "email source contract",
+                    matches!(
+                        (record.contract, &record.input),
+                        (EMAIL_SEND, Input::EmailSend(_)) | (AUTH_DELIVERY, Input::AuthDelivery(_))
+                    ) && record.derived.is_none(),
+                    "delivery source contract",
                 )?;
             }
         }
@@ -689,6 +775,95 @@ impl Binding for Services {
 mod tests {
     use super::*;
     use crate::authentication::types::{Kind, State};
+
+    #[test]
+    fn private_delivery_is_unindexed_unreferenced_and_absent_from_public_contracts() {
+        let prepared = Prepared::<Services>::load().unwrap();
+        let contract = prepared.contract(AUTH_DELIVERY).unwrap();
+        assert_eq!(contract.visibility, Visibility::Engine);
+        assert!(contract.fields.iter().all(|field| !field.mutable));
+        assert!(contract.access_indexes.is_empty());
+        assert!(contract.references.is_empty());
+        assert!(contract.published.is_empty());
+        assert!(prepared.public_contract(AUTH_DELIVERY).is_err());
+        let catalog = prepared.public_catalog();
+        assert!(
+            catalog["contracts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|contract| contract["code"] != AUTH_DELIVERY)
+        );
+        let actions = Services::effect_actions();
+        assert_eq!(actions.len(), 2);
+        let private = Services::effect_action(AUTH_DELIVERY).unwrap();
+        assert_eq!(
+            private.authority,
+            crate::effects::ActionAuthority::Authentication
+        );
+        assert!(!private.public());
+        assert!(!private.application_required());
+        assert!(private.source_anchor());
+        assert!(Services::effect_action(EMAIL_SEND).unwrap().public());
+        assert!(Services::effect_action(65535).is_none());
+    }
+
+    #[test]
+    fn authentication_hash_binds_randomized_ciphertext_and_immutable_delivery_metadata() {
+        use crate::authentication::{proof_crypto::Crypto, proof_types::AuthDelivery};
+        let crypto = Crypto::test_key("test-proof", [8; 32]);
+        let email = crate::email::EmailRequest {
+            sender: "proof@example.test".into(),
+            to: vec!["person@example.test".into()],
+            subject: "Verification code".into(),
+            text: "000042".into(),
+        };
+        let plaintext = serde_json::to_vec(&email).unwrap();
+        let delivery = AuthDelivery {
+            challenge: Uuid::from_u128(21),
+            generation: Uuid::from_u128(22),
+            payload: crypto.seal(&"delivery-test", &plaintext).unwrap(),
+            expires_at: 300_000,
+        };
+        let input = Input::AuthDelivery(delivery.clone());
+        assert!(input.references().is_empty());
+        assert!(Services::email_input(&input).is_none());
+        assert!(Services::valid_derived(&input, None));
+        let value = serde_json::to_value(&input).unwrap();
+        assert_eq!(Input::bind(AUTH_DELIVERY, value.clone()).unwrap(), input);
+        assert!(Input::bind(EMAIL_SEND, value.clone()).is_err());
+        let action = Services::effect_action(AUTH_DELIVERY).unwrap();
+        let hash = crate::effects::hash_request::<Services>(&input, &action).unwrap();
+        assert_ne!(hash, email.request_hash().unwrap());
+        for field in 0..4 {
+            let mut changed = delivery.clone();
+            match field {
+                0 => changed.challenge = Uuid::from_u128(23),
+                1 => changed.generation = Uuid::from_u128(24),
+                2 => changed.expires_at += 1,
+                _ => changed.payload = crypto.seal(&"delivery-test", &plaintext).unwrap(),
+            }
+            let changed = Input::AuthDelivery(changed);
+            assert_ne!(
+                hash,
+                crate::effects::hash_request::<Services>(&changed, &action).unwrap()
+            );
+        }
+        let mut changed_action = action.clone();
+        changed_action.version = "auth-delivery-changed";
+        assert_ne!(
+            hash,
+            crate::effects::hash_request::<Services>(&input, &changed_action).unwrap()
+        );
+        let serialized = value.to_string();
+        for secret in ["000042", "person@example.test", "proof@example.test"] {
+            assert!(!serialized.contains(secret));
+            assert!(!format!("{input:?}").contains(secret));
+        }
+        let mut malformed = value;
+        malformed["expires_at"] = json!(300_000);
+        assert!(Input::bind(AUTH_DELIVERY, malformed).is_err());
+    }
 
     #[test]
     fn services_system_variants_keep_flat_wire_objects_and_reject_crossed_roles() {

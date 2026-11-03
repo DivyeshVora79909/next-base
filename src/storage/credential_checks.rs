@@ -81,6 +81,7 @@ pub(crate) fn graph() -> Result<Graph> {
             kind: PrincipalKind::User,
             parents: vec![id(parent)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,

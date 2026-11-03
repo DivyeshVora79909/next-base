@@ -140,18 +140,24 @@ are fenced. Issue fresh credentials before reusing the service. This avoids any
 reference-deletion ordering or recompilation/redeployment. Reset is a trusted
 operator function and has no network RPC counterpart.
 
+Reset rejects retained authentication proof/challenge receipts and configured or
+charged provider quotas. It cannot replenish those histories; explicit store
+recreation is the current bounded-service recovery boundary. Supported backup
+restore preserves the histories and rotates session generation, fencing old JWTs
+and proof recovery while retaining read-only effect reconciliation.
+
 ## Data identity and upgrades
 
 The last verified deployment bundle, 0.6.0, uses store format
 `rebase-store-4` and native codec `native-slice-kv-4`. Current source uses store
-format `rebase-store-10`, native codec `native-slice-kv-12`, effect codec
-`rebase-effects-4` and API 4; its store header, model identity and configured
-model limits must match. One store holds one selected
+format `rebase-store-11`, native codec `native-slice-kv-16`, effect codec
+`rebase-effects-6`, proof `auth-proof-1` and API 4; its store header and model
+identity must match. One store holds one selected
 compiled model.
 Computed model identity hashes the resolved declarations/schemas, the explicit
-native behavior contract revision, and configured model limits. A binding's
+native behavior contract revision and shared policies. A binding's
 `Binding::BEHAVIOR` value is its static behavior revision; it contributes to the
-computed identity but does not itself encode the limits. Transport formatting
+computed identity. Transport formatting
 and dependency patch bytes do not define a data model. Maintainers must bump
 the affected `Binding::BEHAVIOR` when changing binding, calculation, causality
 or invariants. Calculation uses
@@ -171,7 +177,7 @@ normal mutations do not scan inventory. Domain writes have no global mutation se
 | Root `revision` | Canonical nonnil UUID identifying that root's current stored state. |
 | Mutation/cancellation result `revision` | Fresh UUID for the committed operation, retained unchanged by its receipt. A genuine no-op has a new result token while unchanged records/roots keep theirs. |
 | Page/exists `revision` | Lowercase SHA-256 digest of selected owner/contract epochs and, for secured stores, the authority administration revision. |
-| Access `revision` / `if_revision` | Canonical decimal string counter for graph administration only. Domain mutations do not advance it. |
+| Access `revision` / `if_revision` | Canonical decimal string counter for graph changes, including internal credential-epoch revocation after Identity replacement/removal. |
 | Execution `revision` / cancellation `if_revision` | Ordered per-execution decimal-string fence; distinct from the cancellation result UUID. |
 
 Never sort UUID tokens or interpret them as counters. Delete/recreate obtains a

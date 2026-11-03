@@ -164,6 +164,7 @@ fn requester(store: &Store<EffectDemo>) -> (Store<EffectDemo>, Graph) {
         // session, so grant real ancestor scope rather than relying on admin.
         parents: vec![id(2)],
         active: true,
+        login_access: false,
         credential_epoch: 0,
         grants: Grants {
             admin: false,
@@ -1207,6 +1208,7 @@ async fn scoped_live_worker_and_signed_ingress_cannot_adopt_reset_store() {
             request_timeout_seconds: 2,
             email: None,
             credentials: None,
+            authentication: None,
             effects: Some(fake::Config {
                 endpoint: "http://127.0.0.1:1/".into(),
                 mode: WorkerMode::Delivery,

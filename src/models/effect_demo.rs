@@ -180,8 +180,8 @@ impl Binding for EffectDemo {
             BTreeMap::new(),
         )
     }
-    fn effect_action() -> Option<ActionDeclaration> {
-        Some(ActionDeclaration {
+    fn effect_actions() -> Vec<ActionDeclaration> {
+        vec![ActionDeclaration {
             code: 1,
             name: "dispatch-units",
             version: "fake-units-1",
@@ -190,7 +190,8 @@ impl Binding for EffectDemo {
             target_contract: 101,
             provider_account: "fake-account-1",
             application_fields: vec!["balance"],
-        })
+            authority: crate::effects::ActionAuthority::TargetUpdate,
+        }]
     }
     fn effect_template(input: &Input) -> Result<Option<Template>> {
         Ok(match input {

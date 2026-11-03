@@ -11,7 +11,7 @@ use crate::{
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{DefaultBodyLimit, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::Response,
     routing::{get, post},
@@ -34,6 +34,8 @@ pub struct ServerConfig {
     pub credentials: Option<crate::credentials::Config>,
     #[serde(default)]
     pub email: Option<crate::effects::email::Config>,
+    #[serde(default)]
+    pub authentication: Option<crate::authentication::proof::Config>,
 }
 #[derive(Clone)]
 struct App<B: Binding> {
@@ -44,6 +46,7 @@ struct App<B: Binding> {
     ingress: Option<Arc<crate::effects::inbox::Secret>>,
     effect_probe_directory: Option<std::path::PathBuf>,
     credentials: Option<Arc<crate::credentials::grants::Runtime>>,
+    authentication: Option<Arc<crate::authentication::proof::Runtime>>,
 }
 fn response(status: StatusCode, value: Value) -> Response {
     let bytes = serde_json::to_vec(&value).expect("JSON value serializes");
@@ -57,6 +60,110 @@ fn response(status: StatusCode, value: Value) -> Response {
 }
 async fn health() -> Response {
     response(StatusCode::OK, json!({"status":"up"}))
+}
+
+#[derive(Clone, Copy)]
+enum ProofMethod {
+    Begin,
+    Consume,
+    Status,
+}
+async fn proof_call<B: Binding>(
+    app: App<B>,
+    peer: SocketAddr,
+    request: Request,
+    method: ProofMethod,
+) -> Response {
+    let Some(runtime) = app.authentication.clone() else {
+        return response(StatusCode::NOT_FOUND, json!({"status":"unavailable"}));
+    };
+    if request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_none_or(|v| v.split(';').next().unwrap_or("").trim() != "application/json")
+    {
+        return response(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            json!({"status":"invalid_proof"}),
+        );
+    }
+    let permit = match app.permits.clone().try_acquire_owned() {
+        Ok(p) => p,
+        Err(_) => {
+            return response(
+                StatusCode::TOO_MANY_REQUESTS,
+                json!({"status":"unavailable"}),
+            );
+        }
+    };
+    let body = match tokio::time::timeout(
+        Duration::from_secs(2),
+        axum::body::to_bytes(request.into_body(), 4096),
+    )
+    .await
+    {
+        Ok(Ok(body)) => body,
+        _ => return response(StatusCode::BAD_REQUEST, json!({"status":"invalid_proof"})),
+    };
+    let work = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let value = crate::json::parse_bounded(&body, 4096)?;
+        let invalid = |_| Error::new("invalid_proof", "invalid proof request");
+        match method {
+            ProofMethod::Begin => app.store.begin_proof(
+                &runtime,
+                &serde_json::from_value(value).map_err(invalid)?,
+                &peer.ip().to_string(),
+            ),
+            ProofMethod::Consume => app.store.consume_proof(
+                &runtime,
+                &serde_json::from_value(value).map_err(invalid)?,
+                &peer.ip().to_string(),
+            ),
+            ProofMethod::Status => app
+                .store
+                .proof_status(&runtime, &serde_json::from_value(value).map_err(invalid)?),
+        }
+    });
+    match tokio::time::timeout(app.timeout, work).await {
+        Ok(Ok(Ok(value))) => response(StatusCode::OK, value),
+        Ok(Ok(Err(error))) if error.code == "outcome_unknown" => response(
+            StatusCode::GATEWAY_TIMEOUT,
+            json!({"status":"outcome_unknown"}),
+        ),
+        Ok(Ok(Err(error)))
+            if ["invalid_proof", "invalid_identity", "invalid_json"].contains(&error.code) =>
+        {
+            response(StatusCode::BAD_REQUEST, json!({"status":"invalid_proof"}))
+        }
+        Ok(Ok(Err(_))) => response(StatusCode::OK, json!({"status":"unavailable"})),
+        _ => response(
+            StatusCode::GATEWAY_TIMEOUT,
+            json!({"status":"outcome_unknown"}),
+        ),
+    }
+}
+async fn proof_begin<B: Binding>(
+    State(app): State<App<B>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    request: Request,
+) -> Response {
+    proof_call(app, peer, request, ProofMethod::Begin).await
+}
+async fn proof_consume<B: Binding>(
+    State(app): State<App<B>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    request: Request,
+) -> Response {
+    proof_call(app, peer, request, ProofMethod::Consume).await
+}
+async fn proof_status<B: Binding>(
+    State(app): State<App<B>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    request: Request,
+) -> Response {
+    proof_call(app, peer, request, ProofMethod::Status).await
 }
 async fn call<B: Binding>(State(app): State<App<B>>, headers: HeaderMap, body: Bytes) -> Response {
     if headers
@@ -89,9 +196,12 @@ async fn call<B: Binding>(State(app): State<App<B>>, headers: HeaderMap, body: B
     let work = tokio::task::spawn_blocking(move || {
         let _permit = permit;
         let claims = app.verifier.verify(&token, app.store.context().tenant)?;
-        let session = app
-            .store
-            .authenticated_session(claims.sub, claims.epoch, claims.iat)?;
+        let session = app.store.authenticated_session(
+            claims.sub,
+            claims.epoch,
+            claims.iat,
+            claims.generation,
+        )?;
         Ok::<_, Error>(rpc::handle_with_credentials(
             &session,
             app.credentials.as_deref(),
@@ -201,7 +311,8 @@ fn webhook_error(error: Error) -> Response {
     response(status, json!({"error":error.code}))
 }
 
-struct PreparedServer {
+struct PreparedServer<B: Binding> {
+    store: Arc<Store<B>>,
     routes: Router,
     admission: Arc<Semaphore>,
     credentials: Option<Arc<crate::credentials::grants::Runtime>>,
@@ -210,7 +321,7 @@ fn router_with_admission<B: Binding>(
     store: Arc<Store<B>>,
     config: &ServerConfig,
     expected_store: Option<uuid::Uuid>,
-) -> Result<PreparedServer> {
+) -> Result<PreparedServer<B>> {
     if !store.secured {
         return Err(Error::new(
             "invalid_input",
@@ -228,8 +339,26 @@ fn router_with_admission<B: Binding>(
         .as_ref()
         .map(|c| c.load::<B>().map(Arc::new))
         .transpose()?;
+    let authentication = config
+        .authentication
+        .as_ref()
+        .map(|c| {
+            crate::authentication::proof::Runtime::load(
+                c,
+                &config.identity,
+                store.context().tenant,
+                store.session_generation()?,
+            )
+            .map(Arc::new)
+        })
+        .transpose()?;
+    store.configure_authentication(authentication.as_deref())?;
+    let mut configured = store.scoped_to(store.read(store.model().identity())?.2.store_id);
+    configured.credentials = credentials.clone();
+    configured.authentication = authentication.clone();
+    let store = Arc::new(configured);
     let app = App {
-        store,
+        store: store.clone(),
         verifier: Arc::new(Verifier::new(config.identity.clone())?),
         permits: permits.clone(),
         timeout: Duration::from_secs(u64::from(config.request_timeout_seconds)),
@@ -240,15 +369,20 @@ fn router_with_admission<B: Binding>(
             .map(|path| crate::effects::inbox::Secret::load(path).map(Arc::new))
             .transpose()?,
         credentials: credentials.clone(),
+        authentication,
         effect_probe_directory: config
             .effects
             .as_ref()
             .and_then(|effects| effects.probe_directory.clone()),
     };
     Ok(PreparedServer {
+        store,
         routes: Router::new()
             .route("/health", get(health))
             .route("/rpc", post(call::<B>))
+            .route("/auth/begin", post(proof_begin::<B>))
+            .route("/auth/consume", post(proof_consume::<B>))
+            .route("/auth/status", post(proof_status::<B>))
             .route("/effects/fake", post(webhook::<B>))
             .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
             .with_state(app),
@@ -260,6 +394,14 @@ fn router_with_admission<B: Binding>(
 /// Configuration-only validation shared by standalone startup and owned service
 /// admission. This runs before the bootstrap acquires a writable store owner.
 pub(crate) fn validate_configuration<B: Binding>(config: &ServerConfig) -> Result<()> {
+    if config.authentication.is_some()
+        && (!B::identity_enabled() || config.credentials.is_none() || config.email.is_none())
+    {
+        return Err(Error::new(
+            "invalid_config",
+            "proof requires services credentials and fixed delivery transport",
+        ));
+    }
     if let Some(credentials) = &config.credentials {
         credentials.validate::<B>()?;
     }
@@ -326,6 +468,7 @@ pub(crate) async fn start_scoped<B: Binding>(
     let checked = config.clone();
     let owner = store.clone();
     let PreparedServer {
+        store,
         routes,
         admission,
         credentials,
@@ -339,7 +482,7 @@ pub(crate) async fn start_scoped<B: Binding>(
         .local_addr()
         .map_err(|e| Error::new("transport", e.to_string()))?;
     let (stop, mut stopped) = tokio::sync::watch::channel(false);
-    let worker = if B::effect_action().is_some() {
+    let worker = if !B::effect_actions().is_empty() {
         let owner = store.clone();
         let mode = config
             .email
@@ -395,16 +538,19 @@ pub(crate) async fn start_scoped<B: Binding>(
     };
     let finished = stop.clone();
     let task = tokio::spawn(async move {
-        let served = axum::serve(listener, routes)
-            .with_graceful_shutdown(async move {
-                while !*stopped.borrow() {
-                    if stopped.changed().await.is_err() {
-                        break;
-                    }
+        let served = axum::serve(
+            listener,
+            routes.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            while !*stopped.borrow() {
+                if stopped.changed().await.is_err() {
+                    break;
                 }
-            })
-            .await
-            .map_err(|e| Error::new("transport", e.to_string()));
+            }
+        })
+        .await
+        .map_err(|e| Error::new("transport", e.to_string()));
         let _ = finished.send(true);
         // HTTP timeouts do not stop spawn_blocking work. Every admitted operation
         // retains its permit until it actually finishes, so drain all permits.
@@ -418,7 +564,7 @@ pub(crate) async fn start_scoped<B: Binding>(
                 .map_err(|_| Error::new("internal", "effect worker task"))?,
             None => Ok(()),
         };
-        if B::effect_action().is_some() {
+        if !B::effect_actions().is_empty() {
             let stopped = tokio::task::spawn_blocking(move || {
                 store.activate_effect_worker(crate::effects::WorkerMode::Disabled)
             })
@@ -518,6 +664,7 @@ mod tests {
             request_timeout_seconds: 1,
             email: None,
             credentials: None,
+            authentication: None,
             effects: None,
         };
         let result = start_scoped(store.clone(), config, Some(header.store_id)).await;
@@ -571,6 +718,7 @@ mod tests {
                 request_timeout_seconds: 2,
                 email: None,
                 credentials: None,
+                authentication: None,
                 effects: None,
             },
             Some(before.store_id),
@@ -595,6 +743,7 @@ mod tests {
                 key_id: "test".into(),
             },
             include_bytes!("../tests/fixtures/test-ed25519-private.pem"),
+            resetter.session_generation().unwrap(),
         )
         .unwrap();
         let address = service.address;
@@ -724,6 +873,7 @@ mod tests {
                 key_id: "test".into(),
             },
             include_bytes!("../tests/fixtures/test-ed25519-private.pem"),
+            store.session_generation().unwrap(),
         )
         .unwrap();
         let app = App {
@@ -733,6 +883,7 @@ mod tests {
             timeout: Duration::from_millis(2),
             ingress: None,
             credentials: None,
+            authentication: None,
             effect_probe_directory: None,
         };
         let mut headers = HeaderMap::new();
@@ -811,6 +962,7 @@ mod tests {
                 key_id: "test".into(),
             },
             include_bytes!("../tests/fixtures/test-ed25519-private.pem"),
+            store.session_generation().unwrap(),
         )
         .unwrap();
         let service = start(
@@ -822,6 +974,7 @@ mod tests {
                 request_timeout_seconds: 1,
                 email: None,
                 credentials: None,
+                authentication: None,
                 effects: None,
             },
         )

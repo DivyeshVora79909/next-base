@@ -196,6 +196,7 @@ impl<B: Binding> Store<B> {
                 "reset store confirmation differs",
             ));
         }
+        crate::authentication::proof::reset_tables(&write)?;
         crate::effects::reset_tables::<B>(&write)?;
         let mut graph = if self.secured {
             Some(crate::security::write_graph(&write)?.graph)
@@ -332,15 +333,16 @@ pub fn restore<B: Binding>(
     let restored = Store::open(&temp.0, model)?;
     // Validate the supplied image before changing its activation. Never repair
     // a corrupt backup into something that passes validation.
-    let checked = restored.check_integrity()?;
+    restored.check_integrity()?;
     let write = restored.db.begin_write().map_err(local::storage)?;
-    let changed = crate::effects::quarantine_restore::<B>(&write)?;
+    crate::effects::quarantine_restore::<B>(&write)?;
+    let mut header = crate::security::write_header(&write)?;
+    header.session_generation = uuid::Uuid::new_v4();
+    write
+        .open_table(RUNTIME)?
+        .insert(HEADER, local::encode(&header)?.as_slice())?;
     write.commit().map_err(local::storage)?;
-    let checked = if changed {
-        restored.check_integrity()?
-    } else {
-        checked
-    };
+    let checked = restored.check_integrity()?;
     drop(restored);
     publish(&temp, destination)?;
     Ok(json!({"status":"restored","path":destination,"integrity":checked}))
@@ -397,7 +399,11 @@ fn import_image(write: &WriteTransaction, image: &Observation) -> Result<()> {
     ]
     .into_iter()
     .chain(crate::effects::TABLES.iter().map(|(def, _)| *def))
-    {
+    .chain(
+        crate::authentication::proof::TABLES
+            .iter()
+            .map(|(def, _)| *def),
+    ) {
         let Some(rows) = image.tables.get(def.name()) else {
             continue;
         };

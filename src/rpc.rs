@@ -132,11 +132,13 @@ fn dispatch<B: Binding>(
             let p: Status = bind(params)?;
             store.operation_status(&p.model, &p.context, p.operation_id)
         }
-        "effects.status" if B::effect_action().is_some() => {
+        "effects.status" if B::effect_actions().iter().any(|action| action.public()) => {
             let p: EffectStatus = bind(params)?;
             store.effect_status(&p.model, p.execution_id)
         }
-        "effects.cancel" if B::effect_action().is_some() => store.cancel_effect(&bind(params)?),
+        "effects.cancel" if B::effect_actions().iter().any(|action| action.public()) => {
+            store.cancel_effect(&bind(params)?)
+        }
         "records.page" => {
             let p: PageRequest = bind(params)?;
             serde_json::to_value(store.page(&p)?).map_err(|e| Error::new("internal", e.to_string()))

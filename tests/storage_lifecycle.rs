@@ -5,6 +5,7 @@ use rebase_semantic_proof::{
     native_slice::Context,
     query::{RootRead, RootRequest},
 };
+mod common;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{path::PathBuf, sync::Arc};
@@ -56,7 +57,7 @@ fn verified_backup_restore_and_reset_preserve_or_atomically_replace_complete_sta
     lifecycle::restore(&backup, &path, model.clone()).unwrap();
     assert!(lifecycle::restore(&backup, &path, model.clone()).is_err());
     let restored = LocalStore::open(&path, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), before);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
     drop(restored);
     #[cfg(unix)]
     {
@@ -299,13 +300,17 @@ fn mixed_causal_and_exchange_state_is_valid_across_rate_edits_restore_and_startu
     store.backup(&backup).unwrap();
     lifecycle::restore(&backup, dir.0.join("restored.redb"), model.clone()).unwrap();
     let restored = Arc::new(LocalStore::open(dir.0.join("restored.redb"), model.clone()).unwrap());
-    assert_eq!(restored.observe_for_verification().unwrap(), complete);
+    common::assert_restored_image(
+        restored.observe_for_verification().unwrap(),
+        complete.clone(),
+    );
     let config = rebase_semantic_proof::server::ServerConfig {
         listen: "127.0.0.1:0".parse().unwrap(),
         max_inflight: 1,
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
         identity: rebase_semantic_proof::identity::IdentityConfig {
             issuer: "https://review.example.test".into(),

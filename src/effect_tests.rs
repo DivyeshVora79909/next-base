@@ -108,7 +108,7 @@ fn intent_and_cancel_roll_back_after_actual_writes_and_share_receipts() {
         ]),
     );
     let before = store.observe_for_verification().unwrap();
-    assert_eq!(before["tables"].as_object().unwrap().len(), 16);
+    assert_eq!(before["tables"].as_object().unwrap().len(), 21);
     let snapshot = store.db.begin_read().unwrap();
     for abort in [
         1,
@@ -317,10 +317,36 @@ fn real_capacity_bounds_preserve_replay_reserved_bytes_restore_and_reset() {
         Store::<EffectDemo>::open(&restored_path, Arc::new(Prepared::load().unwrap())).unwrap();
     let after = restored.observe_for_verification().unwrap();
     for (name, rows) in before["tables"].as_object().unwrap() {
-        if !["effect_runtime", "effect_executions", "effect_due"].contains(&name.as_str()) {
+        if ![
+            "effect_runtime",
+            "effect_executions",
+            "effect_due",
+            "local_runtime",
+        ]
+        .contains(&name.as_str())
+        {
             assert_eq!(&after["tables"][name], rows);
         }
     }
+    let header = |image: &Value| -> Value {
+        serde_json::from_slice(
+            &local::unhex(
+                image["tables"]["local_runtime"][0]["value"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    };
+    let mut previous_header = header(&before);
+    let restored_header = header(&after);
+    assert_ne!(
+        previous_header["session_generation"],
+        restored_header["session_generation"]
+    );
+    previous_header["session_generation"] = restored_header["session_generation"].clone();
+    assert_eq!(previous_header, restored_header);
     let runtime = |image: &Value| -> Value {
         serde_json::from_slice(
             &local::unhex(
@@ -426,6 +452,7 @@ fn current_account_authority_controls_creation_cancel_status_and_receipt_disclos
                 _ => 1,
             })],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,
@@ -596,6 +623,7 @@ fn ownership_transfer_preserves_pinned_intent_facts_and_current_worker_authority
             kind: PrincipalKind::User,
             parents: vec![id(2)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,
@@ -983,6 +1011,7 @@ fn corrupt_effect_inventory_rejects_complete_check_and_restore_without_publicati
             request_timeout_seconds: 5,
             email: None,
             credentials: None,
+            authentication: None,
             effects: None,
             identity: crate::identity::IdentityConfig {
                 issuer: "effect-test".into(),

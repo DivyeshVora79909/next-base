@@ -15,6 +15,7 @@ use rebase_semantic_proof::{
     query::Equality,
     security::ReplaceGraph,
 };
+mod common;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -92,6 +93,7 @@ fn setup<B: Binding>(directory: &Directory, model: Arc<Prepared<B>>) -> Store<B>
             kind,
             parents: vec![id(parent)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,
@@ -535,7 +537,7 @@ fn access_order_survives_reopen_restore_and_rejects_corrupted_cache_inventory() 
     let restored_path = directory.0.join("restored.redb");
     rebase_semantic_proof::lifecycle::restore(&backup, &restored_path, model.clone()).unwrap();
     let restored = Store::open(&restored_path, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), image);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), image.clone());
     assert_eq!(
         ids(&restored, page_request(&restored, SOURCE, 102)),
         expected

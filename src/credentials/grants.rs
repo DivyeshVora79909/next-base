@@ -62,7 +62,11 @@ impl PlatformBindings {
         }
         let mut result = BTreeMap::new();
         for binding in bindings {
-            if binding.credential.is_nil() || result.contains_key(&binding.slot) {
+            if binding.credential.is_nil()
+                || binding.provider == Provider::FakeSms
+                || binding.purpose != Purpose::EmailSend
+                || result.contains_key(&binding.slot)
+            {
                 return Err(configuration());
             }
             super::crypto::validate_account(&binding.account).map_err(|_| configuration())?;
@@ -169,18 +173,34 @@ pub(crate) struct AcceptedBinding {
     use_epoch: u64,
     #[serde(with = "decimal")]
     secret_revision: u64,
-    selection: Selection,
+    selection: Option<Selection>,
+    server_policy: Option<crate::authentication::proof_types::ServerPolicy>,
+    purpose: Purpose,
 }
 impl AcceptedBinding {
     pub(crate) fn validate(&self) -> Result<()> {
         if self.credential.is_nil()
             || self.incarnation.is_nil()
             || self.secret_revision == 0
-            || matches!(self.selection,Selection::Byoc{credential} if credential != self.credential)
+            || matches!(self.selection,Some(Selection::Byoc{credential}) if credential != self.credential)
+            || self.selection.is_some() == self.server_policy.is_some()
         {
             return Err(invalid_grant());
         }
-        super::crypto::validate_account(&self.account).map_err(|_| invalid_grant())
+        super::crypto::validate_account(&self.account).map_err(|_| invalid_grant())?;
+        if let Some(policy) = &self.server_policy {
+            policy.validate().map_err(|_| invalid_grant())?;
+            if policy.credential != self.credential
+                || policy.provider != self.provider
+                || policy.account != self.account
+                || server_purpose(policy) != self.purpose
+            {
+                return Err(invalid_grant());
+            }
+        } else if self.purpose != Purpose::EmailSend || self.provider == Provider::FakeSms {
+            return Err(invalid_grant());
+        }
+        Ok(())
     }
     pub(crate) fn credential(&self) -> Uuid {
         self.credential
@@ -200,8 +220,16 @@ impl AcceptedBinding {
     pub(crate) fn secret_revision(&self) -> u64 {
         self.secret_revision
     }
-    pub(crate) fn selection(&self) -> &Selection {
-        &self.selection
+    pub(crate) fn selection(&self) -> Option<&Selection> {
+        self.selection.as_ref()
+    }
+    pub(crate) fn server_policy(
+        &self,
+    ) -> Option<&crate::authentication::proof_types::ServerPolicy> {
+        self.server_policy.as_ref()
+    }
+    pub(crate) fn purpose(&self) -> Purpose {
+        self.purpose
     }
 }
 
@@ -250,6 +278,7 @@ fn check_current<B: Binding>(
     if record.tenant != scope.tenant
         || record.contract != CREDENTIAL
         || !metadata.enabled
+        || metadata.provider == Provider::FakeSms
         || !metadata
             .scopes
             .iter()
@@ -408,7 +437,9 @@ pub(crate) fn consume_for_enqueue<B: Binding>(
         return Err(invalid_grant());
     }
     let binding = AcceptedBinding {
-        selection: claims.selection,
+        selection: Some(claims.selection),
+        server_policy: None,
+        purpose: Purpose::EmailSend,
         credential,
         incarnation,
         provider: metadata.provider,
@@ -462,7 +493,7 @@ pub(crate) fn validate_pinned_record<B: Binding>(
     require_current_revision: bool,
 ) -> Result<()> {
     binding.validate()?;
-    let platform = match binding.selection() {
+    let platform = match binding.selection().ok_or_else(denied)? {
         Selection::Byoc { .. } => None,
         Selection::Platform { slot } => Some(PlatformBinding {
             slot: *slot,
@@ -496,6 +527,111 @@ pub(crate) fn validate_pinned<B: Binding>(
     let record = load_record::<B>(&table, binding.credential())?;
     validate_pinned_record(scope, &record, binding, false)?;
     retained_envelope::<B>(&table, binding, scope.tenant).map(|_| ())
+}
+
+fn server_purpose(policy: &crate::authentication::proof_types::ServerPolicy) -> Purpose {
+    match policy.kind {
+        crate::authentication::types::Kind::Email => Purpose::EmailSend,
+        crate::authentication::types::Kind::Phone => Purpose::SmsSend,
+    }
+}
+
+fn server_current<B: Binding>(
+    record: &ModelRecord<B>,
+    policy: &crate::authentication::proof_types::ServerPolicy,
+    tenant: Uuid,
+) -> Result<(Uuid, u64, u64)> {
+    policy.validate().map_err(|_| denied())?;
+    let (metadata, state) = B::credential_values(record).map_err(|_| denied())?;
+    if record.tenant != tenant
+        || record.owner != policy.owner
+        || record.contract != CREDENTIAL
+        || !metadata.enabled
+        || metadata.provider != policy.provider
+        || metadata.account != policy.account
+        || !metadata
+            .scopes
+            .iter()
+            .any(|scope| scope == server_purpose(policy).as_str())
+        || !state.has_secret
+        || state.incarnation.is_nil()
+    {
+        return Err(denied());
+    }
+    let revision = state
+        .secret_revision
+        .filter(|revision| *revision > 0)
+        .ok_or_else(denied)?;
+    Ok((state.incarnation, state.use_epoch, revision))
+}
+
+fn stored_tenant<B: Binding>(
+    table: &impl ReadableTable<&'static [u8], &'static [u8]>,
+) -> Result<Uuid> {
+    let bytes = table
+        .get(Key::Meta.encode())?
+        .ok_or_else(|| local::corrupt("missing credential tenant"))?;
+    match native_codec::decode_for::<B>(&Key::Meta, bytes.value())? {
+        StoredValue::Meta(meta) => Ok(meta.tenant),
+        _ => Err(local::corrupt("credential tenant role")),
+    }
+}
+
+/// Trusted authentication acceptance. The configured policy is authority; no user grant is minted.
+pub(crate) fn accept_server_delivery<B: Binding>(
+    write: &WriteTransaction,
+    model: &crate::model::Prepared<B>,
+    policy: &crate::authentication::proof_types::ServerPolicy,
+) -> Result<AcceptedBinding> {
+    model.public_contract(CREDENTIAL)?;
+    let table = write.open_table(local::KV)?;
+    let tenant = stored_tenant::<B>(&table)?;
+    let record = load_record::<B>(&table, policy.credential)?;
+    let (incarnation, use_epoch, secret_revision) = server_current(&record, policy, tenant)?;
+    let binding = AcceptedBinding {
+        credential: policy.credential,
+        incarnation,
+        provider: policy.provider,
+        account: policy.account.clone(),
+        use_epoch,
+        secret_revision,
+        selection: None,
+        server_policy: Some(policy.clone()),
+        purpose: server_purpose(policy),
+    };
+    binding.validate()?;
+    retained_envelope::<B>(&table, &binding, tenant)?;
+    Ok(binding)
+}
+
+/// Current server-use policy matching is checked by proof preflight in this same transaction.
+pub(crate) fn validate_server_pinned<B: Binding>(
+    write: &WriteTransaction,
+    binding: &AcceptedBinding,
+) -> Result<()> {
+    binding.validate()?;
+    let table = write.open_table(local::KV)?;
+    let tenant = stored_tenant::<B>(&table)?;
+    let record = load_record::<B>(&table, binding.credential())?;
+    validate_server_record(&record, binding, tenant)?;
+    retained_envelope::<B>(&table, binding, tenant).map(|_| ())
+}
+
+fn validate_server_record<B: Binding>(
+    record: &ModelRecord<B>,
+    binding: &AcceptedBinding,
+    tenant: Uuid,
+) -> Result<()> {
+    binding.validate()?;
+    let policy = binding.server_policy().ok_or_else(denied)?;
+    let (incarnation, use_epoch, secret_revision) = server_current(record, policy, tenant)?;
+    if incarnation != binding.incarnation()
+        || use_epoch != binding.use_epoch()
+        || binding.secret_revision() > secret_revision
+    {
+        return Err(denied());
+    }
+    Ok(())
 }
 
 fn retained_envelope<B: Binding>(
@@ -565,7 +701,7 @@ mod tests {
     use crate::credentials::crypto::Metadata;
     use crate::{
         access::Grants,
-        models::services::{Derived, System},
+        models::services::{Derived, EMAIL_SEND, System},
         native_slice::Context,
     };
     fn scope() -> Scope {
@@ -608,6 +744,145 @@ mod tests {
             provider: Provider::Resend,
             account: "account".into(),
             purpose: Purpose::EmailSend,
+        }
+    }
+    fn server_binding() -> AcceptedBinding {
+        use crate::authentication::{proof_types::ServerPolicy, types::Kind};
+        AcceptedBinding {
+            credential: Uuid::from_u128(5),
+            incarnation: Uuid::from_u128(3),
+            provider: Provider::Resend,
+            account: "account".into(),
+            use_epoch: 0,
+            secret_revision: 1,
+            selection: None,
+            server_policy: Some(ServerPolicy {
+                kind: Kind::Email,
+                revision: Uuid::from_u128(6),
+                credential: Uuid::from_u128(5),
+                owner: Uuid::from_u128(2),
+                provider: Provider::Resend,
+                account: "account".into(),
+                sender: Some("proof@example.test".into()),
+            }),
+            purpose: Purpose::EmailSend,
+        }
+    }
+    #[test]
+    fn server_delivery_is_distinct_from_user_use_and_revokes_on_current_fences() {
+        let mut actor = scope();
+        actor.grants.contracts.clear();
+        let mut row = record();
+        let pin = server_binding();
+        assert!(check_current(&actor, &row, None).is_err());
+        assert!(validate_server_record(&row, &pin, actor.tenant).is_ok());
+        assert!(validate_pinned_record(&scope(), &row, &pin, false).is_err());
+
+        // Rotating only the secret keeps the accepted old revision usable.
+        row.derived
+            .as_mut()
+            .unwrap()
+            .credential_mut()
+            .secret_revision = Some(2);
+        assert!(validate_server_record(&row, &pin, actor.tenant).is_ok());
+        for mutation in 0..11 {
+            let mut changed = row.clone();
+            match mutation {
+                0 => changed.owner = Uuid::from_u128(88),
+                1 => changed.tenant = Uuid::from_u128(89),
+                2 => changed.input.credential_mut().provider = Provider::Brevo,
+                3 => changed.input.credential_mut().account = "different-account".into(),
+                4 => changed.input.credential_mut().enabled = false,
+                5 => changed.input.credential_mut().scopes.clear(),
+                6 => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .has_secret = false
+                }
+                7 => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .incarnation = Uuid::from_u128(90)
+                }
+                8 => changed.derived.as_mut().unwrap().credential_mut().use_epoch += 1,
+                9 => {
+                    changed
+                        .derived
+                        .as_mut()
+                        .unwrap()
+                        .credential_mut()
+                        .secret_revision = None
+                }
+                _ => changed.contract = EMAIL_SEND,
+            }
+            assert!(
+                validate_server_record(&changed, &pin, actor.tenant).is_err(),
+                "mutation {mutation}"
+            );
+        }
+        let mut future = pin.clone();
+        future.secret_revision = 3;
+        assert!(validate_server_record(&row, &future, actor.tenant).is_err());
+        let mut changed = row;
+        changed.input.credential_mut().label = "Label does not confer authority".into();
+        assert!(validate_server_record(&changed, &pin, actor.tenant).is_ok());
+    }
+    #[test]
+    fn accepted_bindings_have_exactly_one_authority_and_a_matching_purpose() {
+        let pin = server_binding();
+        assert!(pin.validate().is_ok());
+        for mutation in 0..8 {
+            let mut changed = pin.clone();
+            match mutation {
+                0 => changed.server_policy = None,
+                1 => {
+                    changed.selection = Some(Selection::Byoc {
+                        credential: changed.credential,
+                    })
+                }
+                2 => changed.purpose = Purpose::SmsSend,
+                3 => changed.server_policy.as_mut().unwrap().credential = Uuid::from_u128(99),
+                4 => changed.server_policy.as_mut().unwrap().provider = Provider::Brevo,
+                5 => changed.server_policy.as_mut().unwrap().account = "other".into(),
+                6 => changed.server_policy.as_mut().unwrap().owner = Uuid::nil(),
+                _ => changed.server_policy.as_mut().unwrap().revision = Uuid::nil(),
+            }
+            assert!(changed.validate().is_err(), "mutation {mutation}");
+        }
+        let mut sms = pin;
+        sms.provider = Provider::FakeSms;
+        sms.purpose = Purpose::SmsSend;
+        let policy = sms.server_policy.as_mut().unwrap();
+        policy.kind = crate::authentication::types::Kind::Phone;
+        policy.provider = Provider::FakeSms;
+        policy.sender = None;
+        assert!(sms.validate().is_ok());
+        let mut row = record();
+        row.input.credential_mut().provider = Provider::FakeSms;
+        row.input.credential_mut().scopes = vec!["sms.send".into()];
+        assert!(validate_server_record(&row, &sms, row.tenant).is_ok());
+        assert!(check_current(&scope(), &row, None).is_err());
+        sms.server_policy = None;
+        sms.selection = Some(Selection::Byoc {
+            credential: sms.credential,
+        });
+        assert!(sms.validate().is_err());
+        sms.purpose = Purpose::EmailSend;
+        assert!(sms.validate().is_err());
+        for mutation in 0..2 {
+            let mut binding = platform();
+            if mutation == 0 {
+                binding.provider = Provider::FakeSms;
+            } else {
+                binding.purpose = Purpose::SmsSend;
+            }
+            assert!(PlatformBindings::new(vec![binding]).is_err());
         }
     }
     #[test]
@@ -656,9 +931,11 @@ mod tests {
             account: "account".into(),
             use_epoch: 0,
             secret_revision: 1,
-            selection: Selection::Byoc {
+            selection: Some(Selection::Byoc {
                 credential: Uuid::from_u128(5),
-            },
+            }),
+            server_policy: None,
+            purpose: Purpose::EmailSend,
         };
         assert!(validate_pinned_record(&scope, &row, &binding, true).is_ok());
         row.derived
@@ -689,9 +966,9 @@ mod tests {
             assert!(validate_pinned_record(&scope, &changed, &binding, false).is_err());
         }
         row.owner = Uuid::from_u128(1);
-        binding.selection = Selection::Platform {
+        binding.selection = Some(Selection::Platform {
             slot: PlatformSlot::TransactionalEmail,
-        };
+        });
         assert!(validate_pinned_record(&scope, &row, &binding, false).is_ok());
         // No runtime platform mapping is involved in a retained binding.
         let serialized = serde_json::to_value(&binding).unwrap();

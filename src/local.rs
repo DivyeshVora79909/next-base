@@ -23,7 +23,7 @@ pub(crate) const PUBLIC: TableDefinition<&[u8], u16> = TableDefinition::new("pub
 pub(crate) const RECEIPTS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("operations");
 pub(crate) const RUNTIME: TableDefinition<&[u8], &[u8]> = TableDefinition::new("local_runtime");
 pub(crate) const HEADER: &[u8] = b"header";
-pub const STORE_FORMAT: &str = "rebase-store-10";
+pub const STORE_FORMAT: &str = "rebase-store-11";
 pub const MAX_RECEIPTS: u16 = 1024;
 pub const MUTATION_WORK_LIMIT: u64 = 200_000;
 
@@ -197,6 +197,8 @@ pub(crate) struct RuntimeHeader {
     pub(crate) format: String,
     #[serde(with = "uuid_text")]
     pub(crate) store_id: Uuid,
+    #[serde(with = "uuid_text")]
+    pub(crate) session_generation: Uuid,
     pub(crate) cursor_key: String,
     #[serde(with = "decimal")]
     pub(crate) operation_epoch: u64,
@@ -212,6 +214,7 @@ impl RuntimeHeader {
         Self {
             format: STORE_FORMAT.into(),
             store_id: Uuid::new_v4(),
+            session_generation: Uuid::new_v4(),
             cursor_key: native_codec::hex(&key),
             operation_epoch: 0,
         }
@@ -226,8 +229,10 @@ pub struct Store<B: Binding> {
     pub(crate) secured: bool,
     pub(crate) credential_epoch: Option<u64>,
     pub(crate) issued_at: Option<u64>,
+    pub(crate) session_generation: Option<Uuid>,
     pub(crate) expected_store: Option<Uuid>,
     pub(crate) credentials: Option<Arc<crate::credentials::grants::Runtime>>,
+    pub(crate) authentication: Option<Arc<crate::authentication::proof::Runtime>>,
 }
 
 pub type LocalStore = Store<Calculation>;
@@ -297,6 +302,7 @@ impl<B: Binding> Store<B> {
             write.open_table(crate::receipts::SLOTS)?;
             write.open_table(crate::query::EPOCHS)?;
             crate::effects::create_tables(&write)?;
+            crate::authentication::proof::create_tables(&write)?;
             if secured {
                 crate::security::store_graph(&write, &crate::access::Graph::bootstrap(context)?)?;
                 write.open_table(crate::security::OWNERS)?;
@@ -317,8 +323,10 @@ impl<B: Binding> Store<B> {
             secured,
             credential_epoch: None,
             issued_at: None,
+            session_generation: None,
             expected_store: None,
             credentials: None,
+            authentication: None,
         })
     }
 
@@ -364,8 +372,10 @@ impl<B: Binding> Store<B> {
             secured,
             credential_epoch: None,
             issued_at: None,
+            session_generation: None,
             expected_store: None,
             credentials: None,
+            authentication: None,
         };
         store.check_meta(&meta, store.model.identity())?;
         let public = read.open_table(PUBLIC).map_err(storage)?;
@@ -386,6 +396,13 @@ impl<B: Binding> Store<B> {
 
     pub fn model(&self) -> &Prepared<B> {
         &self.model
+    }
+    /// Trusted native/operator issuer input. Generation is not client-selected
+    /// authority; each signed session must match it again in its transaction.
+    pub fn session_generation(&self) -> Result<Uuid> {
+        let (read, _, header) = self.read(self.model.identity())?;
+        self.authority(&read)?;
+        Ok(header.session_generation)
     }
     pub fn context(&self) -> Context {
         self.context
@@ -455,8 +472,10 @@ impl<B: Binding> Store<B> {
             secured: self.secured,
             credential_epoch: self.credential_epoch,
             issued_at: self.issued_at,
+            session_generation: self.session_generation,
             expected_store: Some(expected_store),
             credentials: self.credentials.clone(),
+            authentication: self.authentication.clone(),
         }
     }
 
@@ -606,7 +625,7 @@ impl<B: Binding> Store<B> {
         let write = self.begin_write()?;
         let scope = self.write_authority(&write)?;
         let header: RuntimeHeader;
-        let (batch, result, disclosed, intents, work) = {
+        let (batch, result, disclosed, intents, work, revoked_owners) = {
             let table = write.open_table(KV).map_err(storage)?;
             let mut ws = Attempt::<_, B>::new(
                 |key: &[u8]| {
@@ -781,8 +800,19 @@ impl<B: Binding> Store<B> {
                 executions: intents.as_ref().map(|v| v.created()).unwrap_or_default(),
             });
             let disclosed = self.disclose_result(&scope, result.clone(), &mut ws)?;
-            (ws.finish()?, result, disclosed, intents, ws.work)
+            let revoked_owners = crate::security::identity_revocation_owners(&mut ws)?;
+            (
+                ws.finish()?,
+                result,
+                disclosed,
+                intents,
+                ws.work,
+                revoked_owners,
+            )
         };
+        // Self factor removal is authorized against the final source graph
+        // before this internal revocation invalidates the caller's old token.
+        crate::security::stage_credential_revocations(&write, &revoked_owners)?;
         self.publish_native(&write, &batch, abort_after)?;
         crate::effects::publish(&write, intents, abort_after)?;
         let receipt = ReceiptValue {
@@ -973,6 +1003,7 @@ impl<B: Binding> Store<B> {
             let key = Key::decode(key.value())?;
             match (&key,native_codec::decode_for::<B>(&key,value.value())?) {
                 (Key::Record(id),StoredValue::Record(record))=>{
+                    if B::auth_delivery(&record.input).is_some() {continue;}
                     let shown=if B::identity_input(&record.input).is_some() {
                         let (_,state)=B::identity_values(&record)?;
                         json!({"contract":record.contract,"tenant":record.tenant,"owner":record.owner,"created_at":record.created_at.to_string(),"version":record.version,"input":record.input,
@@ -1047,6 +1078,7 @@ fn observe_tables(
         (crate::query::EPOCHS, crate::query::MAX_EPOCHS),
     ];
     definitions.extend(crate::effects::TABLES);
+    definitions.extend(crate::authentication::proof::TABLES);
     if secured {
         definitions.push((
             crate::security::AUTHORITY,
@@ -1170,7 +1202,10 @@ pub(crate) fn validate_header(header: &RuntimeHeader) -> Result<()> {
     if header.format != STORE_FORMAT {
         return Err(Error::new("model_mismatch", "runtime format differs"));
     }
-    if unhex(&header.cursor_key).is_err() || header.cursor_key.len() != 64 {
+    if header.session_generation.is_nil()
+        || unhex(&header.cursor_key).is_err()
+        || header.cursor_key.len() != 64
+    {
         return Err(corrupt("runtime header"));
     }
     Ok(())
@@ -1214,6 +1249,11 @@ pub(crate) fn table_names(secured: bool) -> Vec<String> {
         "query_epochs",
     ];
     names.extend(crate::effects::TABLES.iter().map(|(table, _)| table.name()));
+    names.extend(
+        crate::authentication::proof::TABLES
+            .iter()
+            .map(|(table, _)| table.name()),
+    );
     if secured {
         names.extend(["authority", "owner_records"]);
     }
@@ -1378,7 +1418,7 @@ mod tests {
     }
 
     #[test]
-    fn secured_physical_aborts_include_authority_and_reader_tables() {
+    fn secured_physical_aborts_include_authority_owner_and_proof_tables() {
         let dir = Directory::new();
         let store = LocalStore::create_secured(
             dir.file(),
@@ -1390,7 +1430,7 @@ mod tests {
         )
         .unwrap();
         let before = store.observe_for_verification().unwrap();
-        assert_eq!(before["tables"].as_object().unwrap().len(), 16);
+        assert_eq!(before["tables"].as_object().unwrap().len(), 21);
         let request: Mutation = serde_json::from_value(json!({"model":store.model.identity(),"context":store.operation_context(store.model().identity()).unwrap(),"operation_id":Uuid::from_u128(3),
             "commands":[{"op":"create","id":Uuid::from_u128(4),"contract":7,"fields":{"at":"1"}}],"returning":[]})).unwrap();
         for abort in [2, usize::MAX] {

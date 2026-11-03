@@ -34,10 +34,11 @@ fn config() -> ServerConfig {
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
     }
 }
-fn token(config: &ServerConfig, epoch: u64) -> String {
+fn token(config: &ServerConfig, epoch: u64, generation: Uuid) -> String {
     identity::issue(
         &config.identity,
         &TokenRequest {
@@ -48,6 +49,7 @@ fn token(config: &ServerConfig, epoch: u64) -> String {
             key_id: "test".into(),
         },
         PRIVATE,
+        generation,
     )
     .unwrap()
 }
@@ -65,7 +67,7 @@ fn sign(claims: &Claims, kid: &str) -> String {
 fn standard_credential_profile_rejects_wrong_context_signature_time_and_key() {
     let cfg = config();
     let verifier = Verifier::new(cfg.identity.clone()).unwrap();
-    let valid = token(&cfg, 0);
+    let valid = token(&cfg, 0, id(99));
     let claims = verifier.verify(&valid, id(1)).unwrap();
     assert!(verifier.verify(&valid, id(3)).is_err());
     for change in 0..6 {
@@ -169,7 +171,7 @@ async fn authenticated_ranges_preserve_complete_times_exact_bounds_and_reopen() 
             .await
             .unwrap();
     });
-    let credential = token(&cfg, 0);
+    let credential = token(&cfg, 0, store.session_generation().unwrap());
     let mut commands =
         vec![json!({"op":"create","id":id(20),"contract":4,"fields":{"native_unit":1}})];
     for (n, at, amount) in [(30, 0, 10), (31, 10, 20), (32, 10, -5), (33, 20, 30)] {
@@ -281,7 +283,7 @@ async fn real_http_concurrency_receipts_revocation_and_reopen() {
             .await
             .unwrap();
     });
-    let credential = token(&cfg, 0);
+    let credential = token(&cfg, 0, store.session_generation().unwrap());
     let operation_context = store.operation_context(model.identity()).unwrap();
     assert_eq!(
         http(addr, None, request("model.describe", json!({})))
@@ -369,15 +371,19 @@ async fn real_http_concurrency_receipts_revocation_and_reopen() {
     assert_eq!(denied["error"]["data"]["kind"], "forbidden");
     let (_, allowed) = http(
         addr,
-        Some(token(&cfg, 1)),
+        Some(token(&cfg, 1, store.session_generation().unwrap())),
         request("records.get", json!({"model":model.identity(),"id":id(10)})),
     )
     .await;
     assert!(allowed["result"].is_object());
     assert_eq!(
-        http(addr, Some(token(&cfg, 1)), request("inspect", json!({})))
-            .await
-            .1["error"]["code"],
+        http(
+            addr,
+            Some(token(&cfg, 1, store.session_generation().unwrap())),
+            request("inspect", json!({}))
+        )
+        .await
+        .1["error"]["code"],
         -32601
     );
     stop.send(()).unwrap();

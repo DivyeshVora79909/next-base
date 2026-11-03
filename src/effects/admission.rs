@@ -39,7 +39,11 @@ pub struct QuotaScope {
 }
 impl QuotaScope {
     fn validate(&self) -> Result<()> {
-        validate_account(&self.account).map_err(|_| configuration())
+        validate_account(&self.account).map_err(|_| configuration())?;
+        if (self.provider == Provider::FakeSms) != (self.purpose == Purpose::SmsSend) {
+            return Err(configuration());
+        }
+        Ok(())
     }
     fn key(&self) -> Result<Vec<u8>> {
         self.validate()?;

@@ -798,6 +798,7 @@ fn hidden_reference_authorization_precedes_occupied_unique_claim_disclosure() {
             kind: PrincipalKind::User,
             parents: vec![id(1)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,

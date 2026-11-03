@@ -22,7 +22,7 @@ impl<B: Binding> Store<B> {
         let write = self.begin_write().map_err(local::storage)?;
         let now = now_millis()?;
         let mut runtime = runtime_write(&write)?;
-        if mode.active() && B::effect_action().is_none()
+        if mode.active() && B::effect_actions().is_empty()
             || mode == WorkerMode::Delivery && runtime.quarantined
         {
             return Err(Error::new(
@@ -144,7 +144,38 @@ impl<B: Binding> Store<B> {
         Ok(candidates)
     }
 
-    fn effect_submit_authority(&self, write: &WriteTransaction, row: &Execution<B>) -> Result<()> {
+    fn effect_submit_authority(
+        &self,
+        write: &WriteTransaction,
+        row: &Execution<B>,
+        now: i64,
+    ) -> Result<()> {
+        let action = row.declaration()?;
+        if action.authority == ActionAuthority::Authentication {
+            let header: RuntimeHeader = local::decode(
+                write
+                    .open_table(RUNTIME)?
+                    .get(HEADER)?
+                    .ok_or_else(|| local::corrupt("authentication delivery runtime"))?
+                    .value(),
+            )?;
+            let delivery = B::auth_delivery(&row.request)
+                .ok_or_else(|| local::corrupt("authentication delivery role"))?;
+            let pin = row
+                .email_binding
+                .as_ref()
+                .ok_or_else(|| local::corrupt("authentication delivery credential"))?;
+            return crate::authentication::proof::preflight_delivery::<B>(
+                write, &header, delivery, pin, now,
+            )
+            .map_err(|error| {
+                if error.code == "auth_unavailable" {
+                    crate::access::denied()
+                } else {
+                    error
+                }
+            });
+        }
         let scope = if self.secured {
             self.session(row.requester, row.credential_epoch)?
                 .write_authority(write)?
@@ -154,7 +185,6 @@ impl<B: Binding> Store<B> {
             }
             self.write_authority(write)?
         };
-        let action = B::effect_action().ok_or_else(crate::access::denied)?;
         let table = write.open_table(KV).map_err(local::storage)?;
         let mut ws = Attempt::<_, B>::new(
             |key: &[u8]| {
@@ -232,7 +262,7 @@ impl<B: Binding> Store<B> {
                 row.diagnostic = Some("submission_budget_exhausted".into());
                 row.reservation = false;
             } else {
-                match self.effect_submit_authority(&write, &row) {
+                match self.effect_submit_authority(&write, &row, now) {
                     Ok(()) => {
                         if row.email_binding.is_none() {
                             row.attempts += 1;
@@ -305,7 +335,7 @@ impl<B: Binding> Store<B> {
         let cancellation = if now >= row.not_after {
             Some(Cancellation::Expired)
         } else {
-            match self.effect_submit_authority(&write, &row) {
+            match self.effect_submit_authority(&write, &row, now) {
                 Ok(()) => None,
                 Err(e) if e.code == "forbidden" => Some(Cancellation::Revoked),
                 Err(e) => return Err(e),
@@ -620,7 +650,7 @@ pub(super) fn record_fact<B: Binding>(
         match disposition {
             Disposition::Succeeded => {
                 row.phase = Phase::Succeeded;
-                row.application = if B::effect_application_required() {
+                row.application = if row.declaration()?.application_required() {
                     Application::Pending
                 } else {
                     Application::NotRequired

@@ -1,0 +1,4234 @@
+{
+  "checkpoint": "A1/A2 private delivered proof and recoverable sessions",
+  "status": "accepted bounded native, Node and selected-adapter scope",
+  "base_commit": "0d86b81272225841cfa9a2f5b2d474c00fa7b4c9",
+  "acceptance_date": "2026-11-04",
+  "identities": {
+    "native_codec": "native-slice-kv-16",
+    "store": "rebase-store-11",
+    "effects": "rebase-effects-6",
+    "proof": "auth-proof-1",
+    "crypto": "next-base-auth-proof-crypto-1",
+    "claims": "rebase-eddsa-tenant-subject-epoch-generation-2",
+    "services_behavior": "services-private-auth-delivery-pinned-server-authority-4"
+  },
+  "source_sha256": {
+    "CONTEXT.md": "4e33a9a7a2e82bbb2ce74e30515d3d375fe45d4248c8d4fdc78eaa69ed1413cb",
+    "Cargo.lock": "b1c67427f79bdfbd5d5e50f5e5ea9607291b3014c6a9525177c581f303eb9cc8",
+    "Cargo.toml": "a6443745e30652df59a4220542c9da7c5ab25cdd8beb49372bf8c2acee9446c8",
+    "docs/a1-proof-sessions.md": "f56a3ae9b3f6a052bf57a7009a450667228e437ef747a33caa85552310e808a9",
+    "docs/architecture.md": "607e4690ca7b626f280af82c3651d1bb1df299f3f8c7627dd9e48127bb5d282b",
+    "docs/deployment.md": "760fe851df643790aebf27a5e1d53b530367351b66eacdc8aad47ed5d9f79c05",
+    "docs/developer-tools.md": "13136bbb1ac68ea0c90d2064c2db58b9562cdf07a8d1acbfb7a16f8389d698ed",
+    "docs/email-phone-authentication.md": "ad3a2db3472022fa00e3a734c504bc30e253406401d855b8f5264a1c445e6764",
+    "docs/roadmap.md": "e4cb70b0b9a11ccbca7a0264558975378cc1a0077ff5435efb614ce27bee7896",
+    "docs/server-execution.md": "6643efce42d6d022891ad882a56e3746881dcec4145e59ab6b87b9f8fc5a9583",
+    "docs/server.md": "7e09f1dbc842610d5cae7bed4e81eaba38ce78948f560f693e56db56275771d8",
+    "docs/storage.md": "6e220d9f18cee4bf6db55daac911414b3f941a5a1d714a18cfc0dbb9f8ccaafd",
+    "examples/g7_application.rs": "9bdba537518793ad9c747d8668461d18960e402db64483eb80a922067fdf1176",
+    "rust-toolchain.toml": "7d21c66a15f41bad66b82ed06a289f5dc8a6e3751951d2696bbf20ce296f2b0f",
+    "src/access.rs": "3e26759147040e34e7e399f2939152817f8fd9a6d5132b1c5b6137968b5f28ad",
+    "src/authentication/mod.rs": "351094fe2fc9c2a57dfa2d570c8e12b91d95551f9017a7a2cc4485f650df9a3f",
+    "src/authentication/proof.rs": "17f36515d5fcf616cfa9d090ddca4b5f6330fffc69d006d5cc304f8810061c3c",
+    "src/authentication/proof_crypto.rs": "cf52c0b8a8b4a4d764a87db1d6ef78510fed3ae12ca64a8603f3d1744e20e46d",
+    "src/authentication/proof_tests.rs": "1840ccc4aeb59bb1e1a216004e7a0313eba34204b2c270b1c036c41916d57d7f",
+    "src/authentication/proof_types.rs": "8a2bb977729f065d21f853c4add7f1d03b3881b7b0cd8dc2c276975fc081b6fe",
+    "src/authentication/tests.rs": "4faa702f5101c50edb399d8f16e47a858bd2dcd9cac6be15a540614cae29977c",
+    "src/binding.rs": "05a5ccfe4eeb55add80ae1f3c5bf999f508640e713039aaa6d9e3e3059e66fb1",
+    "src/credentials/crypto.rs": "e5e362c5b6f759563c7eccf79999aaefe16e208f039458479ac90f1e8a068bf4",
+    "src/credentials/grants.rs": "5bfd122843eb198f900159c6e4fd2b05116b6193751ad4b0f13e34afa2773b6a",
+    "src/credentials/store.rs": "1715fc9b57032e88f8e829e34250a92e64a14bb8ca8660fd8b38b0fbdc66ea0b",
+    "src/effect_tests.rs": "06c7d21c682777530879fd7b4296f473b1a31e686b85255e03c28426c6ac1d41",
+    "src/effects.rs": "53e0b362bfff2f9486879fd24c8dafb88e0a0f00637b96cd3a2046d2cd3c22d3",
+    "src/effects/admission.rs": "9cd28b7cde7c51736f56c265f5cc36fb7f27af491c60a74414a38dc4ee1ce63b",
+    "src/effects/application.rs": "e0a1f4656b76215cc31fd8aa74c4294522ae7769477336870f1b773f1105179c",
+    "src/effects/email.rs": "147a9ecc43eb876dd39b9f8f4ec10b314ca0d2b7c263ddc65e54dbfb8513b661",
+    "src/effects/fake.rs": "a4ab73018bc40502a866a797726343d7d97d6f6b5508b1f95daf76e83b9c7956",
+    "src/effects/state.rs": "4e89d2c45ddee9a464d5a28a9fd7f99c26f44617f35809e4ba05542faec04afb",
+    "src/effects/worker.rs": "d49697f6a27f2c29adb886cb1535216ef38cc21374b7443e05b3c180773540f5",
+    "src/effects/worker_tests.rs": "34257f742fceeffa1481e0eddab68431d1f61f9fbdc22aeab72e46ba22755872",
+    "src/email.rs": "eefefacddfbabd6269f69aed9e4b2c2e9261ae1dff1d80db2c080ac0d2bb03dd",
+    "src/email_operations.rs": "b57e2cb7d90575a7955cfc0acfaad1d45e623a8d9041a23db0d0b3b731371f8a",
+    "src/host/operations.rs": "379fba793e832e1a809eeeaf76df1691dab4dc07b5ce249ae076246f4ca4e82f",
+    "src/identity.rs": "a4810624c907d062094cdb5879dfc42e75d8ca5c5a89d065cfc7161c963859bb",
+    "src/integrity.rs": "df33be55b697e263729f3fb110e25295468265d5c88d167a794876c96132f87a",
+    "src/lifecycle.rs": "eed05d3ae595b05fe8953bab84ffb3f02e7af9b7c85e54c028bd08df72cc7d92",
+    "src/local.rs": "6532e18f5cedccb3171972b97d3c3a91535804f8b131f7f70823ebf99f93de1d",
+    "src/model.rs": "161946165ea3b53e699da6005db76784188b1f7c71b956e85907794967e4e494",
+    "src/models/effect_demo.rs": "37d80b5b10cfaa8466e24504624978b89b44746cdec5599dcf584e693494a637",
+    "src/models/services.rs": "25702d7df6429f9681a1c126bed63b756e74a9f1df9a1a17d82433d00f710383",
+    "src/native_codec.rs": "d2f4bde0bf101d2981aeb2d48dad00736637ef429b0ff23baaeecb37448652e4",
+    "src/rpc.rs": "70db81a0abb18d02067cd54eb4d2d1ce53920985e43752dcb81f131a516282cc",
+    "src/security.rs": "5e122b1911c1f27d3f19766fa382e472b371cca05325be0acc81f600fec60ac4",
+    "src/security/session_tests.rs": "9928c5023f7eabab1f5e8976327c0061279c955164046b951a431a996b602a18",
+    "src/server.rs": "71f3255fafdeefd61e918724423a3302612bdc6426bd23c1a4a71a564abd5403",
+    "src/storage.rs": "42e4dd10c1a1d39fbf17a4915819900af6a84389a76218ed0a261743e966f4a7",
+    "src/storage/application_checks.rs": "9174aaaadf8be0bb2fe426bad4d4e670fd347290f24deb35a5a1ce575cbbe88c",
+    "src/storage/authentication_checks.rs": "2231221f43e2f8ef3e570be17290e464addbb5f9f6c0ea64d491b6bb917f982c",
+    "src/storage/concurrency_checks.rs": "4c58ab55116fa18727fbfa60d5410c6a60f7a9c6ea8abdead8959ddf3b80cab8",
+    "src/storage/coordination_checks.rs": "7adc8fa925a3e7bb0a23b3a6a176d2ce856b2b55cc43286f5b6a321c1590cba7",
+    "src/storage/credential_checks.rs": "3f2c29a4df9ae0ad79b5cc53dd0703865b0878db409ad0d265fd62c46c106322",
+    "src/storage/email_checks.rs": "82d17e8b6368ccfbfbcdff69b15a042453f9d992f3f8f1fbc6b7b5696ef1d15f",
+    "src/storage/lifecycle_checks.rs": "79dc76039bb4e844dc7582474fb1ec58496fc08e18f18218a72999dbe086469d",
+    "src/storage/proof_checks.rs": "64eb924111a138987e975a00f153d666e69323ad12d52a5ace9e577b67ee8289",
+    "tests/access_control.rs": "f79a623f2eef4a67067ef38bf6d358dc35bad3b90450dd35707d3c118f9f857d",
+    "tests/access_order.rs": "b63c1cc526852820582dd6af9350d913c832056578fd602a976b19267750a9de",
+    "tests/authority_scope.rs": "ff3b03c48a5f30b60581070720e4ecf45faf52934cb8124e7c34a5ade4ba1083",
+    "tests/common/mod.rs": "fe46d360b6752b161f845072eb0545a3c1c9d73a077d35e65ead37cf14e1f574",
+    "tests/equipment.rs": "b876bca75016c64a248c50e17dc13b9ec53fc9986572636510c7fc4cb32fc6a1",
+    "tests/equipment_http.rs": "272b89c5a9076a1fb3e8f8609e13a269ec3ce63251b92c3330c87bc391962d06",
+    "tests/exact_values.rs": "4787f7f9cc3fd73f80b81243805ccd52b16a7f878ba0ded8c34bc68b71fb949f",
+    "tests/final_graph_references.rs": "31c9db8b779426baca6bb03220f279a5a274398153d24dcfb9f205e741b3c3ae",
+    "tests/issue_share.rs": "25b8357417b72395da8bfdcc51d85d78520ff5fa654f72cda513a7e0de3f5749",
+    "tests/measurement.rs": "a0411895e55e431cd07b69b617fcbb8db967fdb9d667f9dde9ec76e01e9bd7d5",
+    "tests/native_bootstrap.rs": "04a6e0b4613509814095edb14dcccc97f9239d9321fe03e393f1676b36608eb0",
+    "tests/network_api.rs": "8a3e3418fdbc7607d52e1301c4a2ced33161c531940f3b1b62051dfd7107dcad",
+    "tests/ownership_transfer.rs": "9288a38ec3ae0991ae49c22482355c32fc0378e9b72a5c3f862da40222c92721",
+    "tests/quantity.rs": "f64ec4cf1c837efbbac7e1e7829725c73465efce0d794278662ecd81e996b429",
+    "tests/reference_uniqueness.rs": "17f126c889930854e858866ee09f22c329c15bf3e7afba6a26f6151beac38e54",
+    "tests/relationship_predicates.rs": "f97cf5b51904f09146f6c1727d89fec8c10258f25feb989a4a864454eaba8681",
+    "tests/root_pages.rs": "cc9b973ea6f807a064144be0388f7e9664a651fabffb5fbf10fc3f8fe9797a88",
+    "tests/storage_lifecycle.rs": "f5e84c9ef79bad943982749fea44cfe6c407844e002961007317f10f5fa7481f",
+    "tools/node/authentication.mjs": "6cb7fa24a35e0c0168a16761b7829412ca6fb8542292d01e51c6f5124769c746",
+    "tools/node/credentials.mjs": "dafedf61f9bd7e04f039e419e7064bda511a8c2f8e812765fb82dca9f0024e8a",
+    "tools/node/examples/s0-baseline.mjs": "9c5432d5fd4bdcb229b960afbd34a70e34042b04566260aa7ecc7b29ee0a54a1",
+    "tools/node/fake-auth-provider.mjs": "8543326c8c827de0a14608b924bb0df0b29398fcfebcc9f3f0940fad43943178",
+    "tools/node/index.mjs": "c473afac216f6ce544fc70b1b3b676158c9c28656c2c29ec51543f64f841a0be",
+    "tools/node/package-lock.json": "812b79f35758a315ff99eb93a4f71291ec9a93c3a618c3e87850e2f647e137aa",
+    "tools/node/package.json": "f1d3d53c796bd35c02a65c8b0df21c92bedcc47cccdd88cde5826c1606b2c8fb",
+    "tools/node/private/config-validation.mjs": "eb4d9383b4626a4830b5ff47fdfcbc2f2e9f3e9719fc52617a2deccfa14a2834",
+    "tools/node/private/proof-storage.mjs": "a52d01dc655a1aa68c60373e18b5b8f25c54b8f797b42649e94ecc2d4024d46d",
+    "tools/node/storage-check.mjs": "8b399d74229fe90b7c82b47834c19f6c731e911f8c3515cd6fa0fca06f3a167b",
+    "tools/node/test/a0-identity-native.test.mjs": "07bf52865fb7a842de325fa85646edbd053db17d1da09117e7bf12813a92d147",
+    "tools/node/test/a1-auth-native.test.mjs": "84518d9f8d51210ef1309f48c796e6539effd043a94413dbd0f9ceede62d4884",
+    "tools/node/test/access-storage.test.mjs": "9b7efcbddfcf3603a1ec2746f139815a98d79b27041be131d1b94ac79d22a916",
+    "tools/node/test/authentication.test.mjs": "4ea2ba0e26ad3a9289885730bbb7274ba26c30e9376a6608cf1b6e66ae0bff69",
+    "tools/node/test/e2-email-native.test.mjs": "0744cd2bd106ec7809f23da8c2b03686ef01469483b308ff9d62c93e127840eb",
+    "tools/node/test/fake-auth-provider.test.mjs": "19074118a23e16a89ca483c695af77db04093d3da1525637fc005f79ed15bc91",
+    "tools/node/test/identity-storage.test.mjs": "21c1a2a0a3648b557a07a239c61655f53422db0fc39bc3b8a6f815a282b4314c",
+    "tools/node/test/index.test.mjs": "76de0b16324233e9f0364241bdab153b3b3c9fff31d82e45b40822893672a456",
+    "tools/node/test/n2-real-workflow.test.mjs": "415982d950e1122494b3624b39ade04c5391ee3594739a44190a2c38462a06c3",
+    "tools/node/test/proof-storage.test.mjs": "68affac6ceac1d5a5b0e4a122863b2dd35362d1f02829265de0ef8e3e88a9cd6",
+    "tools/node/test/storage-check.test.mjs": "b9aa307073e3caa55681ce6b3ce80e38ea1ae9cd979abebed7c5764e71271d5e",
+    "tools/node/test/unique-storage.test.mjs": "2dcaeb8afef7e8e6bef3fe5a0f3843bd53e854964ba0830d62fa99e6385d568c"
+  },
+  "verification": {
+    "rust": {
+      "passed": 442,
+      "failed": 0,
+      "ignored": 0,
+      "targets": 40
+    },
+    "node": {
+      "version": "26.12.0",
+      "passed": 253,
+      "failed": 0,
+      "skipped": 0,
+      "all_N1_through_N6_native_fixtures_use_rebuilt_default_host": true
+    },
+    "format": "passed",
+    "clippy_default_all_targets_warnings_denied": "passed",
+    "clippy_foundationdb_all_targets_warnings_denied": "passed",
+    "default_binary_sha256": "8a3591edb83d7060f76ea18b54b57e9c805ce736f158a46ea63bb90067f6203f",
+    "logs_sha256": {
+      "next-base-a1-rust-tests.log": "e6ffdbe2aec056cbe2ce9841f6546f12c2cbf6d2bf67969f62e5f449f47701f8",
+      "next-base-a1-node-tests.log": "087715d3e294b7334f8ee17d7aa8a11e30b48c7434281ba32d7402006d0b978b",
+      "next-base-a1-clippy.log": "b158f9b9086b326731ca7589f34b4a72dd920e2a53cf2a129251698c533c855c",
+      "next-base-a1-fdb-clippy.log": "cf967cd3d491fca8b8281289a3e5e1b304b19ce79e4ee4a7179a00a4de16efd3",
+      "next-base-a1-checker-tests.log": "57cff08b4ce1bb4d078e5e4698ef5be138615c9e3384389a59015e953e898250",
+      "next-base-a1-build.log": "a44214a8ddf9809eeab773f39b5fd96ccf8a6708b99bead44a19968fa3015a6d",
+      "next-base-a1-fdb-build.log": "1bb042c5642e30a4b1f5553939ffb4107d8089992348fa741bbdc220debd1a84",
+      "next-base-a1-adapters.log": "6930f306703aecbe95c1ef3ce88636eddbd5a8f7f2c8a9dea3604c1c37487021"
+    },
+    "adapter_outputs_sha256": {
+      "next-base-a1-foundationdb-g7_coordination.json": "a56a4465879b6eb1fb34cee5db9931025d0793d717631b0f67c4f43709b29eb5",
+      "next-base-a1-foundationdb-g7_application.json": "a49baf0c555fcce7a2832c4c55eb6e355e66e922fda908390eba4e0e97a57e67",
+      "next-base-a1-redb-g7_coordination.json": "eb23d8db4935c7918cf1fccba93382de5cd71180dbae284efd91fbae7345918d",
+      "next-base-a1-redb-g7_application.json": "00103f89c93b7cc3339e82639678484f1b61a15a85dd7f9af81e178e9a5ab547"
+    },
+    "adapters": {
+      "foundationdb": {
+        "topology": "one local process and host",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 20
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 14
+          },
+          "application": {
+            "status": "passed",
+            "cases": 19
+          },
+          "authentication": {
+            "status": "passed",
+            "cases": 11
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 24
+          },
+          "proof": {
+            "status": "passed",
+            "cases": 10,
+            "concurrent_original_transactions": true,
+            "cases_detail": [
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "62f7a95150814c349caf7850fa72687a",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "358366c89fe1455f908f2a8f27257465",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "06883463e0ff455386ea7c3cf1432ac3",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0106883463e0ff455386ea7c3cf1432ac3",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0129e08cda6c974e4dac96907a24fb5264",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0529e08cda6c974e4dac96907a24fb5264",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "e5053806183e4a878b0fe64d0ddbdceb",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "776948316c545f3341694c73642d717055765f37415f4772495950556170617a7554776f35386134417345",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "62f7a95150814c349caf7850fa72687a",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "358366c89fe1455f908f2a8f27257465",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b7ca9b06883463e0ff455386ea7c3cf1432ac3",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "06883463e0ff455386ea7c3cf1432ac3",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "0129e08cda6c974e4dac96907a24fb5264",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0529e08cda6c974e4dac96907a24fb5264",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 4333,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 5589,
+                    "read_value_bytes": 6963,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "62f7a95150814c349caf7850fa72687a",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "b77364a2c0994a76894f5aa9fb7d1b97",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "f98d2a677dcb438f9138e49ea36b57ba",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0154a728bff8de4a00974feb48b3523b79",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01f98d2a677dcb438f9138e49ea36b57ba",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0554a728bff8de4a00974feb48b3523b79",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "21acc2b2e97e4e4abbf6000c9bd66ae8",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "4c6f30716978376d524a4a525854616f4e6436476171766438715451684d7577725464375f6654474f4655",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "62f7a95150814c349caf7850fa72687a",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "b77364a2c0994a76894f5aa9fb7d1b97",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b7caabf98d2a677dcb438f9138e49ea36b57ba",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "f98d2a677dcb438f9138e49ea36b57ba",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "0154a728bff8de4a00974feb48b3523b79",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0554a728bff8de4a00974feb48b3523b79",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-second-winner",
+                    "commit_us": 4880,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 5589,
+                    "read_value_bytes": 6963,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "62f7a95150814c349caf7850fa72687a",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "358366c89fe1455f908f2a8f27257465",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "358366c89fe1455f908f2a8f27257465",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-begin-second-winner",
+                    "commit_us": 4751,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1081,
+                    "read_value_bytes": 4620,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ],
+                "case": "a1-original-begin-email",
+                "challenges": 1,
+                "concurrent": true,
+                "deliveries": 1,
+                "known_retry_coalesces": true,
+                "original_conflict": true
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "d57847aef44c4fc3a63fb6f929687795",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "3c7a32c756544059b83b9e41ae8806dd",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "02",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "5516ffc5ceed4c81a9a5b474728ef2d6",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "015516ffc5ceed4c81a9a5b474728ef2d6",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01bf221b6f575d473585ba93986aa3880a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05bf221b6f575d473585ba93986aa3880a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12022b313233343536373839",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "51e39989cff34b01b16f5639c8ca77c7",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "7263706554392d4b324f676e50524f6f564f4459555f44456546746f5061616e4144734630666b69745a77",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "d57847aef44c4fc3a63fb6f929687795",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "3c7a32c756544059b83b9e41ae8806dd",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b7cc355516ffc5ceed4c81a9a5b474728ef2d6",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "5516ffc5ceed4c81a9a5b474728ef2d6",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "01bf221b6f575d473585ba93986aa3880a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05bf221b6f575d473585ba93986aa3880a",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 3829,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 5497,
+                    "read_value_bytes": 6941,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "d57847aef44c4fc3a63fb6f929687795",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "28d4a9f64903414bb298a8315c587053",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "02",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "fa93f13bc04f462893bddea54715bef0",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01e8abd60cdefc4df6b8a7d3b231817b4c",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01fa93f13bc04f462893bddea54715bef0",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05e8abd60cdefc4df6b8a7d3b231817b4c",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12022b313233343536373839",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "da4db3fbe6804d05bab0b7d73ac19b67",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "306a522d4968586c594662692d697161633057625f4e304f536e456e4f6b773759356a714d54703630676b",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "d57847aef44c4fc3a63fb6f929687795",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "28d4a9f64903414bb298a8315c587053",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b7cc44fa93f13bc04f462893bddea54715bef0",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "fa93f13bc04f462893bddea54715bef0",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "01e8abd60cdefc4df6b8a7d3b231817b4c",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05e8abd60cdefc4df6b8a7d3b231817b4c",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-second-winner",
+                    "commit_us": 4619,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 5497,
+                    "read_value_bytes": 6941,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "d57847aef44c4fc3a63fb6f929687795",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "3c7a32c756544059b83b9e41ae8806dd",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "02",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12022b313233343536373839",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "3c7a32c756544059b83b9e41ae8806dd",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-begin-second-winner",
+                    "commit_us": 4432,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1081,
+                    "read_value_bytes": 4598,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ],
+                "case": "a1-original-begin-phone",
+                "challenges": 1,
+                "concurrent": true,
+                "deliveries": 1,
+                "known_retry_coalesces": true,
+                "original_conflict": true
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "b2d3ab225cee4926bee2bd438ddf0a11",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "7449586d6252326e464a335369575f78353357535f4d57625f70576742504537454b666434683935543649",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "7b2797ae9bcb405193f79f3b6ffdbe8b",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "c215c027b8184b65a13c0d36a0623d21",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "b2d3ab225cee4926bee2bd438ddf0a11",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "c215c027b8184b65a13c0d36a0623d21",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4335,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "b2d3ab225cee4926bee2bd438ddf0a11",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "7449586d6252326e464a335369575f78353357535f4d57625f70576742504537454b666434683935543649",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "7b2797ae9bcb405193f79f3b6ffdbe8b",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "30000a65f2b443dfb0b8a5a263948f0e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "b2d3ab225cee4926bee2bd438ddf0a11",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "30000a65f2b443dfb0b8a5a263948f0e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 4328,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "b2d3ab225cee4926bee2bd438ddf0a11",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "7449586d6252326e464a335369575f78353357535f4d57625f70576742504537454b666434683935543649",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "c215c027b8184b65a13c0d36a0623d21",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "c215c027b8184b65a13c0d36a0623d21",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 4045,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 969,
+                    "read_value_bytes": 2065,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-1-1-0",
+                "concurrent": true,
+                "final_attempts": 1,
+                "original_conflict": true,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "943c13052d7a44828a6fd309c0d617ed",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "56674e6d76386c2d334836366d56575a494657594961374f432d2d73654242417247685f726d427a436c51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "ca3124725c7e4b518001eaba243bf216",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "8bd7e24e323f41c8ac4200a3dd2accc5",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "943c13052d7a44828a6fd309c0d617ed",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "8bd7e24e323f41c8ac4200a3dd2accc5",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 5056,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 2320,
+                    "read_value_bytes": 3673,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "943c13052d7a44828a6fd309c0d617ed",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "56674e6d76386c2d334836366d56575a494657594961374f432d2d73654242417247685f726d427a436c51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "ca3124725c7e4b518001eaba243bf216",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "e0bf6f5f476144c781fd136669ae7f47",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "943c13052d7a44828a6fd309c0d617ed",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "e0bf6f5f476144c781fd136669ae7f47",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 4866,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "943c13052d7a44828a6fd309c0d617ed",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "56674e6d76386c2d334836366d56575a494657594961374f432d2d73654242417247685f726d427a436c51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "8bd7e24e323f41c8ac4200a3dd2accc5",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "8bd7e24e323f41c8ac4200a3dd2accc5",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 5820,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 969,
+                    "read_value_bytes": 2065,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-0-1-0",
+                "concurrent": true,
+                "final_attempts": 1,
+                "original_conflict": true,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "69436846484774555f48656f464b39324c6c70325a395453312d6c6a53734266414f524d506461336a4e51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "17be31339eb8418f8559b82eca2c0482",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2ac4f16ac6c042f797fab396ae1adfad",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "2ac4f16ac6c042f797fab396ae1adfad",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4086,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "69436846484774555f48656f464b39324c6c70325a395453312d6c6a53734266414f524d506461336a4e51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "17be31339eb8418f8559b82eca2c0482",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "3a029d90a99a4a30ac2129118906eec3",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "3a029d90a99a4a30ac2129118906eec3",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 4289,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 2320,
+                    "read_value_bytes": 3673,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "69436846484774555f48656f464b39324c6c70325a395453312d6c6a53734266414f524d506461336a4e51",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "17be31339eb8418f8559b82eca2c0482",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2ac4f16ac6c042f797fab396ae1adfad",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "477f4558be2648688f08371b9882168f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "2ac4f16ac6c042f797fab396ae1adfad",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 5511,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3186,
+                    "read_value_bytes": 4969,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-1-0-0",
+                "concurrent": true,
+                "final_attempts": 2,
+                "original_conflict": true,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "bdca4466638c4d95b4b768601da59ce9",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "5f626c673455484b656b78426345716b736f6a71793747743355387975716d763354563153716448434e6b",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "aa6c0d16e2cf49df947d741e4ab3bab7",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "769be500d9184b0a977c5660fd0c4fa9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "bdca4466638c4d95b4b768601da59ce9",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "769be500d9184b0a977c5660fd0c4fa9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4709,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 2680,
+                    "read_value_bytes": 4033,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "bdca4466638c4d95b4b768601da59ce9",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "5f626c673455484b656b78426345716b736f6a71793747743355387975716d763354563153716448434e6b",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "aa6c0d16e2cf49df947d741e4ab3bab7",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "eb3abc18ece44038a88dba9b73dbf979",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "bdca4466638c4d95b4b768601da59ce9",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "eb3abc18ece44038a88dba9b73dbf979",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 3862,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 2680,
+                    "read_value_bytes": 4033,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "bdca4466638c4d95b4b768601da59ce9",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "5f626c673455484b656b78426345716b736f6a71793747743355387975716d763354563153716448434e6b",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "769be500d9184b0a977c5660fd0c4fa9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "769be500d9184b0a977c5660fd0c4fa9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-second-winner",
+                    "commit_us": 4551,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1329,
+                    "read_value_bytes": 2426,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-0-0-4",
+                "concurrent": true,
+                "final_attempts": 5,
+                "original_conflict": true,
+                "prior_wrong_attempts": 4
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "2548ed2e04d24cb2bd8ac8e246ac5248",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "6b6e51573472476b673074674a55566b63446a55384e6a3579734e42754e77333962593057453970743951",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "9470788f9ab643c186076d5d57d6e779",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2d55f93df9ff42c786c1c37786355662",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "2548ed2e04d24cb2bd8ac8e246ac5248",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "2d55f93df9ff42c786c1c37786355662",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-before-revocation",
+                    "commit_us": 4584,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12016368616e676564406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000025779de8d2df34cc6bb22613ceb2af78b",
+                        "table": "operations"
+                      },
+                      {
+                        "key": "01ff",
+                        "table": "receipt_slots"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000001",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000003",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000004",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000007",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12016368616e676564406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000025779de8d2df34cc6bb22613ceb2af78b",
+                        "table": "operations"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      },
+                      {
+                        "key": "01ff",
+                        "table": "receipt_slots"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 4938,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 4629,
+                    "read_value_bytes": 5133,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "2548ed2e04d24cb2bd8ac8e246ac5248",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "6b6e51573472476b673074674a55566b63446a55384e6a3579734e42754e77333962593057453970743951",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "9470788f9ab643c186076d5d57d6e779",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2d55f93df9ff42c786c1c37786355662",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "2d55f93df9ff42c786c1c37786355662",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 4296,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 879,
+                    "read_value_bytes": 3617,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a2-consume-identity-replacement",
+                "concurrent": true,
+                "known_retry_invalid": true,
+                "original_conflict": true
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "417917f1096f44d7a41cc308b14f9352",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "4c673842457159574e74574968384c7166305466682d4968486f7759384b77725144366770354462736667",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "5fc93deccc3a4128959bc73f892ada8e",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "a28de82cf5ba429695abc4141cc9427e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "417917f1096f44d7a41cc308b14f9352",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "a28de82cf5ba429695abc4141cc9427e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-before-revocation",
+                    "commit_us": 4934,
+                    "outcome": "transaction_conflict",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000001",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000003",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000004",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000007",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 5019,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3447,
+                    "read_value_bytes": 2661,
+                    "scanned_tables": [
+                      "owner_records"
+                    ],
+                    "scans": [
+                      {
+                        "lower": {
+                          "included": "0000000000000000000000000000000403eb00000000000000000000000000000000"
+                        },
+                        "page_limit": 64,
+                        "table": "owner_records",
+                        "upper": {
+                          "included": "0000000000000000000000000000000403ebffffffffffffffffffffffffffffffff"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "417917f1096f44d7a41cc308b14f9352",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "4c673842457159574e74574968384c7166305466682d4968486f7759384b77725144366770354462736667",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "5fc93deccc3a4128959bc73f892ada8e",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "a28de82cf5ba429695abc4141cc9427e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "a28de82cf5ba429695abc4141cc9427e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 5266,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 879,
+                    "read_value_bytes": 3616,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a2-consume-login-revocation",
+                "concurrent": true,
+                "known_retry_invalid": true,
+                "original_conflict": true
+              },
+              {
+                "actual_durable_ack_loss": true,
+                "case": "a1-physical-begin-rollback-recovery",
+                "final_write_abort": true,
+                "original_receipt_and_pinned_result": true,
+                "physical_write_positions": 11,
+                "write_set": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "7b5903554c954f7a99e63ccdc45fc00e",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "08c57ed15716465e80ea530c838f9367",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "2bcdb35314384c378cd20cf30e763416",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "012bcdb35314384c378cd20cf30e763416",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "017f5985c191dd4ba9a92aea6b3e8c0512",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "057f5985c191dd4ba9a92aea6b3e8c0512",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "9fef8c11d26f46f997c8365195fe2ffc",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "34337a363169436153305949514b68363935796f724734536548435169586450417632696f6c4954485330",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "7b5903554c954f7a99e63ccdc45fc00e",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "08c57ed15716465e80ea530c838f9367",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b7d9842bcdb35314384c378cd20cf30e763416",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "2bcdb35314384c378cd20cf30e763416",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "017f5985c191dd4ba9a92aea6b3e8c0512",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "057f5985c191dd4ba9a92aea6b3e8c0512",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "actual-final-proof-write-abort",
+                    "commit_us": 18,
+                    "outcome": "injected_abort",
+                    "put_key_value_bytes": 5589,
+                    "read_value_bytes": 6963,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "actual_durable_ack_loss": true,
+                "case": "a2-physical-consume-rollback-recovery",
+                "final_write_abort": true,
+                "original_receipt_and_pinned_result": true,
+                "physical_write_positions": 6,
+                "write_set": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "b6baa47a6c4f48b1a327e0f38971301f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "6a4655626b6953776442477969586b4a443031546378575634674576486851747a4356616b6d3467433651",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "c753ddf9c61a43cd84ea7d8c8982260f",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "e3e6748ac10740e58dc6c136893f826f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "b6baa47a6c4f48b1a327e0f38971301f",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "e3e6748ac10740e58dc6c136893f826f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "actual-final-proof-write-abort",
+                    "commit_us": 15,
+                    "outcome": "injected_abort",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ]
+              }
+            ],
+            "limits": [
+              "Actual selected adapter; redb race controls are sequential.",
+              "Fault wrapper does not manufacture conflicts or commits; it aborts after actual writes and drops actual durable acknowledgements.",
+              "Private fixture decryption models code possession; no provider response or external delivery is claimed.",
+              "No population counter; exact proof/private/source/owner inventories and native source-derived AVL checks run after accepted states and rollback."
+            ]
+          }
+        },
+        "version": "7.3.77"
+      },
+      "redb": {
+        "topology": "local embedded, sequential race controls",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 17
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 10
+          },
+          "application": {
+            "status": "passed",
+            "cases": 13
+          },
+          "authentication": {
+            "status": "passed",
+            "cases": 11
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 16
+          },
+          "proof": {
+            "status": "passed",
+            "cases": 10,
+            "concurrent_original_transactions": false,
+            "cases_detail": [
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "883e6d68431c4a0aa997aa375018d8d3",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2623a131f3774158aa17d1080c2926fb",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "ec6d5941feb742988f0b7855f64b2837",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "011b89146d519142989d9791b93f0e85ae",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01ec6d5941feb742988f0b7855f64b2837",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "051b89146d519142989d9791b93f0e85ae",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "0f4e7122a4694d88b9b0a286ac95d531",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "447871574c577765737739592d56635a37535a794c30684b726e544e3443494a63396d6d7059596b447767",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "883e6d68431c4a0aa997aa375018d8d3",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "2623a131f3774158aa17d1080c2926fb",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b808b4ec6d5941feb742988f0b7855f64b2837",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "ec6d5941feb742988f0b7855f64b2837",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "011b89146d519142989d9791b93f0e85ae",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "051b89146d519142989d9791b93f0e85ae",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 5741,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 5589,
+                    "read_value_bytes": 6963,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "883e6d68431c4a0aa997aa375018d8d3",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "29d815fbc55444f58f6096be5890c4d9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "29d815fbc55444f58f6096be5890c4d9",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 4517,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1081,
+                    "read_value_bytes": 4620,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ],
+                "case": "a1-original-begin-email",
+                "challenges": 1,
+                "concurrent": false,
+                "deliveries": 1,
+                "known_retry_coalesces": true,
+                "original_conflict": false
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "9787bf4570734428b768f961e850de24",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "1a3055d2e35b4988905130b205264cda",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "02",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "5be16403c29646debb0b9287df0be587",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "010e2283f429e340e5a806327fe9f6be61",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "015be16403c29646debb0b9287df0be587",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "050e2283f429e340e5a806327fe9f6be61",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12022b313233343536373839",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "7b0101e5f4fa4973b634f764322d18fc",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "6a7454516a343232366b3730464c765634412d6938446d446350486f4861796a684e347348313162363534",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "9787bf4570734428b768f961e850de24",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "1a3055d2e35b4988905130b205264cda",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b809df5be16403c29646debb0b9287df0be587",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "5be16403c29646debb0b9287df0be587",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "010e2283f429e340e5a806327fe9f6be61",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "050e2283f429e340e5a806327fe9f6be61",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 5673,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 5497,
+                    "read_value_bytes": 6941,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "9787bf4570734428b768f961e850de24",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "3101de718a7a4e2d86dc1a9c8368746e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "02",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12022b313233343536373839",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "3101de718a7a4e2d86dc1a9c8368746e",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-begin-first",
+                    "commit_us": 4479,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1081,
+                    "read_value_bytes": 4598,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ],
+                "case": "a1-original-begin-phone",
+                "challenges": 1,
+                "concurrent": false,
+                "deliveries": 1,
+                "known_retry_coalesces": true,
+                "original_conflict": false
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "d4734c4916c84ba3b829a7a8b012faa6",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "414d646b56544d6451415938335879466a493856414649786f754637716969376d6e5944425450702d5838",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "0825520a258f4813b4dcf56f22ab6137",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "e1d68f6121124321bf6a3cec6684547f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "d4734c4916c84ba3b829a7a8b012faa6",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "e1d68f6121124321bf6a3cec6684547f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 5749,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "d4734c4916c84ba3b829a7a8b012faa6",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "414d646b56544d6451415938335879466a493856414649786f754637716969376d6e5944425450702d5838",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "729430e487564c83a8046023a0508f64",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "729430e487564c83a8046023a0508f64",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 3623,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 969,
+                    "read_value_bytes": 2065,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-1-1-0",
+                "concurrent": false,
+                "final_attempts": 1,
+                "original_conflict": false,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "7e8deb0ea6b445e6977f8d205b498c32",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "456a785579594670475051673268784576775f4a5639624e536f4332537337444a4c643445777a33536c73",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "868a0c3dfcfa42e5b605be32524ed652",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "41075d1c26ac4d06a319ca299ecacf91",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "7e8deb0ea6b445e6977f8d205b498c32",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "41075d1c26ac4d06a319ca299ecacf91",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 5037,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "7e8deb0ea6b445e6977f8d205b498c32",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "456a785579594670475051673268784576775f4a5639624e536f4332537337444a4c643445777a33536c73",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "03122a247cb04eee8d46a49f2697685d",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "03122a247cb04eee8d46a49f2697685d",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 3653,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 969,
+                    "read_value_bytes": 2065,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-0-1-0",
+                "concurrent": false,
+                "final_attempts": 1,
+                "original_conflict": false,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "fd086c54ae8248ea951d65258fff4786",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "655f563779746267686769696a756e53335734315f65535f5a446a53464b70306671777676525853486a4d",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "267102f59b0546078dcb7754ee9a7d20",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "bc6d2764215a4ec0abe231f3e9b14185",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "fd086c54ae8248ea951d65258fff4786",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "bc6d2764215a4ec0abe231f3e9b14185",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4772,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 2320,
+                    "read_value_bytes": 3673,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "fd086c54ae8248ea951d65258fff4786",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "655f563779746267686769696a756e53335734315f65535f5a446a53464b70306671777676525853486a4d",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "267102f59b0546078dcb7754ee9a7d20",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "a17538ad262e46dea9f50a70f931b671",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "fd086c54ae8248ea951d65258fff4786",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "a17538ad262e46dea9f50a70f931b671",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 5086,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3186,
+                    "read_value_bytes": 4969,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-1-0-0",
+                "concurrent": false,
+                "final_attempts": 2,
+                "original_conflict": false,
+                "prior_wrong_attempts": 0
+              },
+              {
+                "at_most_one_issuance": true,
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "dffe108d63b046d781c148d1693cf293",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "3975326537435f67585672687638704d61384177557332525073595a4a577979336f67786e7a4530505749",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "9580438bed4d4b6e8523dfdeaf8f56bb",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "4ab02657d0a94f0297a0695e1cb9ca07",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "dffe108d63b046d781c148d1693cf293",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "4ab02657d0a94f0297a0695e1cb9ca07",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4590,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 2680,
+                    "read_value_bytes": 4033,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "dffe108d63b046d781c148d1693cf293",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "3975326537435f67585672687638704d61384177557332525073595a4a577979336f67786e7a4530505749",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "9cfe381e9ed14e5da2df3f60ea55338a",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "9cfe381e9ed14e5da2df3f60ea55338a",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "original-consume-first",
+                    "commit_us": 4922,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 1329,
+                    "read_value_bytes": 2426,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a1-consume-race-0-0-4",
+                "concurrent": false,
+                "final_attempts": 5,
+                "original_conflict": false,
+                "prior_wrong_attempts": 4
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "05000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12016368616e676564406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "00000000000000000000000000000002b6d859e251794dcead74bdb8467feaae",
+                        "table": "operations"
+                      },
+                      {
+                        "key": "00ea",
+                        "table": "receipt_slots"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000001",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000003",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000004",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000007",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "12016368616e676564406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "00000000000000000000000000000002b6d859e251794dcead74bdb8467feaae",
+                        "table": "operations"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      },
+                      {
+                        "key": "00ea",
+                        "table": "receipt_slots"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 5268,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 4629,
+                    "read_value_bytes": 5133,
+                    "scanned_tables": [],
+                    "scans": []
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "70ed2ecbfbc34b2eb137fe0c471697a2",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "46684b3343673837485242354836666242527875347a496845584d73456465624b7676396933636a396a77",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "5e9a1b196b464e329eeed2015289e60f",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "c32cd39ca0c2436d803f05bbd7ff81ea",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "c32cd39ca0c2436d803f05bbd7ff81ea",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 4355,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 879,
+                    "read_value_bytes": 3617,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a2-consume-identity-replacement",
+                "concurrent": false,
+                "known_retry_invalid": true,
+                "original_conflict": false
+              },
+              {
+                "attempts": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7265766973696f6e",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000001",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000002",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000003",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000004",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "7300000000000000000000000000000007",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 4402,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 3447,
+                    "read_value_bytes": 2661,
+                    "scanned_tables": [
+                      "owner_records"
+                    ],
+                    "scans": [
+                      {
+                        "lower": {
+                          "included": "0000000000000000000000000000000403eb00000000000000000000000000000000"
+                        },
+                        "page_limit": 64,
+                        "table": "owner_records",
+                        "upper": {
+                          "included": "0000000000000000000000000000000403ebffffffffffffffffffffffffffffffff"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "cf3e4f6bde824412a3133a7576e35609",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "73786f78466238316a7665702d3442624b4c4d32314c596650614848484561724b45704e4938624f355845",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "be37eef3fd2740df9d35b9daedcc3561",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "0eb772c7ecc34ac7b99a89610aaf4148",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "0eb772c7ecc34ac7b99a89610aaf4148",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      }
+                    ],
+                    "attempt": "authority-revocation-winner",
+                    "commit_us": 3866,
+                    "outcome": "committed",
+                    "put_key_value_bytes": 879,
+                    "read_value_bytes": 3616,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ],
+                "case": "a2-consume-login-revocation",
+                "concurrent": false,
+                "known_retry_invalid": true,
+                "original_conflict": false
+              },
+              {
+                "actual_durable_ack_loss": true,
+                "case": "a1-physical-begin-rollback-recovery",
+                "final_write_abort": true,
+                "original_receipt_and_pinned_result": true,
+                "physical_write_positions": 11,
+                "write_set": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "0da562eeea274ff48773c7ee2f2c72ff",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "8a6965b87c7448a590cbd63c8153790f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "01",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "6ee843d6eefe4de89e10a1791a4a11b3",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "00",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0100000000000000000000000000000064",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "016ee843d6eefe4de89e10a1791a4a11b3",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0199d0afc9024f41d2ad8e5836ba2bca6a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0599d0afc9024f41d2ad8e5836ba2bca6a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "11000000000000000000000000000000640000000000000001",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "120170726f6f66406578616d706c652e74657374",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "ada6ad7d1ad44e9cbf7c097341b1f854",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "6b52456a50736b624f55374352314b563674665341667a6e6b65447a445637562d2d4e6c57534b50546863",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "0da562eeea274ff48773c7ee2f2c72ff",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "8a6965b87c7448a590cbd63c8153790f",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01800001a1a2b812ce6ee843d6eefe4de89e10a1791a4a11b3",
+                        "table": "effect_due"
+                      },
+                      {
+                        "key": "6ee843d6eefe4de89e10a1791a4a11b3",
+                        "table": "effect_executions"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "effect_runtime"
+                      },
+                      {
+                        "key": "0199d0afc9024f41d2ad8e5836ba2bca6a",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "0599d0afc9024f41d2ad8e5836ba2bca6a",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "attempt": "actual-final-proof-write-abort",
+                    "commit_us": 90,
+                    "outcome": "injected_abort",
+                    "put_key_value_bytes": 5589,
+                    "read_value_bytes": 6963,
+                    "scanned_tables": [
+                      "auth_challenges",
+                      "effect_executions",
+                      "effect_runtime"
+                    ],
+                    "scans": [
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "auth_challenges",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_runtime",
+                        "upper": null
+                      },
+                      {
+                        "lower": null,
+                        "page_limit": 64,
+                        "table": "effect_executions",
+                        "upper": null
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "actual_durable_ack_loss": true,
+                "case": "a2-physical-consume-rollback-recovery",
+                "final_write_abort": true,
+                "original_receipt_and_pinned_result": true,
+                "physical_write_positions": 6,
+                "write_set": [
+                  {
+                    "access_put_key_value_bytes": 0,
+                    "application_reads": [
+                      {
+                        "key": "20d2773599a44f45b1778a385a3181bc",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "745352756449466c6161364a42476d444d6c665a65365a6a364c5a6750684434346279366136466f4a4c6f",
+                        "table": "auth_handles"
+                      },
+                      {
+                        "key": "3272a9bcdee442ea8a28d62b35c49a7b",
+                        "table": "auth_heads"
+                      },
+                      {
+                        "key": "b01a4a82cb0a44e8a2bd9e0e85db0c60",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "6772617068",
+                        "table": "authority"
+                      },
+                      {
+                        "key": "686561646572",
+                        "table": "local_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "1300000000000000000000000000000004",
+                        "table": "native_kv"
+                      }
+                    ],
+                    "application_writes": [
+                      {
+                        "key": "20d2773599a44f45b1778a385a3181bc",
+                        "table": "auth_challenges"
+                      },
+                      {
+                        "key": "b01a4a82cb0a44e8a2bd9e0e85db0c60",
+                        "table": "auth_receipts"
+                      },
+                      {
+                        "key": "7374617465",
+                        "table": "auth_runtime"
+                      },
+                      {
+                        "key": "01000000000000000000000000000000c8",
+                        "table": "native_kv"
+                      },
+                      {
+                        "key": "000000000000000000000000000000c8",
+                        "table": "public_records"
+                      },
+                      {
+                        "key": "0000000000000000000000000000000403eb",
+                        "table": "query_epochs"
+                      }
+                    ],
+                    "attempt": "actual-final-proof-write-abort",
+                    "commit_us": 82,
+                    "outcome": "injected_abort",
+                    "put_key_value_bytes": 3096,
+                    "read_value_bytes": 4879,
+                    "scanned_tables": [],
+                    "scans": []
+                  }
+                ]
+              }
+            ],
+            "limits": [
+              "Actual selected adapter; redb race controls are sequential.",
+              "Fault wrapper does not manufacture conflicts or commits; it aborts after actual writes and drops actual durable acknowledgements.",
+              "Private fixture decryption models code possession; no provider response or external delivery is claimed.",
+              "No population counter; exact proof/private/source/owner inventories and native source-derived AVL checks run after accepted states and rollback."
+            ]
+          }
+        }
+      }
+    }
+  },
+  "obligations": {
+    "private_begin": [
+      "generic eligible/suppressed results and identical all-identifier coalescing",
+      "keyed request/recovery/code fingerprints and encrypted payload/response",
+      "3 per identifier per 300 seconds; 32 begins and 64 consumes per peer per 60 seconds, exact ties and boundaries",
+      "protected exact heads, handles, original receipts and pinned server credential policy"
+    ],
+    "proof_session": [
+      "correct fifth, rejected sixth and at most one issuance",
+      "factor incarnation/revision, login eligibility, authentication revision and credential epoch fencing",
+      "immutable EdDSA claims and exact token recovery after durable ACK loss, signer failure and process restart",
+      "supported restore rotates mandatory session generation and quarantines delivery",
+      "factor replacement/removal revokes prior session after final client authorization"
+    ],
+    "fake_HTTP": [
+      "Resend plus FakeSms and Brevo plus FakeSms real loopback/native workflows",
+      "lost submit response reconciles original without resubmission",
+      "no ordinary grants required to prove identity; proof grants no Identity CRUD or Credential Use",
+      "private delivery absent from public catalog, reads, pages, effects status/cancel and ordinary receipts",
+      "complete decoded backup nondisclosure plus native and Node inventories, actual host restart and supported restore"
+    ],
+    "independent_checks": [
+      "receipt-derived counts, one-use, exact origin/predecessor/handle inventory, factor verification and rolling admission",
+      "forged timing, generation, post-consumption spent attempts, impossible admission and wrong caches reject",
+      "email sender local-part casing preserved",
+      "HTTPS or loopback-only Node proof helpers, strict canonical handles/six ASCII digits, no plan serialization",
+      "real loopback client response loss preserves exact execute/status operation and recovery evidence"
+    ],
+    "preserved": [
+      "owner-only ordinary scope and both-owner transfers",
+      "atomic native/owner/ordered indexes and cursor invalidation",
+      "managed UUID first-materialization metadata across inactive/reactivated roles",
+      "tentative per-occurrence array parent/fanout selection",
+      "source population counter remains absent",
+      "ordinary E2/R0 email, grants, retained secret revisions and shared worker/effect-demo behavior"
+    ]
+  },
+  "legacy_comparison": {
+    "kind": "source-only, no legacy runtime executed",
+    "repository_commit": "1560ba176ff5e92b565e872701fcbea99132ea08",
+    "working_tree": "clean",
+    "source_sha256": {
+      "framework/authentication.surql": "a3e297187b85587b62beed6947488e6b0765f107166799f7561313ac4147d695",
+      "framework/access.surql": "fa169b0c120e525c73c6d1ba35d821bce9f6e7dbdee8207b8b4aa193d8ad1802",
+      "framework/auth.surql": "21e1953aa298d9f59894ad5b949dee39bb85cd79ae15e9602b0b2c13f34aa732"
+    },
+    "retained": [
+      "private delivered challenge",
+      "five atomic attempts",
+      "one use",
+      "verification revision fencing",
+      "encrypted delivery"
+    ],
+    "explicit_changes": [
+      "keyed six-digit verifier replaces legacy Argon2 code hash",
+      "strict exclusive proof expiry",
+      "retained receipt/predecessor history with factor incarnation/epoch/generation fencing replaces challenge deletion",
+      "no password/OAuth/live-provider parity claim"
+    ]
+  },
+  "limits": [
+    "Local correctness evidence, no multi-host or throughput/capacity acceptance.",
+    "SurrealKV not rerun; live Resend/Brevo/SMS providers not used.",
+    "Bounded retained challenges/receipts/effects and admission state; no online retention compactor.",
+    "Pinned admission key cannot retire before explicit store recreation.",
+    "Node convenience proof evidence is transient and does not survive client-process loss.",
+    "Supported restore fences old sessions/proofs and keeps effects quarantined; raw filesystem rollback is outside the guarantee.",
+    "E3 objects, E5 full pipeline and fresh committed-source release/bootstrap remain outstanding and unaccepted."
+  ],
+  "deferred": [
+    "password mode",
+    "username/passkeys/OAuth",
+    "C5 live invalidations",
+    "E4 recurrence",
+    "frontend",
+    "live providers",
+    "TiKV"
+  ],
+  "continuation": "User requested stop after this checkpoint. Resume required scope with E3."
+}

@@ -34,8 +34,9 @@ Install the matching service JSON as `/etc/rebase-next/service.json`, protect it
 from untrusted writes, and ensure the service account can read the public-key
 configuration and open the selected store. For FoundationDB, the account also
 needs read access to the configured cluster file and the required runtime
-library. Keep issuer private keys outside the service host; the service receives
-public verification keys only.
+library. External issuance needs public verification keys only. Optional Services
+[delivered proof](a1-proof-sessions.md) additionally needs private signing/proof
+key files and fixed credential/delivery policies; none belong in KV or Git.
 
 Terminate TLS at a supported reverse proxy before exposing a listener beyond a
 trusted private network. Configure connection, header and body-read timeouts
@@ -45,9 +46,11 @@ forwarded actor header does not grant authority; `/rpc` requires a bearer token.
 
 Tokens use the narrow EdDSA JWT profile in the [server guide](server.md):
 `alg=EdDSA`, `typ=JWT`, configured `kid`, issuer, audience, canonical subject
-and tenant UUIDs, epoch, and integer issue/not-before/expiry times. The server
+and tenant/session-generation UUIDs, epoch, and integer issue/not-before/expiry times. The server
 checks the signature, issuer, audience, time window, maximum lifetime and
-duplicate fields. It does not implement interactive login or general OIDC.
+duplicate fields. Current store authority and generation are checked inside each
+transaction. Services supports the bounded email/phone proof profile; general OIDC
+and live providers remain deferred. Supported restore rotates session generation.
 Rotate keys by publishing overlapping key IDs and restarting before removing
 old keys after the token window. Increment or disable a principal epoch for
 store-backed revocation.
@@ -60,8 +63,8 @@ the operation receipt; absence alone does not prove the request failed. SIGINT
 and SIGTERM drain accepted work. RPC batches and notifications are unsupported,
 and replies use `Cache-Control: no-store`.
 
-Current compiled models configure no fixed population ceiling, and population
-counters use u64. Shared limits remain: a 262,144-row observation budget for
+Current compiled models have no stored population counter or fixed population
+ceiling; inventory statistics are read-only. Shared limits remain: a 262,144-row observation budget for
 full inventory and check operations, 64 MiB backups, 1,024 receipts, 200,000
 mutation work units, 64 commands, 32 returning IDs or page rows, and 128 query
 visits. Redb-connected end-to-end checks cover 5,001
@@ -71,4 +74,6 @@ change, stop the old writer, retain verified backups and the matching compatible
 binary, and validate restored state with that binary. Model identity includes
 configured limits. Old stores with earlier identities or codecs are rejected;
 there is no automatic migration. See [storage lifecycle](storage.md) for
-backup, reset, receipt-retention and recovery semantics.
+backup, reset, receipt-retention and recovery semantics. Proof/effect service
+retention has separate documented bounds and does not imply an ordinary source
+population limit.

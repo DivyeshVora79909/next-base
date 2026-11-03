@@ -103,7 +103,10 @@ impl<B: Binding> Store<B> {
         before_commit: &mut dyn FnMut() -> Result<()>,
         lose_response: bool,
     ) -> Result<Value> {
-        if !B::credential_enabled() || !B::effect_source_anchor() {
+        if !B::credential_enabled()
+            || B::effect_action(crate::models::services::EMAIL_SEND)
+                .is_none_or(|action| action.authority != crate::effects::ActionAuthority::SourceUse)
+        {
             return Err(Error::new(
                 "unsupported_query",
                 "model has no email service",

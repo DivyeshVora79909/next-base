@@ -363,6 +363,7 @@ fn hidden_child_still_revalidated() {
             },
             parents,
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,

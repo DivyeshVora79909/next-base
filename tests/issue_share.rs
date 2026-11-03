@@ -1,4 +1,5 @@
 //! Source-literal acceptance for output-free published Issue consumers.
+mod common;
 use rebase_semantic_proof::{
     binding::Binding,
     lifecycle,
@@ -197,7 +198,7 @@ fn issue_share_uses_fresh_ready_publications_without_outputs_or_queries() {
     let restored = dir.0.join("restored.redb");
     lifecycle::restore(&backup, &restored, model.clone()).unwrap();
     let restored = Store::<Invoicing>::open(&restored, model.clone()).unwrap();
-    assert_eq!(restored.observe_for_verification().unwrap(), before);
+    common::assert_restored_image(restored.observe_for_verification().unwrap(), before.clone());
     publication(&restored, share, 20002, 0);
     drop(restored);
     drop(store);
@@ -448,6 +449,7 @@ fn issue_share_checker_rejects_stale_publications_and_missing_or_orphan_direct_r
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
         identity: IdentityConfig {
             issuer: "issue-share-test".into(),

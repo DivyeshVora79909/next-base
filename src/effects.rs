@@ -36,7 +36,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const CODEC: &str = "rebase-effects-5";
+pub const CODEC: &str = "rebase-effects-6";
 pub const MAX_UNRESOLVED: u16 = 64;
 pub const MAX_RETAINED: u16 = 256;
 pub const MAX_FACTS: usize = 1024;
@@ -77,6 +77,25 @@ pub struct ActionDeclaration {
     pub target_contract: u16,
     pub provider_account: &'static str,
     pub application_fields: Vec<&'static str>,
+    pub authority: ActionAuthority,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionAuthority {
+    TargetUpdate,
+    SourceUse,
+    Authentication,
+}
+impl ActionDeclaration {
+    pub fn source_anchor(&self) -> bool {
+        self.authority != ActionAuthority::TargetUpdate
+    }
+    pub fn application_required(&self) -> bool {
+        !self.application_fields.is_empty()
+    }
+    pub fn public(&self) -> bool {
+        self.authority != ActionAuthority::Authentication
+    }
 }
 pub(crate) fn capabilities<B: Binding>(action: &ActionDeclaration) -> Value {
     let mut value = json!({"action":action,"request_contract":action.source_contract,"codec":CODEC,
@@ -88,7 +107,7 @@ pub(crate) fn capabilities<B: Binding>(action: &ActionDeclaration) -> Value {
         "ingress":{"path":"/effects/fake","authentication":"HMAC SHA-256 over account/event/timestamp and exact bytes","raw_bytes":MAX_WEBHOOK},
         "limits":{"unresolved":MAX_UNRESOLVED,"retained":MAX_RETAINED,"request_bytes":B::effect_request_limit(),"private_bytes":MAX_BYTES},
         "restore":"effect-bearing stores receive a fresh disabled, quarantined activation"});
-    if B::effect_source_anchor() {
+    if action.authority == ActionAuthority::SourceUse {
         value["creation"] =
             json!("email.enqueue creates immutable EmailSend with transient authorizations");
         value["status"]["visibility"] = json!("current EmailSend Read and owner scope");
@@ -328,7 +347,10 @@ fn schedule(template: &Template, now: i64) -> Result<(i64, i64)> {
     }
     Ok((at, end))
 }
-fn hash_request<B: Binding>(request: &B::Input, action: &ActionDeclaration) -> Result<String> {
+pub(crate) fn hash_request<B: Binding>(
+    request: &B::Input,
+    action: &ActionDeclaration,
+) -> Result<String> {
     if let Some(email) = B::email_input(request) {
         return email.email.request_hash();
     }
@@ -493,7 +515,9 @@ pub(crate) fn reset_tables<B: Binding>(write: &WriteTransaction) -> Result<()> {
     {
         let (_, value) = row.map_err(local::storage)?;
         let fact: state::Fact<B> = local::decode(value.value())?;
-        if B::effect_application_required()
+        if load_execution::<B>(write, fact.execution)?
+            .declaration()?
+            .application_required()
             && fact.disposition == Disposition::Succeeded
             && fact.applied_revision.is_none()
         {
@@ -564,6 +588,181 @@ impl<B: Binding> PreparedIntents<B> {
             .collect()
     }
 }
+
+/// Accept only a trusted private source already staged with its proof and origin receipt.
+/// This function never publishes or commits and never constructs ordinary user authority.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_auth_delivery<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    write: &WriteTransaction,
+    ws: &mut Attempt<L, B>,
+    model: &Prepared<B>,
+    header: &RuntimeHeader,
+    source_id: Uuid,
+    operation_id: Uuid,
+    requester: Uuid,
+    credential_epoch: u64,
+    pin: crate::credentials::grants::AcceptedBinding,
+    allocate: &mut dyn FnMut() -> Result<Uuid>,
+) -> Result<PreparedIntents<B>> {
+    local::validate_header(header)?;
+    let source = ws
+        .record(source_id)?
+        .ok_or_else(|| local::corrupt("private delivery source missing"))?;
+    let action = B::effect_actions()
+        .into_iter()
+        .find(|action| {
+            action.source_contract == source.contract
+                && action.authority == ActionAuthority::Authentication
+        })
+        .ok_or_else(crate::access::denied)?;
+    let delivery = B::auth_delivery(&source.input).ok_or_else(crate::access::denied)?;
+    delivery.validate()?;
+    if source_id.is_nil()
+        || requester.is_nil()
+        || operation_id.is_nil()
+        || source.owner != requester
+        || pin.server_policy().is_none()
+        || pin.selection().is_some()
+        || model.contract(source.contract)?.visibility != crate::model::Visibility::Engine
+    {
+        return Err(crate::access::denied());
+    }
+    let Some(StoredValue::Meta(meta)) = ws.get(&Key::Meta)? else {
+        return Err(local::corrupt("private delivery tenant"));
+    };
+    if source.tenant != meta.tenant {
+        return Err(crate::access::denied());
+    }
+    model.validate(
+        source.contract,
+        &serde_json::to_value(&source.input).map_err(local::storage)?,
+    )?;
+    crate::credentials::grants::validate_server_pinned::<B>(write, &pin)?;
+    let mut runtime = runtime_write(write)?;
+    if runtime.quarantined {
+        return Err(Error::new(
+            "invalid_input",
+            "restored store permits reconciliation only",
+        ));
+    }
+    let now = now_millis()?;
+    let mut template = B::effect_template(&source.input)?
+        .ok_or_else(|| local::corrupt("private delivery schedule"))?;
+    template.target = source_id;
+    let (execute_at, not_after) = schedule(&template, now)?;
+    if local::encode(&source.input)?.len() > B::effect_request_limit() {
+        return Err(Error::new(
+            "request_limit",
+            "private delivery request bytes",
+        ));
+    }
+    check_intent_capacity(&runtime)?;
+    ws.charge("allocate", 1)?;
+    let id = allocate()?;
+    let table = write.open_table(EXECUTIONS)?;
+    if id.is_nil()
+        || id == source_id
+        || table.get(id.as_bytes().as_slice())?.is_some()
+        || ws.record(id)?.is_some()
+    {
+        return Err(Error::new(
+            "allocation_collision",
+            "private delivery execution identity",
+        ));
+    }
+    let row = Execution {
+        id,
+        codec: CODEC.into(),
+        model: model.identity().into(),
+        store: header.store_id,
+        tenant: source.tenant,
+        requester,
+        credential_epoch,
+        operation_id,
+        operation_epoch: header.operation_epoch,
+        source: source_id,
+        action: action.code,
+        action_version: action.version.into(),
+        provider_account: pin.account().into(),
+        email_binding: Some(pin),
+        email_starts: vec![],
+        target: source_id,
+        request_hash: hash_request::<B>(&source.input, &action)?,
+        request: source.input,
+        created_at: now,
+        execute_at,
+        not_after,
+        revision: 1,
+        phase: Phase::Ready,
+        cancellation: None,
+        attempts: 0,
+        observations: 0,
+        next_at: execute_at,
+        lease: None,
+        started: None,
+        last_fact: None,
+        terminal_fact: None,
+        application: Application::None,
+        reservation: true,
+        quarantined: false,
+        conflict: false,
+        diagnostic: None,
+    };
+    charge_intent(&mut runtime, &row)?;
+    let rows = vec![row];
+    charge_retained_credentials(ws, &table, &rows, &mut runtime)?;
+    Ok(PreparedIntents { rows, runtime })
+}
+
+fn check_intent_capacity(runtime: &Runtime) -> Result<()> {
+    if runtime.retained >= MAX_RETAINED
+        || runtime.unresolved >= MAX_UNRESOLVED
+        || usize::from(runtime.facts) + usize::from(runtime.reserved_facts) >= MAX_FACTS
+    {
+        return Err(Error::new("state_limit", "effect retention capacity"));
+    }
+    Ok(())
+}
+fn charge_intent<B: Binding>(runtime: &mut Runtime, row: &Execution<B>) -> Result<()> {
+    check_intent_capacity(runtime)?;
+    runtime.retained += 1;
+    runtime.unresolved += 1;
+    runtime.reserved_facts += 1;
+    runtime.accounted_bytes = runtime
+        .accounted_bytes
+        .checked_add(row.accounted_bytes()?)
+        .ok_or_else(|| Error::new("overflow", "effect bytes"))?;
+    if runtime.accounted_bytes > MAX_BYTES {
+        return Err(Error::new("state_limit", "effect private byte capacity"));
+    }
+    Ok(())
+}
+fn charge_retained_credentials<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    ws: &mut Attempt<L, B>,
+    table: &crate::storage::Table<&'static [u8], &'static [u8]>,
+    rows: &[Execution<B>],
+    runtime: &mut Runtime,
+) -> Result<()> {
+    if !B::credential_enabled() {
+        return Ok(());
+    }
+    let pins = crate::credentials::store::pinned_revisions::<B>(table)?;
+    let before = crate::credentials::store::retained_secret_bytes(ws, pins.values())?;
+    let after = crate::credentials::store::retained_secret_bytes(
+        ws,
+        pins.values()
+            .chain(rows.iter().filter_map(|row| row.email_binding.as_ref())),
+    )?;
+    runtime.accounted_bytes = runtime
+        .accounted_bytes
+        .checked_sub(before)
+        .and_then(|n| n.checked_add(after))
+        .ok_or_else(|| local::corrupt("retained secret budget"))?;
+    if runtime.accounted_bytes > MAX_BYTES {
+        return Err(Error::new("state_limit", "effect private byte capacity"));
+    }
+    Ok(())
+}
 /// Runs only after receipt replay and successful final domain settlement.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
@@ -577,9 +776,9 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     allocate: &mut dyn FnMut() -> Result<Uuid>,
     email_stage: Option<crate::email_operations::Stage<'_>>,
 ) -> Result<Option<PreparedIntents<B>>> {
-    let Some(action) = B::effect_action() else {
+    if B::effect_actions().is_empty() {
         return Ok(None);
-    };
+    }
     let table = write.open_table(EXECUTIONS).map_err(local::storage)?;
     // Retained executions outlive source deletion; their pinned targets cannot be reused.
     let removed: BTreeSet<_> = commands
@@ -606,7 +805,7 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         }
     }
     if !commands.iter().any(
-        |c| matches!(c, Command::Create { contract, .. } if *contract == action.source_contract),
+        |c| matches!(c, Command::Create { contract, .. } if B::effect_actions().iter().any(|action| action.public() && *contract == action.source_contract)),
     ) {
         return Ok(None);
     }
@@ -624,16 +823,19 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         let Command::Create { id, contract, .. } = command else {
             continue;
         };
-        if *contract != action.source_contract {
+        let Some(action) = B::effect_actions()
+            .into_iter()
+            .find(|action| action.public() && action.source_contract == *contract)
+        else {
             continue;
-        }
+        };
         ws.charge("dependency", 1)?;
         let source = ws
             .record(*id)?
             .ok_or_else(|| local::corrupt("settled effect source missing"))?;
         let mut template = B::effect_template(&source.input)?
             .ok_or_else(|| Error::new("model", "effect declaration/template disagree"))?;
-        let email_binding = if B::effect_source_anchor() {
+        let email_binding = if action.source_anchor() {
             template.target = *id;
             let input =
                 B::email_input(&source.input).ok_or_else(|| local::corrupt("email source type"))?;
@@ -657,7 +859,7 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
                 &grant.grant,
                 now,
             )?;
-            if pin.selection() != &input.selection {
+            if pin.selection() != Some(&input.selection) {
                 return Err(crate::access::denied());
             }
             let credential = ws
@@ -703,12 +905,7 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             return Err(Error::new("request_limit", "effect request bytes"));
         }
         let (execute_at, not_after) = schedule(&template, now)?;
-        if runtime.retained >= MAX_RETAINED
-            || runtime.unresolved >= MAX_UNRESOLVED
-            || usize::from(runtime.facts) + usize::from(runtime.reserved_facts) >= MAX_FACTS
-        {
-            return Err(Error::new("state_limit", "effect retention capacity"));
-        }
+        check_intent_capacity(&runtime)?;
         ws.charge("allocate", 1)?;
         let execution_id = allocate()?;
         if execution_id.is_nil()
@@ -766,35 +963,10 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             conflict: false,
             diagnostic: None,
         };
-        runtime.retained += 1;
-        runtime.unresolved += 1;
-        runtime.reserved_facts += 1;
-        runtime.accounted_bytes = runtime
-            .accounted_bytes
-            .checked_add(row.accounted_bytes()?)
-            .ok_or_else(|| Error::new("overflow", "effect bytes"))?;
-        if runtime.accounted_bytes > MAX_BYTES {
-            return Err(Error::new("state_limit", "effect private byte capacity"));
-        }
+        charge_intent(&mut runtime, &row)?;
         rows.push(row);
     }
-    if B::credential_enabled() {
-        let pins = crate::credentials::store::pinned_revisions::<B>(&table)?;
-        let before = crate::credentials::store::retained_secret_bytes(ws, pins.values())?;
-        let after = crate::credentials::store::retained_secret_bytes(
-            ws,
-            pins.values()
-                .chain(rows.iter().filter_map(|r| r.email_binding.as_ref())),
-        )?;
-        runtime.accounted_bytes = runtime
-            .accounted_bytes
-            .checked_sub(before)
-            .and_then(|n| n.checked_add(after))
-            .ok_or_else(|| local::corrupt("retained secret budget"))?;
-        if runtime.accounted_bytes > MAX_BYTES {
-            return Err(Error::new("state_limit", "effect private byte capacity"));
-        }
-    }
+    charge_retained_credentials(ws, &table, &rows, &mut runtime)?;
     Ok(Some(PreparedIntents { rows, runtime }))
 }
 /// The caller still owns the uncommitted domain transaction and its receipt.
@@ -848,7 +1020,7 @@ pub(crate) fn quota_scope(
     admission::QuotaScope {
         provider: pin.provider(),
         account: pin.account().into(),
-        purpose: crate::email::Purpose::EmailSend,
+        purpose: pin.purpose(),
     }
 }
 pub(crate) fn refresh_retained_secret_bytes(
@@ -872,7 +1044,10 @@ pub(crate) fn refresh_retained_secret_bytes(
 }
 impl<B: Binding> Store<B> {
     pub(crate) fn configure_email_admission(&self, policies: &admission::Policies) -> Result<()> {
-        if !B::effect_source_anchor() {
+        if !B::effect_actions()
+            .iter()
+            .any(|action| action.source_anchor())
+        {
             return Err(Error::new("invalid_config", "email model required"));
         }
         let write = self.begin_write()?;
@@ -888,7 +1063,7 @@ impl<B: Binding> Store<B> {
         write.commit().map_err(local::storage)
     }
     pub fn effect_status(&self, model: &str, id: Uuid) -> Result<Value> {
-        if B::effect_action().is_none() {
+        if B::effect_actions().is_empty() {
             return Err(Error::new("unsupported_query", "model has no effects"));
         }
         let (read, _, _) = self.read(model)?;
@@ -901,6 +1076,9 @@ impl<B: Binding> Store<B> {
             return Ok(Value::Null);
         };
         let row: Execution<B> = local::decode(bytes.value())?;
+        if !row.declaration()?.public() {
+            return Ok(Value::Null);
+        }
         let runtime = runtime_read(&read)?;
         let table = read.open_table(KV).map_err(local::storage)?;
         let mut ws = Attempt::<_, B>::new(
@@ -954,7 +1132,7 @@ impl<B: Binding> Store<B> {
         request: &Cancel,
         abort_after: Option<usize>,
     ) -> Result<Value> {
-        if B::effect_action().is_none() {
+        if B::effect_actions().is_empty() {
             return Err(Error::new("unsupported_query", "model has no effects"));
         }
         let hash = self.request_hash("effects.cancel", request)?;
@@ -1014,6 +1192,9 @@ impl<B: Binding> Store<B> {
                 .map_err(local::storage)?
                 .ok_or_else(|| Error::new("not_found", "execution unavailable"))?;
             let mut row: Execution<B> = local::decode(bytes.value())?;
+            if !row.declaration()?.public() {
+                return Err(crate::access::denied());
+            }
             drop(bytes);
             drop(executions);
             let target = ws
@@ -1101,7 +1282,6 @@ pub(crate) fn check<B: Binding>(
     let mut retained = 0;
     let mut bytes = HEADER_ALLOWANCE;
     let mut unresolved = 0;
-    let action = B::effect_action();
     for item in read
         .open_table(EXECUTIONS)
         .map_err(local::storage)?
@@ -1111,10 +1291,8 @@ pub(crate) fn check<B: Binding>(
         let (key, value) = item.map_err(local::storage)?;
         retained += 1;
         ensure(retained <= MAX_RETAINED, "retained effect population")?;
-        let action = action
-            .as_ref()
-            .ok_or_else(|| local::corrupt("effect row without model action"))?;
         let row: Execution<B> = local::decode(value.value())?;
+        let action = row.declaration()?;
         ensure(
             local::encode(&row)? == value.value()
                 && row.id.as_bytes().as_slice() == key.value()
@@ -1146,7 +1324,9 @@ pub(crate) fn check<B: Binding>(
             )),
             "duplicate execution origin",
         )?;
-        if row.operation_epoch == header.operation_epoch {
+        if action.authority == ActionAuthority::Authentication {
+            crate::authentication::proof::check_delivery_origin(read, &row)?;
+        } else if row.operation_epoch == header.operation_epoch {
             let receipts = read.open_table(RECEIPTS).map_err(local::storage)?;
             let key = if secured {
                 [
@@ -1176,21 +1356,43 @@ pub(crate) fn check<B: Binding>(
         ensure(
             row.request.contract() == action.source_contract
                 && local::encode(&row.request)?.len() <= B::effect_request_limit()
-                && row.request_hash == hash_request::<B>(&row.request, action)?,
+                && row.request_hash == hash_request::<B>(&row.request, &action)?,
             "effect frozen request/hash",
         )?;
         let mut template = B::effect_template(&row.request)?
             .ok_or_else(|| local::corrupt("effect frozen template"))?;
         ensure(
-            row.email_binding.is_some() == B::effect_source_anchor(),
+            row.email_binding.is_some() == action.source_anchor(),
             "effect email binding role",
         )?;
         if let Some(pin) = &row.email_binding {
-            let input =
-                B::email_input(&row.request).ok_or_else(|| local::corrupt("email request role"))?;
+            match action.authority {
+                ActionAuthority::SourceUse => {
+                    let input = B::email_input(&row.request)
+                        .ok_or_else(|| local::corrupt("email request role"))?;
+                    ensure(
+                        pin.selection() == Some(&input.selection) && pin.server_policy().is_none(),
+                        "email source/binding",
+                    )?;
+                }
+                ActionAuthority::Authentication => {
+                    ensure(
+                        B::auth_delivery(&row.request).is_some()
+                            && pin.server_policy().is_some()
+                            && pin.selection().is_none(),
+                        "authentication source/binding",
+                    )?;
+                }
+                ActionAuthority::TargetUpdate => {
+                    return Err(local::corrupt("unexpected pinned credential"));
+                }
+            }
             ensure(
-                pin.selection() == &input.selection && row.target == row.source,
-                "email source/binding",
+                row.target == row.source
+                    && records
+                        .get(&row.source)
+                        .is_some_and(|source| source.input == row.request),
+                "retained immutable delivery source",
             )?;
             template.target = row.source;
             crate::credentials::grants::check_retained_binding::<B>(read, pin, row.tenant)?;

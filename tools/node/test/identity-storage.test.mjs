@@ -12,16 +12,17 @@ const claim = (kind, value, identity, incarnation) => ({ key: `12${kind === 'ema
   value: hex(JSON.stringify({ type: 'identity_claim', data: { identity, incarnation } })) });
 function fixture() {
   const tables = Object.fromEntries(['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
-    'email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'local_runtime', 'native_kv', 'operations',
+    'email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'auth_challenges', 'auth_receipts', 'auth_heads', 'auth_handles', 'auth_runtime', 'local_runtime', 'native_kv', 'operations',
     'public_records', 'query_epochs', 'receipt_slots', 'authority', 'owner_records'].map(name => [name, []]));
+  tables.local_runtime = [{ key: Buffer.from('header').toString('hex'), value: Buffer.from(JSON.stringify({ format: 'rebase-store-11', store_id: '00000000-0000-0000-0000-0000000000f1', session_generation: '00000000-0000-0000-0000-0000000000f2', cursor_key: 'ab'.repeat(32), operation_epoch: '0' })).toString('hex') }];
   tables.authority = [{ key: hex('graph'), value: hex(JSON.stringify({ tenant: id(1), principals: [
-    { id: id(1), kind: 'tenant', parents: [], active: true, credential_epoch: 0, grants: { admin: true, contracts: {} } },
-    { id: id(2), kind: 'user', parents: [id(1)], active: false, credential_epoch: 0, grants: { admin: false, contracts: {} } },
+    { id: id(1), kind: 'tenant', parents: [], active: true, login_access: false, credential_epoch: 0, grants: { admin: true, contracts: {} } },
+    { id: id(2), kind: 'user', parents: [id(1)], active: false, login_access: false, credential_epoch: 0, grants: { admin: false, contracts: {} } },
   ] })) }];
   tables.native_kv = [{ key: '00', value: hex(JSON.stringify({ type: 'meta', data: { model: catalog.model, tenant: id(1) } })) }];
   for (const [identity, incarnation, kind, value, revision, verified] of [
     [id(10), id(20), 'email', 'alice@example.com', '2', false],
-    [id(11), id(21), 'phone', '+12345678', '5', true],
+    [id(11), id(21), 'phone', '+12345678', '5', false],
   ]) {
     tables.native_kv.push(point('01', identity, 'record', { contract: 1003, tenant: id(1), owner: id(2), created_at: '0',
       input: { kind, value }, derived: { incarnation, identity_revision: revision,

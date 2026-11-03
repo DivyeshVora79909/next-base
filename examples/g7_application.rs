@@ -56,8 +56,9 @@ fn main() -> Result<()> {
             let credentials = storage::credential_checks::run(factory, concurrent)?;
             let email = storage::email_checks::run(factory, concurrent)?;
             let authentication = storage::authentication_checks::run(factory, concurrent)?;
+            let proof = storage::proof_checks::run(factory, concurrent)?;
             Ok::<_, Error>(
-                json!({"application":application,"effects":effects,"predicates":predicates,"credentials":credentials,"email":email,"authentication":authentication}),
+                json!({"application":application,"effects":effects,"predicates":predicates,"credentials":credentials,"email":email,"authentication":authentication,"proof":proof}),
             )
         })
         .await

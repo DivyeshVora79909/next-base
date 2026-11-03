@@ -61,6 +61,7 @@ fn fixture() -> Fixture {
             // remains on a separate branch for hidden-peer denial checks.
             parents: vec![id(2)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: grants.clone(),
         },
@@ -69,6 +70,7 @@ fn fixture() -> Fixture {
             kind: PrincipalKind::User,
             parents: vec![id(1)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants,
         },
@@ -309,6 +311,7 @@ fn member_payload_and_authority_changes_fence_continuation() {
             kind: PrincipalKind::User,
             parents: vec![id(3)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: grants.clone(),
         });

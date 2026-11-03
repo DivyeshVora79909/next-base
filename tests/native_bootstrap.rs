@@ -112,7 +112,7 @@ fn configuration(model: &str, path: &Path, store: &Value) -> Value {
         "target":{"mode":"open","path":path,"expect_store":store},
         "service":{"listen":"127.0.0.1:0","identity":identity(),"max_inflight":2,"request_timeout_seconds":5,"effects":null}})
 }
-fn token() -> String {
+fn token(generation: Uuid) -> String {
     identity::issue(
         &identity(),
         &TokenRequest {
@@ -123,6 +123,7 @@ fn token() -> String {
             key_id: "test".into(),
         },
         include_bytes!("fixtures/test-ed25519-private.pem"),
+        generation,
     )
     .unwrap()
 }
@@ -161,6 +162,7 @@ fn model_workflow<B: Binding>(selector: &str) {
     )
     .unwrap();
     let store_id = store.inspect().unwrap()["store"].clone();
+    let generation = store.session_generation().unwrap();
     let fixtures = B::fixture_catalog();
     let fixture = B::fixture_plan(
         &model,
@@ -176,7 +178,7 @@ fn model_workflow<B: Binding>(selector: &str) {
     )
     .unwrap();
     let process = Process::start(&config_path);
-    let token = token();
+    let token = token(generation);
     assert_eq!(
         rpc(process.address, &token, "model.describe", json!({}))["result"],
         catalog

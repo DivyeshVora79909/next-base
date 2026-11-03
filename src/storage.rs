@@ -19,6 +19,7 @@ pub mod email_checks;
 #[cfg(feature = "foundationdb")]
 pub mod foundationdb;
 pub mod lifecycle_checks;
+pub mod proof_checks;
 mod redb;
 #[cfg(feature = "surrealkv")]
 pub mod surrealkv;

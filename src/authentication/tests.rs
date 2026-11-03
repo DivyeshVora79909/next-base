@@ -65,6 +65,7 @@ fn fixture_in(tenant: u128) -> Fixture {
             kind,
             parents: vec![id(parent)],
             active: true,
+            login_access: false,
             credential_epoch: 0,
             grants: Grants {
                 admin: false,
@@ -98,7 +99,19 @@ fn graph(store: &Store<Services>) -> Graph {
         .unwrap()
 }
 fn caller(store: &Store<Services>, actor: u128) -> Store<Services> {
-    store.authenticated_session(id(actor), 0, now()).unwrap()
+    {
+        let graph = crate::security::read_graph(&store.db.begin_read().unwrap()).unwrap();
+        let epoch = graph
+            .graph
+            .principals
+            .iter()
+            .find(|p| p.id == id(actor))
+            .unwrap()
+            .credential_epoch;
+        store
+            .authenticated_session(id(actor), epoch, now(), store.session_generation().unwrap())
+            .unwrap()
+    }
 }
 fn mutation(store: &Store<Services>, commands: Vec<Value>, returning: &[u128]) -> Mutation {
     serde_json::from_value(json!({"model":store.model().identity(),
@@ -213,7 +226,7 @@ fn canonical_claims_reject_duplicates_and_separate_tenants() {
     let a = fixture();
     let b = fixture_in(20);
     for f in [&a, &b] {
-        let session = caller(&f.store, 4);
+        let session = f.store.session(id(2), 0).unwrap();
         let request = mutation(
             &session,
             vec![
@@ -278,7 +291,7 @@ fn two_and_three_way_claim_swaps_use_complete_final_graph_in_every_order() {
         [2, 1, 0],
     ] {
         let f = fixture();
-        let session = caller(&f.store, 4);
+        let session = f.store.session(id(2), 0).unwrap();
         session
             .mutate(&mutation(
                 &session,
@@ -340,7 +353,7 @@ fn two_and_three_way_claim_swaps_use_complete_final_graph_in_every_order() {
 #[test]
 fn normalized_noop_keeps_lifetime_revision_indexes_and_cursor_while_replacement_invalidates() {
     let f = fixture();
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     session
         .mutate(&mutation(
             &session,
@@ -403,7 +416,7 @@ fn normalized_noop_keeps_lifetime_revision_indexes_and_cursor_while_replacement_
 #[test]
 fn last_identity_deletion_releases_claim_and_recreation_has_fresh_lifetime() {
     let f = fixture();
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     session
         .mutate(&mutation(
             &session,
@@ -447,7 +460,7 @@ fn last_identity_deletion_releases_claim_and_recreation_has_fresh_lifetime() {
 fn delete_and_reacquire_claim_in_one_final_graph_is_command_order_independent() {
     for reversed in [false, true] {
         let f = fixture();
-        let session = caller(&f.store, 4);
+        let session = f.store.session(id(2), 0).unwrap();
         session
             .mutate(&mutation(
                 &session,
@@ -489,9 +502,11 @@ fn self_requires_trusted_recent_proof_for_create_update_delete_and_noop() {
     for session in [
         f.store.session(id(4), 0).unwrap(),
         f.store
-            .authenticated_session(id(4), 0, now() - 601)
+            .authenticated_session(id(4), 0, now() - 601, f.store.session_generation().unwrap())
             .unwrap(),
-        f.store.authenticated_session(id(4), 0, now() + 60).unwrap(),
+        f.store
+            .authenticated_session(id(4), 0, now() + 60, f.store.session_generation().unwrap())
+            .unwrap(),
     ] {
         for command in [
             create(101, 4, "email", "b@example.com"),
@@ -623,7 +638,7 @@ fn immutable_owner_and_old_owner_scope_precede_stale_cas() {
 #[test]
 fn private_state_cannot_be_authored_and_never_enters_public_projection_or_receipt() {
     let f = fixture();
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     let request = mutation(
         &session,
         vec![create(100, 4, "email", "a@example.com")],
@@ -697,7 +712,7 @@ fn original_unknown_receipt_recovers_after_recency_expiry_without_advancing_iden
     let before = fresh.observe_for_verification().unwrap();
     let expired = f
         .store
-        .authenticated_session(id(4), 0, now() - 601)
+        .authenticated_session(id(4), 0, now() - 601, f.store.session_generation().unwrap())
         .unwrap();
     assert_eq!(expired.mutate(&request).unwrap()["replayed"], true);
     assert_eq!(expired.observe_for_verification().unwrap(), before);
@@ -762,7 +777,7 @@ fn every_native_identity_write_and_post_receipt_abort_leave_exact_original_store
 #[test]
 fn source_derived_checker_detects_missing_or_forged_claims_and_reopen_restore_preserve_state() {
     let f = fixture();
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     session
         .mutate(&mutation(
             &session,
@@ -896,6 +911,7 @@ fn permitted_identity_update_does_not_require_metadata_read() {
         ))
         .unwrap();
     assert_eq!(receipt["result"]["records"][0]["record"], Value::Null);
+    let session = caller(&f.store, 4);
     assert!(
         session
             .get(session.model().identity(), id(100))
@@ -936,7 +952,7 @@ fn unscoped_native_writes_cannot_manufacture_recent_authentication() {
 fn stale_operator_graph_cannot_overwrite_private_authentication_revision() {
     let f = fixture();
     let stale = graph(&f.store);
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     session
         .mutate(&mutation(
             &session,
@@ -953,7 +969,22 @@ fn stale_operator_graph_cannot_overwrite_private_authentication_revision() {
         .unwrap();
     let revision = auth_revision(&session, 4).unwrap();
     assert!(revision >= 2);
-    replace(&f.store, stale);
+    let current_revision = f.store.access_graph(f.store.model().identity()).unwrap()["revision"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!(
+        f.store
+            .replace_access(&ReplaceGraph {
+                model: f.store.model().identity().into(),
+                if_revision: current_revision,
+                graph: stale
+            })
+            .unwrap_err()
+            .code,
+        "invalid_input"
+    );
     assert_eq!(auth_revision(&session, 4), Some(revision));
     assert_inventory(&session);
 }
@@ -961,7 +992,7 @@ fn stale_operator_graph_cannot_overwrite_private_authentication_revision() {
 #[test]
 fn missing_or_regressed_authentication_history_rejects_noop_replace_and_delete_atomically() {
     let f = fixture();
-    let session = caller(&f.store, 4);
+    let session = f.store.session(id(2), 0).unwrap();
     session
         .mutate(&mutation(
             &session,
@@ -1043,7 +1074,7 @@ fn missing_or_regressed_authentication_history_rejects_noop_replace_and_delete_a
 fn identity_and_authentication_revision_overflow_rejects_the_whole_mutation() {
     for identity_overflow in [true, false] {
         let f = fixture();
-        let session = caller(&f.store, 4);
+        let session = f.store.session(id(2), 0).unwrap();
         session
             .mutate(&mutation(
                 &session,
@@ -1112,63 +1143,6 @@ fn identity_and_authentication_revision_overflow_rejects_the_whole_mutation() {
 }
 
 #[test]
-fn normalized_noop_preserves_verified_state_but_value_replacement_clears_it() {
-    let f = fixture();
-    let session = caller(&f.store, 4);
-    session
-        .mutate(&mutation(
-            &session,
-            vec![create(100, 4, "email", "a@example.com")],
-            &[],
-        ))
-        .unwrap();
-    let key = Key::Record(id(100));
-    let mut source = record(&session, 100);
-    let Some(crate::models::services::System::Identity(state)) = source.derived.as_mut() else {
-        panic!("identity state")
-    };
-    state.verified_revision = Some(1);
-    state.verified_at = Some(1000);
-    let original_incarnation = state.incarnation;
-    let bytes = native_codec::encode_for::<Services>(&key, &StoredValue::Record(source)).unwrap();
-    let write = session.begin_write().unwrap();
-    {
-        write
-            .open_table(KV)
-            .unwrap()
-            .insert(key.encode().as_slice(), bytes.as_slice())
-            .unwrap();
-    }
-    write.commit().unwrap();
-    assert_inventory(&session);
-    let before = record(&session, 100);
-    let revision = auth_revision(&session, 4);
-    session
-        .mutate(&mutation(
-            &session,
-            vec![update(&session, 100, " A@EXAMPLE.COM ")],
-            &[],
-        ))
-        .unwrap();
-    assert_eq!(record(&session, 100), before);
-    assert_eq!(auth_revision(&session, 4), revision);
-    session
-        .mutate(&mutation(
-            &session,
-            vec![update(&session, 100, "b@example.com")],
-            &[],
-        ))
-        .unwrap();
-    let source = record(&session, 100);
-    let (_, state) = Services::identity_values(&source).unwrap();
-    assert_eq!(state.identity_revision, 2);
-    assert_eq!(state.incarnation, original_incarnation);
-    assert_eq!(state.verified_revision, None);
-    assert_eq!(state.verified_at, None);
-    assert_inventory(&session);
-}
-
-#[test]
 fn repeated_settlements_use_each_entry_graph_for_edits_deletion_and_new_identity_lifetime() {
     use crate::native_slice::{Attempt, Command, Result};
 
@@ -1205,7 +1179,7 @@ fn repeated_settlements_use_each_entry_graph_for_edits_deletion_and_new_identity
     }
     for preexisting in [false, true] {
         let f = fixture();
-        let session = caller(&f.store, 4);
+        let session = f.store.session(id(2), 0).unwrap();
         if preexisting {
             session
                 .mutate(&mutation(

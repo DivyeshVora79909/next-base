@@ -17,6 +17,8 @@ pub struct Config {
     pub resend_origin: String,
     pub brevo_origin: String,
     #[serde(default)]
+    pub sms_origin: Option<String>,
+    #[serde(default)]
     pub mode: WorkerMode,
     pub policies: Vec<super::admission::Policy>,
     #[serde(default)]
@@ -36,6 +38,14 @@ impl Config {
         }
         if origin(&self.resend_origin)?.origin() == origin(&self.brevo_origin)?.origin() {
             return Err(configuration());
+        }
+        if let Some(sms) = &self.sms_origin {
+            let sms = origin(sms)?.origin();
+            if sms == origin(&self.resend_origin)?.origin()
+                || sms == origin(&self.brevo_origin)?.origin()
+            {
+                return Err(configuration());
+            }
         }
         super::admission::Policies::new(self.policies.clone())?;
         Ok(())
@@ -109,6 +119,7 @@ fn encoded_body(provider: Provider, request: &SendInput) -> Result<Value> {
         Provider::Brevo => {
             json!({"sender":{"email":email.sender},"to":email.to.iter().map(|address|json!({"email":address})).collect::<Vec<_>>(),"subject":email.subject,"textContent":email.text})
         }
+        Provider::FakeSms => return Err(transport()),
     })
 }
 fn auth_header(provider: Provider, secret: &ApiKeySecret) -> Result<reqwest::header::HeaderValue> {
@@ -160,6 +171,30 @@ fn decode_outcome(provider: Provider, bytes: &[u8]) -> Result<EmailOutcome> {
     // Parsing through the duplicate-rejecting JSON boundary precedes typed shape checks.
     let value = crate::json::parse(bytes).map_err(|_| transport())?;
     match provider {
+        Provider::FakeSms => {
+            #[derive(Deserialize, Serialize)]
+            #[serde(deny_unknown_fields)]
+            struct SmsResponse {
+                provider: Provider,
+                execution: Uuid,
+                account: String,
+                intent: String,
+                status: Disposition,
+                delivery_id: Option<String>,
+            }
+            let r: SmsResponse = serde_json::from_value(value.clone()).map_err(|_| transport())?;
+            if serde_json::to_value(&r).map_err(|_| transport())? != value {
+                return Err(transport());
+            }
+            Ok(EmailOutcome {
+                execution_id: r.execution,
+                provider: r.provider,
+                account: r.account,
+                request_hash: r.intent,
+                disposition: r.status,
+                receipt: r.delivery_id,
+            })
+        }
         Provider::Resend => {
             let response: ResendResponse =
                 serde_json::from_value(value.clone()).map_err(|_| transport())?;
@@ -193,6 +228,70 @@ fn decode_outcome(provider: Provider, bytes: &[u8]) -> Result<EmailOutcome> {
     }
 }
 
+fn delivery_body<B: Binding>(
+    store: &Store<B>,
+    row: &Execution<B>,
+    provider: Provider,
+) -> Result<Value> {
+    if let Some(delivery) = B::auth_delivery(&row.request) {
+        let runtime = store.authentication.as_ref().ok_or_else(transport)?;
+        let bytes = runtime.crypto.open(
+            &crate::authentication::proof::delivery_aad(row.store, row.tenant, delivery),
+            &delivery.payload,
+        )?;
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Payload {
+            kind: crate::authentication::types::Kind,
+            recipient: String,
+            sender: Option<String>,
+            code: crate::authentication::proof_types::Secret,
+        }
+        let payload: Payload = serde_json::from_slice(&bytes).map_err(|_| transport())?;
+        crate::authentication::proof_crypto::validate_code(&payload.code)?;
+        let text = format!("Your sign-in code is {}", payload.code.as_str());
+        match payload.kind {
+            crate::authentication::types::Kind::Email => {
+                let email = crate::email::EmailRequest {
+                    sender: payload.sender.ok_or_else(transport)?,
+                    to: vec![payload.recipient],
+                    subject: "Sign-in code".into(),
+                    text,
+                };
+                let input = SendInput {
+                    email,
+                    selection: grants::Selection::Byoc {
+                        credential: row
+                            .email_binding
+                            .as_ref()
+                            .ok_or_else(transport)?
+                            .credential(),
+                    },
+                    execute_at: None,
+                    not_after: None,
+                };
+                encoded_body(provider, &input)
+            }
+            crate::authentication::types::Kind::Phone => {
+                if provider != Provider::FakeSms || payload.sender.is_some() {
+                    return Err(transport());
+                }
+                crate::authentication::types::Input {
+                    kind: payload.kind,
+                    value: payload.recipient.clone(),
+                }
+                .validate()?;
+                Ok(json!({"recipient":payload.recipient,"message":text}))
+            }
+        }
+    } else {
+        encoded_body(
+            provider,
+            B::email_input(&row.request).ok_or_else(transport)?,
+        )
+    }
+}
+
 async fn call<B: Binding>(
     store: Arc<Store<B>>,
     runtime: Arc<grants::Runtime>,
@@ -212,25 +311,31 @@ async fn call<B: Binding>(
         let accepted = row.email_binding.as_ref().ok_or_else(transport)?;
         let (read, _, _) = owner.read(owner.model().identity())?;
         let secret = grants::load_pinned_secret::<B>(&read, accepted, row.tenant, keys.crypto())?;
-        Ok((row, secret))
+        let body = if proof.mode == Mode::Submit {
+            Some(delivery_body(&owner, &row, accepted.provider())?)
+        } else {
+            None
+        };
+        Ok((row, secret, body))
     })
     .await;
-    let (row, secret) = match prepared {
+    let (row, secret, body) = match prepared {
         Ok(ready) => ready,
         Err(error) if error.code == "stale_version" => return Ok(None),
         Err(error) => return Err(error),
     };
     Ok(async {
         let accepted = row.email_binding.as_ref()?;
-        let input = B::email_input(&row.request)?;
         let provider = accepted.provider();
         let endpoint = match provider {
             Provider::Resend => &config.resend_origin,
             Provider::Brevo => &config.brevo_origin,
+            Provider::FakeSms => config.sms_origin.as_ref()?,
         };
         let path = match provider {
             Provider::Resend => "/emails",
             Provider::Brevo => "/v3/smtp/email",
+            Provider::FakeSms => "/sms/messages",
         };
         let mut url = format!("{}{path}", endpoint.trim_end_matches('/'));
         if claim.mode == Mode::Reconcile {
@@ -238,14 +343,14 @@ async fn call<B: Binding>(
             url.push_str(&row.id.to_string());
         }
         let mut request = if claim.mode == Mode::Submit {
-            client.post(url).json(&encoded_body(provider, input).ok()?)
+            client.post(url).json(body.as_ref()?)
         } else {
             client.get(url)
         };
         request = request
-            .header("x-rebase-action", crate::email::EMAIL_OPERATION)
+            .header("x-rebase-action", &row.action_version)
             .header("x-rebase-account", accepted.account())
-            .header("x-rebase-request-hash", input.email.request_hash().ok()?);
+            .header("x-rebase-request-hash", &row.request_hash);
         request = match provider {
             Provider::Resend => request
                 .header(
@@ -254,11 +359,14 @@ async fn call<B: Binding>(
                 )
                 .header(
                     "idempotency-key",
-                    format!("{}/{}", crate::email::EMAIL_OPERATION, row.id),
+                    format!("{}/{}", row.action_version, row.id),
                 ),
             Provider::Brevo => request
                 .header("api-key", auth_header(provider, &secret).ok()?)
                 .header("x-rebase-execution", row.id.to_string()),
+            Provider::FakeSms => request
+                .header("x-sms-token", auth_header(provider, &secret).ok()?)
+                .header("x-sms-execution", row.id.to_string()),
         };
         // Key loading and request construction may take time. Confirm freshness and
         // exact ownership again immediately before handing the request to HTTP.
@@ -290,7 +398,7 @@ async fn call<B: Binding>(
             bytes.extend_from_slice(&chunk);
         }
         let outcome = decode_outcome(provider, &bytes).ok()?;
-        outcome.validate(&input.email, row.id).ok()?;
+        outcome.validate_hash(&row.request_hash, row.id).ok()?;
         outcome
             .validate_binding(provider, accepted.account())
             .ok()?;
@@ -456,6 +564,7 @@ mod tests {
         }
         assert!(origin("http://127.0.0.1:1234").is_ok());
         let config = Config {
+            sms_origin: None,
             resend_origin: "http://127.0.0.1:1234".into(),
             brevo_origin: "http://127.0.0.1:1235".into(),
             mode: WorkerMode::Disabled,

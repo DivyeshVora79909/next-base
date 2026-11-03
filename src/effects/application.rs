@@ -59,8 +59,7 @@ impl<B: Binding> Store<B> {
         {
             return Ok(false);
         }
-        let action = B::effect_action()
-            .ok_or_else(|| local::corrupt("effect application without action"))?;
+        let action = before.declaration()?;
         let key = fact_key(
             before.id,
             before
@@ -221,7 +220,7 @@ impl<B: Binding> Store<B> {
         revision: u64,
         expected_store: Option<Uuid>,
     ) -> Result<Value> {
-        if B::effect_action().is_none() {
+        if B::effect_actions().is_empty() {
             return Err(Error::new(
                 "unsupported_effect",
                 "model has no effect action",

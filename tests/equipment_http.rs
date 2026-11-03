@@ -36,10 +36,11 @@ fn config() -> ServerConfig {
         request_timeout_seconds: 5,
         email: None,
         credentials: None,
+        authentication: None,
         effects: None,
     }
 }
-fn token(config: &ServerConfig, actor: Uuid) -> String {
+fn token(config: &ServerConfig, actor: Uuid, generation: Uuid) -> String {
     identity::issue(
         &config.identity,
         &TokenRequest {
@@ -50,6 +51,7 @@ fn token(config: &ServerConfig, actor: Uuid) -> String {
             key_id: "test".into(),
         },
         PRIVATE,
+        generation,
     )
     .unwrap()
 }
@@ -125,7 +127,7 @@ async fn equipment_uses_shared_http_authority_receipts_and_sparse_queries() {
             .await
             .unwrap();
     });
-    let admin = token(&cfg, id(2));
+    let admin = token(&cfg, id(2), store.session_generation().unwrap());
     let session = result(rpc(addr, &admin, "session.describe", json!({})).await);
     assert_eq!(session["actor"], id(2).to_string());
     let catalog = result(rpc(addr, &admin, "model.describe", json!({})).await);
@@ -194,7 +196,7 @@ async fn equipment_uses_shared_http_authority_receipts_and_sparse_queries() {
         .await,
     );
     let mut graph = authority["graph"].clone();
-    graph["principals"].as_array_mut().unwrap().push(json!({"id":id(3),"kind":"user","parents":[id(1)],"active":true,"credential_epoch":0,"grants":{"admin":false,"contracts":{"101":["read"],"410":["read","create"]}}}));
+    graph["principals"].as_array_mut().unwrap().push(json!({"id":id(3),"kind":"user","parents":[id(1)],"active":true,"login_access":false,"credential_epoch":0,"grants":{"admin":false,"contracts":{"101":["read"],"410":["read","create"]}}}));
     result(
         rpc(
             addr,
@@ -204,7 +206,7 @@ async fn equipment_uses_shared_http_authority_receipts_and_sparse_queries() {
         )
         .await,
     );
-    let restricted = token(&cfg, id(3));
+    let restricted = token(&cfg, id(3), store.session_generation().unwrap());
     let restricted_session = result(rpc(addr, &restricted, "session.describe", json!({})).await);
     assert!(
         result(

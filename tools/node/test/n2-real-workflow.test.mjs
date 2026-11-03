@@ -198,15 +198,15 @@ test('real N2 model, scoped operator, authenticated service and saved mutation w
     const reader = randomUUID();
     const deniedActor = randomUUID();
     access.graph.principals.push({
-      id: group, kind: 'group', parents: [tenant], active: true, credential_epoch: 0,
+      id: group, kind: 'group', parents: [tenant], active: true, login_access: false, credential_epoch: 0,
       grants: { admin: false, contracts: { '101': ['create', 'read'] } },
     });
     access.graph.principals.push({
-      id: reader, kind: 'user', parents: [group], active: true, credential_epoch: 0,
+      id: reader, kind: 'user', parents: [group], active: true, login_access: false, credential_epoch: 0,
       grants: { admin: false, contracts: {} },
     });
     access.graph.principals.push({
-      id: deniedActor, kind: 'user', parents: [tenant], active: true, credential_epoch: 0,
+      id: deniedActor, kind: 'user', parents: [tenant], active: true, login_access: false, credential_epoch: 0,
       grants: { admin: false, contracts: {} },
     });
     const replaced = await client.call('access.replace', { model: scope.model, if_revision: access.revision, graph: access.graph });

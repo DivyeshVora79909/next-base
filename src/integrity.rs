@@ -992,6 +992,7 @@ impl<'a, B: Binding> Snapshot<'a, B> {
         let receipts = read.open_table(RECEIPTS).map_err(local::storage)?;
         let effects =
             crate::effects::check(read, store.model(), meta, header, records, store.secured)?;
+        crate::authentication::proof::check(read, header, records)?;
         let mut receipt_count = 0;
         let mut expected_slots = BTreeMap::new();
         for row in receipts.iter().map_err(local::storage)? {
@@ -1683,6 +1684,7 @@ mod tests {
             request_timeout_seconds: 5,
             email: None,
             credentials: None,
+            authentication: None,
             effects: None,
         };
         assert_eq!(

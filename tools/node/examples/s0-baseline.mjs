@@ -232,7 +232,8 @@ function checkSnapshot(snapshot,records,members,roots,corpus) {
     same(parseFrame(Buffer.from(row.value,'hex')),row.decoded,'decoded witness differs from actual value bytes');
     return {key:row.key,value:row.value};
   });
-  const tables=Object.fromEntries(['effect_due','effect_executions','effect_facts','effect_inbox','effect_runtime','email_rate_scopes','email_rate_starts','email_rate_points','local_runtime','native_kv','operations','public_records','query_epochs','receipt_slots'].map(name=>[name,name==='native_kv'?rows:[]]));
+  const tables=Object.fromEntries(['effect_due','effect_executions','effect_facts','effect_inbox','effect_runtime','email_rate_scopes','email_rate_starts','email_rate_points','auth_challenges', 'auth_receipts', 'auth_heads', 'auth_handles', 'auth_runtime', 'auth_challenges','auth_receipts','auth_heads','auth_handles','auth_runtime','local_runtime','native_kv','operations','public_records','query_epochs','receipt_slots'].map(name=>[name,name==='native_kv'?rows:[]]));
+  tables.local_runtime = [{ key: Buffer.from('header').toString('hex'), value: Buffer.from(JSON.stringify({ format: 'rebase-store-11', store_id: '00000000-0000-0000-0000-0000000000f1', session_generation: '00000000-0000-0000-0000-0000000000f2', cursor_key: 'ab'.repeat(32), operation_epoch: '0' })).toString('hex') }];
   const payload={format:'rebase-authorized-observation-1',complete:true,tables};
   const checked=checkBackupStructure(JSON.stringify({format:'rebase-backup-1',sha256:hash(stable(payload)),payload}),{...expectedInventory(records,members),includeObservation:true});
   demand(checked.status==='passed','independent physical structure check did not pass');
