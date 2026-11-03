@@ -1,10 +1,12 @@
 # Ownership transfers — authorized implementation handoff
 
-Status: planning/source audit only; no runtime implementation in this checkpoint.
+Status: implemented by the [ownership-transfer checkpoint](checkpoints/c2-ownership-transfer.json).
+The contract and audit notes below preserve the original handoff; measured legacy
+behavior is recorded in [the completed comparison](ownership-transfer-legacy.md).
 Baseline: `4a89967`, owner-only access, codec `native-slice-kv-12`.
 The user explicitly authorizes ordinary ownership transfers. Previous immutability
 was an implementation restriction, not a mathematical requirement. Current code
-still rejects owner updates; do not describe this handoff as a completed feature.
+rejected owner updates at this baseline; the subsequent checkpoint implements them.
 
 ## Contract
 

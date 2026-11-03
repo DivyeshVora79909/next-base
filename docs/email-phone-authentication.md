@@ -13,8 +13,9 @@ is no reader field or inferred reader. Read/Create/Update require same tenant, a
 and owner accessibility through self, strict descendants, or direct group parents; direct
 tenant-parent records are excluded from ordinary data scope. Tenant-grant inheritance remains
 a separate legacy rule. Delete permits self or strict descendants only. Admin actions do not
-widen ordinary scope. Create may name an accessible owner (default actor); Update cannot
-change owner.
+widen ordinary scope. Create may name an accessible owner (default actor). Ordinary
+Update may transfer ownership with Update permission and access to both old and new
+owners. The special immutable identity linkage below remains a separate planned rule.
 
 Current bulk graph replacement remains an operator control plane. This plan does not claim
 ordinary user/group CRUD parity is implemented. Future principal management must enforce

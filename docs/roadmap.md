@@ -66,7 +66,12 @@ action grant, and owner accessibility through self, strict descendants, or direc
 parents only. Direct tenant-parent records are excluded from ordinary data scope; tenant-
 grant inheritance remains separate. Delete permits self or strict descendants only. Admin
 actions do not widen ordinary scope. Create accepts optional canonical UUID `owner`,
-defaults to actor and requires access to the requested owner; Update cannot change owner.
+defaults to actor and requires access to the requested owner. The subsequent
+[ownership-transfer checkpoint](checkpoints/c2-ownership-transfer.json) permits optional
+Update `owner` metadata with Update permission and access to both owners; it supersedes
+C2.O's Update immutability restriction. Generated outputs follow their producer, while
+business roots retain their declared UUID/slot identities. Indexes and both owner cursor
+partitions change atomically; same-owner/no-input-change updates preserve data revisions.
 Acceptance is complete. Internal balancing/cascades validate hidden records without granting
 client access. Root access authorizes explicitly declared public summary data; FULL
 aggregates may include hidden contributors but do not grant leaf/body/ID reads. Proof:

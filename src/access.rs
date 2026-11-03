@@ -18,7 +18,7 @@ pub const MAX_PRINCIPALS: usize = 128;
 pub const MAX_PARENTS: usize = 8;
 pub const MAX_OWNER_STREAMS: usize = 1280;
 /// Owner-only disclosure and action-specific mutation authority.
-pub const OWNER_POLICY: &str = "owner-only-read-create-update-accessible-delete-self-descendants-1";
+pub const OWNER_POLICY: &str = "owner-only-update-both-owners-accessible-delete-self-descendants-2";
 /// Ordinary resource scope is independent of administrative action grants.
 pub const SCOPE_POLICY: &str = "owner-only-self-descendants-direct-group-parents-2";
 

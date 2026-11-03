@@ -584,6 +584,238 @@ fn current_account_authority_controls_creation_cancel_status_and_receipt_disclos
 }
 
 #[test]
+fn ownership_transfer_preserves_pinned_intent_facts_and_current_worker_authority() {
+    use crate::models::effect_demo::{Input, Outcome, ProviderPhase};
+
+    let dir = Directory::new();
+    let store = dir.store();
+    let mut graph = Graph::bootstrap(store.context()).unwrap().graph;
+    for n in [4, 5] {
+        graph.principals.push(Principal {
+            id: id(n),
+            kind: PrincipalKind::User,
+            parents: vec![id(2)],
+            active: true,
+            credential_epoch: 0,
+            grants: Grants {
+                admin: false,
+                contracts: [101, 205]
+                    .into_iter()
+                    .map(|code| {
+                        (
+                            code,
+                            BTreeSet::from([Action::Read, Action::Create, Action::Update]),
+                        )
+                    })
+                    .collect(),
+            },
+        });
+    }
+    replace(&store, graph);
+    let requester = store.session(id(4), 0).unwrap();
+    let recipient = store.session(id(5), 0).unwrap();
+    requester
+        .mutate(&mutation(&requester, 100, json!([create_account(10, 12)])))
+        .unwrap();
+    let mut request = mutation(&requester, 101, json!([dispatch(20, 10)]));
+    request.returning = vec![id(20)];
+    let execution = executions(&requester.mutate(&request).unwrap())[0];
+    let transfer = |record, owner| {
+        let mut command = update(&store, record, json!({}));
+        command["owner"] = json!(id(owner));
+        command
+    };
+    let unchanged_effects = |before: &Value, after: &Value| {
+        for table in [
+            "effect_executions",
+            "effect_due",
+            "effect_facts",
+            "effect_inbox",
+            "effect_runtime",
+        ] {
+            assert_eq!(
+                before["tables"][table], after["tables"][table],
+                "transfer changed {table}"
+            );
+        }
+    };
+    let execution_row = |image: &Value, execution: Uuid| -> Value {
+        let row = image["tables"]["effect_executions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["key"] == execution.simple().to_string())
+            .unwrap();
+        local::decode(&local::unhex(row["value"].as_str().unwrap()).unwrap()).unwrap()
+    };
+    let initial = store.observe_for_verification().unwrap();
+    let pinned = execution_row(&initial, execution);
+    assert_eq!(pinned["requester"], json!(id(4)));
+    assert_eq!(pinned["source"], json!(id(20)));
+    assert_eq!(pinned["target"], json!(id(10)));
+    assert_eq!(pinned["request"]["units"], "3");
+
+    // Moving the dispatch never resubmits its pinned request. Status and receipt
+    // execution disclosure follow the current target owner, independently of the
+    // dispatch's current visibility.
+    store
+        .mutate(&mutation(&store, 102, json!([transfer(20, 5)])))
+        .unwrap();
+    unchanged_effects(&initial, &store.observe_for_verification().unwrap());
+    assert!(requester.get(&request.model, id(20)).unwrap().is_none());
+    assert!(recipient.get(&request.model, id(20)).unwrap().is_some());
+    assert!(
+        requester
+            .effect_status(&request.model, execution)
+            .unwrap()
+            .is_object()
+    );
+    assert_eq!(
+        recipient.effect_status(&request.model, execution).unwrap(),
+        Value::Null
+    );
+    let replay = requester.mutate(&request).unwrap();
+    assert_eq!(replay["result"]["records"][0]["record"], Value::Null);
+    assert_eq!(executions(&replay), vec![execution]);
+
+    let activation = store
+        .activate_effect_worker(effects::WorkerMode::Delivery)
+        .unwrap();
+    let candidate = |execution| {
+        (0..4)
+            .find_map(|_| {
+                store
+                    .scan_effects(activation)
+                    .unwrap()
+                    .into_iter()
+                    .find(|candidate| candidate.execution == execution)
+            })
+            .expect("due execution")
+    };
+    let claim = store.claim_effect(&candidate(execution)).unwrap().unwrap();
+    let started = store.start_effect(&claim).unwrap().unwrap();
+    let confirmed = store.confirm_effect_start(&started).unwrap();
+    assert_eq!(confirmed.requester, id(4));
+    assert_eq!(confirmed.source, id(20));
+    assert_eq!(
+        confirmed.request_hash,
+        pinned["request_hash"].as_str().unwrap()
+    );
+    let outcome = Outcome {
+        execution_id: execution,
+        account: "fake-account-1".into(),
+        action: 1,
+        units: 3,
+        phase: ProviderPhase::Succeeded,
+        receipt: Some(id(999).to_string()),
+    };
+    store.finish_effect(&started, Some(&outcome)).unwrap();
+    let fact_image = store.observe_for_verification().unwrap();
+    assert_eq!(
+        fact_image["tables"]["effect_facts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    store
+        .mutate(&mutation(&store, 103, json!([transfer(10, 5)])))
+        .unwrap();
+    unchanged_effects(&fact_image, &store.observe_for_verification().unwrap());
+    assert_eq!(
+        requester.effect_status(&request.model, execution).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        recipient.effect_status(&request.model, execution).unwrap()["outcome"],
+        json!(outcome)
+    );
+    assert!(
+        requester.mutate(&request).unwrap()["result"]
+            .get("executions")
+            .is_none()
+    );
+    assert!(
+        requester
+            .operation_status(&request.model, &request.context, request.operation_id)
+            .unwrap()["result"]
+            .get("executions")
+            .is_none()
+    );
+
+    // Success was already accepted before the target transfer. Applying that
+    // durable fact remains required; it changes only balance, retains owner 5,
+    // and cannot authorize a new submission as the former owner.
+    let apply = candidate(execution);
+    assert!(store.apply_effect(&apply).unwrap());
+    assert!(!store.apply_effect(&apply).unwrap());
+    assert_eq!(
+        recipient
+            .get(&request.model, id(10))
+            .unwrap()
+            .unwrap()
+            .input,
+        Input::Account { balance: 9 }
+    );
+    assert!(requester.get(&request.model, id(10)).unwrap().is_none());
+    let applied = store.observe_for_verification().unwrap();
+    let row = execution_row(&applied, execution);
+    for field in [
+        "requester",
+        "credential_epoch",
+        "operation_id",
+        "source",
+        "target",
+        "request",
+        "request_hash",
+        "action",
+        "action_version",
+        "provider_account",
+    ] {
+        assert_eq!(row[field], pinned[field], "changed pinned {field}");
+    }
+    assert_eq!(row["application"], "applied");
+
+    store
+        .mutate(&mutation(
+            &store,
+            104,
+            json!([transfer(10, 4), transfer(20, 4)]),
+        ))
+        .unwrap();
+    unchanged_effects(&applied, &store.observe_for_verification().unwrap());
+    let next = executions(
+        &requester
+            .mutate(&mutation(&requester, 105, json!([dispatch(21, 10)])))
+            .unwrap(),
+    )[0];
+    let before = store.observe_for_verification().unwrap();
+    store
+        .mutate(&mutation(&store, 106, json!([transfer(10, 5)])))
+        .unwrap();
+    unchanged_effects(&before, &store.observe_for_verification().unwrap());
+    assert!(store.claim_effect(&candidate(next)).unwrap().is_none());
+    let cancelled = recipient.effect_status(&request.model, next).unwrap();
+    assert_eq!(cancelled["phase"], "cancelled");
+    assert_eq!(cancelled["cancellation"], "revoked");
+    assert_eq!(cancelled["attempts"], 0);
+    assert_eq!(
+        recipient
+            .get(&request.model, id(10))
+            .unwrap()
+            .unwrap()
+            .input,
+        Input::Account { balance: 9 }
+    );
+    assert_eq!(
+        store.observe_for_verification().unwrap()["tables"]["effect_facts"],
+        applied["tables"]["effect_facts"]
+    );
+    store.check_integrity().unwrap();
+}
+
+#[test]
 fn immutable_input_expiry_and_allocation_failures_leave_no_intent_or_receipt() {
     let dir = Directory::new();
     let store = dir.store();

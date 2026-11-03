@@ -111,9 +111,58 @@ test('create owner remains bound in saved and submitted plans and rejects invali
   for (const invalid of [
     { ...command, reader: actor },
     { ...command, unexpected: true },
-    { op: 'update', id: tenant, if_version: actor, set: {}, unset: [], owner: store },
     { op: 'delete', id: tenant, if_version: actor, owner: store },
   ]) await assert.rejects(client.prepare({ ...draft, commands: [invalid] }), error => error.code === 'invalid_plan');
+});
+
+test('owner-only update retains its destination through prepare, saved replay, and status', async () => {
+  const client = connect({ endpoint: `${base}/delayed-session`, credential: 'test-token' });
+  const command = { op: 'update', id: tenant, if_version: actor, owner: store, set: {}, unset: [] };
+  const draft = { model: 'quantity', commands: [command], returning: [tenant] };
+  const preparing = client.prepare(draft, { operationId });
+  command.owner = actor;
+  const plan = await preparing;
+  assert.equal(plan.request.commands[0].owner, store);
+  assert.deepEqual(plan.request.commands[0].set, {});
+  assert.deepEqual(plan.request.commands[0].unset, []);
+  assert.ok(Object.isFrozen(plan.request.commands[0]));
+
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'rebase-transfer-plan-'));
+  try {
+    const destination = path.join(directory, 'transfer.json');
+    await savePlan(destination, plan);
+    const saved = JSON.parse(await readFile(destination, 'utf8'));
+    assert.deepEqual(saved, plan);
+    const executing = client.execute(saved);
+    saved.request.commands[0].owner = actor;
+    await executing;
+    const submitted = calls.findLast(call => call.envelope.method === 'records.mutate').envelope.params;
+    assert.deepEqual(submitted, plan.request);
+    await client.status(plan);
+    assert.deepEqual(calls.findLast(call => call.envelope.method === 'operations.status').envelope.params, {
+      model: plan.request.model, context: plan.request.context, operation_id: operationId,
+    });
+  } finally { await rm(directory, { recursive: true, force: true }); }
+
+  const { owner: _owner, ...unchanged } = command;
+  const omitted = await client.prepare({ ...draft, commands: [unchanged] });
+  assert.equal(Object.hasOwn(omitted.request.commands[0], 'owner'), false);
+  const sameOwner = await client.prepare({ ...draft, commands: [{ ...command, owner: actor }] });
+  assert.equal(sameOwner.request.commands[0].owner, actor);
+});
+
+test('update owner rejects malformed destinations and unsupported authority metadata before network use', async () => {
+  const client = connect({ endpoint: base, credential: 'test-token' });
+  const command = { op: 'update', id: tenant, if_version: actor, set: {}, unset: [] };
+  const draft = { model: 'quantity', commands: [command], returning: [] };
+  const before = calls.length;
+  for (const owner of [null, 7, '', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA', actor.replaceAll('-', ''), 'bad-owner', {}, []]) {
+    await assert.rejects(client.prepare({ ...draft, commands: [{ ...command, owner }] }), error => error.code === 'invalid_plan');
+  }
+  for (const metadata of [{ reader: actor }, { tenant }, { trusted: true }, { unexpected: true }]) {
+    await assert.rejects(client.prepare({ ...draft, commands: [{ ...command, owner: store, ...metadata }] }), error => error.code === 'invalid_plan');
+  }
+  assert.equal(calls.length, before);
 });
 
 test('plans are private, complete, and write-once', async () => {

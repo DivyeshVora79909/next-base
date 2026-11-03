@@ -21,10 +21,11 @@ export function validateOperationDraft(draft) {
         : command?.op === 'delete' ? ['op', 'id', 'if_version'] : null;
     if (!isObject(command) || keys === null
       || !keys.every(key => Object.hasOwn(command, key))
-      || Object.keys(command).some(key => !keys.includes(key) && !(command.op === 'create' && key === 'owner'))) {
+      || Object.keys(command).some(key => !keys.includes(key)
+        && !(['create', 'update'].includes(command.op) && key === 'owner'))) {
       throw rpcError('invalid_plan', 'Invalid mutation command fields');
     }
-    if (Object.hasOwn(command, 'owner')) validateUuid(command.owner, 'create.owner');
+    if (Object.hasOwn(command, 'owner')) validateUuid(command.owner, `${command.op}.owner`);
   }
   for (const id of draft.returning) validateUuid(id, 'returning ID');
   if (new Set(draft.returning).size !== draft.returning.length) throw rpcError('invalid_plan', 'Duplicate returning ID');

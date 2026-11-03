@@ -112,13 +112,21 @@ impl<B: Binding> Store<B> {
                 &mut || Ok(Uuid::new_v4()),
                 false,
                 &mut |_ws, command, old, new| {
-                    let Command::Update { id, set, unset, .. } = command else {
+                    let Command::Update {
+                        id,
+                        owner,
+                        set,
+                        unset,
+                        ..
+                    } = command
+                    else {
                         return Err(crate::access::denied());
                     };
                     let Some(old) = old else {
                         return Err(crate::access::denied());
                     };
                     if *id != before.target
+                        || owner.is_some()
                         || old.tenant != before.tenant
                         || old.contract != action.target_contract
                         || !unset.is_empty()
@@ -134,6 +142,7 @@ impl<B: Binding> Store<B> {
                     if let Some(new) = new {
                         if new.tenant != before.tenant
                             || new.contract != action.target_contract
+                            || new.owner != old.owner
                             || old.input.references() != new.input.references()
                         {
                             return Err(crate::access::denied());

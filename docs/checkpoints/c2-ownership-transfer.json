@@ -1,0 +1,461 @@
+{
+  "format": "next-base-ownership-transfer-1",
+  "checkpoint": "C2.T",
+  "date": "2026-11-03",
+  "status": "accepted bounded ownership transfers",
+  "parentCommit": "22634f474747b17763ff844847b40c535177d2b3",
+  "codec": "native-slice-kv-12",
+  "ownerPolicy": "owner-only-update-both-owners-accessible-delete-self-descendants-2",
+  "identity": "Prepared model identity changes; explicit recreation required for earlier prepared identities. Historical checkpoint fingerprints unchanged.",
+  "contract": {
+    "wire": "Update owner metadata is an optional canonical UUID outside set; omitted unchanged, null invalid; empty set/unset permits owner-only update.",
+    "authorization": "Current active caller, tenant, credential and Update grant; both old and destination owners accessible before CAS and final publication. No extra Read grant.",
+    "scope": "Self, strict descendants and direct group parents; no ordinary tenant-parent scope or admin widening. Delete remains self/strict descendants.",
+    "generated": "All managed output owners and versions follow producer; role IDs/reservations and unrelated referenced/business root owners remain stable.",
+    "indexes": "Public owner_records move exactly old to new partition; both owner/contract epochs fence cursors. Private outputs stay outside public owner index.",
+    "noops": "Same-owner unchanged-input edits retain data/index/root revisions and conflict guards; operation receipts remain durable.",
+    "composition": "Immediately staged queries/roles/outputs support create, retarget or earlier producer deletion followed by transfer in one Attempt.",
+    "effects": "Pinned requester, intent and durable facts preserved; existing worker authority/disclosure and fact application boundaries retained; application cannot author owner metadata.",
+    "atomicity": "Source/index/epoch/receipt publication once; actual write aborts preserve complete inventory; unknown outcome recovers original operation receipt."
+  },
+  "inputs": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "ca79b248ddddae74112c0b49a69df18794ae81309e04b2477bd6fdbe1f9b8f1e"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "077b38cf84b01e58c728aa67b74a2410a06306d452d4c13d53b4e95534bc29b7"
+    },
+    {
+      "path": "src/access.rs",
+      "sha256": "d285258027ae143576a79d386bb7b1ac922ff35f3cffa9ae93a5340757b13d26"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "bf925d89f49dcd2af73879e14b1ac5f3b743b9553c39d269a35e85815231f6c4"
+    },
+    {
+      "path": "src/effect_tests.rs",
+      "sha256": "c3fff8546f208bf22f199a32bb42b90653ae7d13966a560d65f651bc3dcabfbf"
+    },
+    {
+      "path": "src/effects/application.rs",
+      "sha256": "d8cc87307c90037a492dda46f2e0a80b166a4a259605f1f1004854b6930a250b"
+    },
+    {
+      "path": "src/effects/conformance.rs",
+      "sha256": "cc71a67f576215124bf23ad1ad9c6902ef6609365db3b4cd66e85d0b6c88e841"
+    },
+    {
+      "path": "src/integrity.rs",
+      "sha256": "757eb3f26fd6aca5963f0cbe8ef4f2e6bf56af022c1f20685fe515e7685da153"
+    },
+    {
+      "path": "src/lifecycle.rs",
+      "sha256": "e67514e0551bb18b1736dc45dbfca52c5b8ae95a2855c03037e3dbce2b2ada37"
+    },
+    {
+      "path": "src/local.rs",
+      "sha256": "ee0d0f84dd6052e616b18971aaa52b71d3c6e72ea77820a5a2447233ab9ecfad"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "80c931f7496404852e68adbb1fbd8ef915b00149fb71299805fbe2ad69775fa6"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "d13d03e1d03eeb27f36c441fb275513ca50a7f6506bb2a1dfc8d958ca15d5872"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "baf3c459928ed8550be0482898bc698786c9d5c53d9a1a74bda89931526c2c5d"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "00caf6fb40af4c0395c2a25e292172b9784b7dc616df3a9f05b963b74f3b0c98"
+    },
+    {
+      "path": "src/query.rs",
+      "sha256": "daff741bff346f22e9a41a18d80f7c6988edfb44daf4278d394b83326062c1d7"
+    },
+    {
+      "path": "src/root_page.rs",
+      "sha256": "24afd0e159dd5c18ac0e680caa8c8db51a2ebf5870a9b0f4e65553a7726b1d4e"
+    },
+    {
+      "path": "src/security.rs",
+      "sha256": "9ec51693011d4f1c626fdf70e9cc482068b793f758c3a170f8a1265906ca8694"
+    },
+    {
+      "path": "src/storage/concurrency_checks.rs",
+      "sha256": "8f4dc4eeb4ccc5925e604a6a67cac2d173ccdfe3742e31157b18c93cb34dfe38"
+    },
+    {
+      "path": "src/storage/coordination_checks.rs",
+      "sha256": "72d71394305f2cea81089386987824e97fc29f3477a84e6336d754a9a76eb02d"
+    },
+    {
+      "path": "src/uniqueness.rs",
+      "sha256": "23e3e79a9b5ef0200e11fd10199943e0ae44bec403e9bd320011f7c02f57a56b"
+    },
+    {
+      "path": "tests/ownership_transfer.rs",
+      "sha256": "382ea4e526352dae7ba018c012f1976b659e0641f8004b21802bd596b720c29e"
+    },
+    {
+      "path": "tools/node/private/operation-plan.mjs",
+      "sha256": "868d08c3d32e2134c5d07e3a07dedb0cdeff86e368d54344869f7f269f935074"
+    },
+    {
+      "path": "tools/node/test/client.test.mjs",
+      "sha256": "f2faac3d9cc6ac8ace9467f51363774ca1ffae04a632e3b464054ea26c2c4b8c"
+    }
+  ],
+  "verification": {
+    "rust": {
+      "command": "cargo test --all-targets",
+      "passed": 298,
+      "failed": 0,
+      "ignored": 0
+    },
+    "node": {
+      "command": "npm test (tools/node; all REBASE_NODE_N1..N6_BINARY point to freshly built native binary)",
+      "nodeVersion": "26.12.0",
+      "passed": 176,
+      "failed": 0,
+      "skipped": 0,
+      "binarySha256": "dfe35ec86314faea4b76bd2e5b52d757442bd169f5fe1ec3ec6ff411c5d5cb06"
+    },
+    "format": "cargo fmt --all -- --check; git diff --check",
+    "lint": [
+      "cargo clippy --all-targets -- -D warnings",
+      "cargo clippy --features foundationdb --all-targets -- -D warnings"
+    ],
+    "backends": {
+      "foundationdb": {
+        "coordination": {
+          "status": "passed",
+          "caseCount": 18,
+          "cases": [
+            "independent-populated-business-roots-distinct-owners-and-slots",
+            "complete-independent-write-sets-no-meta-population-or-header-write",
+            "original-id-replay-preserves-all-application-tables",
+            "scoped-cursor-survives-other-owner-other-contract-and-genuine-noop",
+            "same-owner-contract-change-invalidates-only-affected-cursor",
+            "same-root-existing-record-invariant-race-and-complete-rollback",
+            "genuine-noop-tracked-read-versus-edit-commit-barrier",
+            "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+            "scoped-tokens-slots-and-business-state-persist-on-reopen",
+            "c3.0-post-removal-output-producing-create-accounting-acceptance",
+            "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+            "c3.0-same-owner-contract-existing-source-epoch-control",
+            "derived-only-publication-invalidates-owner-contract-cursor",
+            "owner-move-invalidates-old-and-new-partition-cursors",
+            "rejected-derived-change-preserves-cursors-and-complete-tables",
+            "authority-administration-invalidates-snapshot-cursors",
+            "existing-source-discovery-versus-existing-reference-retarget-no-common-writes",
+            "existing-reference-parent-read-versus-source-change-no-common-writes"
+          ]
+        },
+        "lifecycle": {
+          "status": "passed",
+          "caseCount": 14,
+          "cases": [
+            "ordinary-operation-hash-collision-linear-probe-and-unchanged-domain",
+            "direct-valid-1023-receipt-fixture-complete-slot-bijection",
+            "final-slot-concurrent-noop-contenders-single-commit-complete-rollback",
+            "full-capacity-original-id-replay-unchanged-complete-tables",
+            "exact-capacity-new-operation-rejection-and-all-table-rollback",
+            "archive-atomic-clear-old-context-expiry-and-new-context-capacity",
+            "archive-commit-fences-stale-inflight-mutation-and-receipt",
+            "archive-digest-detects-authority-only-change",
+            "archive-digest-detects-real-effect-activation-change",
+            "archive-after-digest-authority-commit-conflict",
+            "archive-after-digest-effect-activation-commit-conflict",
+            "current-complete-backup-archive-succeeds-after-rejected-races",
+            "authority-noop-preserves-complete-image-counter-and-cursor",
+            "authority-noop-versus-replacement-real-commit-conflict"
+          ]
+        },
+        "application": {
+          "status": "passed",
+          "caseCount": 19,
+          "cases": [
+            "native-public-owner-abort",
+            "effect-execution-abort",
+            "effect-due-abort",
+            "effect-runtime-abort",
+            "operation-receipt-runtime-abort",
+            "effect-intent-atomic-publication-and-replay",
+            "stale-cas-preserves-complete-inventory",
+            "lost-response-original-id-reconciliation-no-duplicate",
+            "persistent-reopen-complete-tables-and-receipts",
+            "backend-restore-quarantine-and-populated-destination-isolation",
+            "quantity-publication-cascade-and-inexact-rollback",
+            "backup-restore-exact-complete-inventory",
+            "calculation-root-complete-time-invariant-rollback",
+            "same-root-invariant-commit-barrier",
+            "same-record-cas-commit-barrier-no-retry",
+            "absent-public-identity-commit-barrier",
+            "no-op-write-preserves-protected-point-read",
+            "reverse-reference-discovery-versus-delete-barrier",
+            "authority-revocation-barrier-and-snapshot-authorized-read"
+          ]
+        },
+        "effects": {
+          "status": "passed",
+          "caseCount": 27,
+          "cases": [
+            "signed-inbox-row-abort",
+            "signed-inbox-runtime-abort",
+            "signed-inbox-durable-ack-precedes-fact-and-domain",
+            "signed-inbox-dedup-preserves-complete-inventory",
+            "signed-inbox-content-conflict-preserves-complete-inventory",
+            "inbox-consume-fact-abort",
+            "inbox-consume-row-abort",
+            "inbox-consume-due-abort",
+            "inbox-consume-execution-abort",
+            "inbox-consume-runtime-abort",
+            "inbox-consumption-fact-atomic-and-idempotent",
+            "inbox-consumption-fences-old-worker-claim",
+            "application-first-native-write-abort",
+            "application-native-public-owner-abort",
+            "application-fact-revision-abort",
+            "application-due-abort",
+            "application-execution-abort",
+            "application-runtime-abort",
+            "inbox-success-applies-domain-once-literal-balance-nine",
+            "worker-fact-abort",
+            "worker-fact-due-abort",
+            "worker-fact-execution-abort",
+            "worker-fact-runtime-abort",
+            "worker-success-fact-and-domain-publication-literal-balance-six",
+            "insufficient-balance-rejects-domain-with-durable-fact-unchanged",
+            "blocked-application-preserves-fact-and-literal-domain",
+            "persistent-reopen-nonempty-facts-inbox-and-domain"
+          ]
+        },
+        "predicates": {
+          "status": "passed",
+          "caseCount": 24,
+          "cases": [
+            "transfer-query-epoch-abort",
+            "transfer-old-owner-removal-abort",
+            "transfer-new-owner-insertion-abort",
+            "transfer-public-index-abort",
+            "transfer-native-source-abort",
+            "transfer-receipt-slot-abort",
+            "transfer-operation-receipt-abort",
+            "transfer-post-receipt-precommit-abort",
+            "transfer-lost-response-original-receipt-replay-and-reopen",
+            "transfer-old-owner-authority-race",
+            "transfer-destination-authority-race",
+            "transfer-update-grant-race",
+            "transfer-active-caller-race",
+            "transfer-credential-epoch-race",
+            "authority-graph-write-abort",
+            "authority-prepared-scope-write-abort",
+            "authority-owner-scope-commit-literal-inventory-and-stale-cas",
+            "authority-repair-persistent-reopen",
+            "reference-delete-reject-complete-inventory-and-no-receipt",
+            "reference-teardown-persistent-reopen",
+            "reference-create-versus-parent-delete-barrier-and-reopen",
+            "reverse-discovery-versus-reference-create-barrier-and-reopen",
+            "concurrent-empty-catalog-initialization-barrier-no-retry",
+            "initialization-populated-rejection-complete-inventory-and-reopen"
+          ]
+        }
+      },
+      "redb": {
+        "coordination": {
+          "status": "passed",
+          "caseCount": 15,
+          "cases": [
+            "independent-populated-business-roots-distinct-owners-and-slots",
+            "complete-independent-write-sets-no-meta-population-or-header-write",
+            "original-id-replay-preserves-all-application-tables",
+            "scoped-cursor-survives-other-owner-other-contract-and-genuine-noop",
+            "same-owner-contract-change-invalidates-only-affected-cursor",
+            "same-root-existing-record-invariant-race-and-complete-rollback",
+            "delete-recreate-aba-rejects-original-token-with-complete-rollback",
+            "scoped-tokens-slots-and-business-state-persist-on-reopen",
+            "c3.0-post-removal-output-producing-create-accounting-acceptance",
+            "c3.0-post-removal-output-retiring-delete-accounting-acceptance",
+            "c3.0-same-owner-contract-existing-source-epoch-control",
+            "derived-only-publication-invalidates-owner-contract-cursor",
+            "owner-move-invalidates-old-and-new-partition-cursors",
+            "rejected-derived-change-preserves-cursors-and-complete-tables",
+            "authority-administration-invalidates-snapshot-cursors"
+          ]
+        },
+        "lifecycle": {
+          "status": "passed",
+          "caseCount": 10,
+          "cases": [
+            "ordinary-operation-hash-collision-linear-probe-and-unchanged-domain",
+            "direct-valid-1023-receipt-fixture-complete-slot-bijection",
+            "final-slot-sequential-noop-commit",
+            "full-capacity-original-id-replay-unchanged-complete-tables",
+            "exact-capacity-new-operation-rejection-and-all-table-rollback",
+            "archive-atomic-clear-old-context-expiry-and-new-context-capacity",
+            "archive-digest-detects-authority-only-change",
+            "archive-digest-detects-real-effect-activation-change",
+            "current-complete-backup-archive-succeeds-after-rejected-races",
+            "authority-noop-preserves-complete-image-counter-and-cursor"
+          ]
+        },
+        "application": {
+          "status": "passed",
+          "caseCount": 13,
+          "cases": [
+            "native-public-owner-abort",
+            "effect-execution-abort",
+            "effect-due-abort",
+            "effect-runtime-abort",
+            "operation-receipt-runtime-abort",
+            "effect-intent-atomic-publication-and-replay",
+            "stale-cas-preserves-complete-inventory",
+            "lost-response-original-id-reconciliation-no-duplicate",
+            "persistent-reopen-complete-tables-and-receipts",
+            "backend-restore-quarantine-and-populated-destination-isolation",
+            "quantity-publication-cascade-and-inexact-rollback",
+            "backup-restore-exact-complete-inventory",
+            "calculation-root-complete-time-invariant-rollback"
+          ]
+        },
+        "effects": {
+          "status": "passed",
+          "caseCount": 27,
+          "cases": [
+            "signed-inbox-row-abort",
+            "signed-inbox-runtime-abort",
+            "signed-inbox-durable-ack-precedes-fact-and-domain",
+            "signed-inbox-dedup-preserves-complete-inventory",
+            "signed-inbox-content-conflict-preserves-complete-inventory",
+            "inbox-consume-fact-abort",
+            "inbox-consume-row-abort",
+            "inbox-consume-due-abort",
+            "inbox-consume-execution-abort",
+            "inbox-consume-runtime-abort",
+            "inbox-consumption-fact-atomic-and-idempotent",
+            "inbox-consumption-fences-old-worker-claim",
+            "application-first-native-write-abort",
+            "application-native-public-owner-abort",
+            "application-fact-revision-abort",
+            "application-due-abort",
+            "application-execution-abort",
+            "application-runtime-abort",
+            "inbox-success-applies-domain-once-literal-balance-nine",
+            "worker-fact-abort",
+            "worker-fact-due-abort",
+            "worker-fact-execution-abort",
+            "worker-fact-runtime-abort",
+            "worker-success-fact-and-domain-publication-literal-balance-six",
+            "insufficient-balance-rejects-domain-with-durable-fact-unchanged",
+            "blocked-application-preserves-fact-and-literal-domain",
+            "persistent-reopen-nonempty-facts-inbox-and-domain"
+          ]
+        },
+        "predicates": {
+          "status": "passed",
+          "caseCount": 16,
+          "cases": [
+            "transfer-query-epoch-abort",
+            "transfer-old-owner-removal-abort",
+            "transfer-new-owner-insertion-abort",
+            "transfer-public-index-abort",
+            "transfer-native-source-abort",
+            "transfer-receipt-slot-abort",
+            "transfer-operation-receipt-abort",
+            "transfer-post-receipt-precommit-abort",
+            "transfer-lost-response-original-receipt-replay-and-reopen",
+            "authority-graph-write-abort",
+            "authority-prepared-scope-write-abort",
+            "authority-owner-scope-commit-literal-inventory-and-stale-cas",
+            "authority-repair-persistent-reopen",
+            "reference-delete-reject-complete-inventory-and-no-receipt",
+            "reference-teardown-persistent-reopen",
+            "initialization-populated-rejection-complete-inventory-and-reopen"
+          ]
+        }
+      }
+    },
+    "foundationdb": {
+      "version": "7.3.77",
+      "scope": "one disposable process on one local host; real adapter, no automatic retries",
+      "controls": "Original independent output-producing creates/deletes and conflicting owner-epoch/business-root controls retained. Transfer races cover old/new owner scope, Update grant, active caller and credential epoch revocation."
+    },
+    "independentWitnesses": [
+      "tests/ownership_transfer.rs: 8 secured transfer witnesses",
+      "src/causal.rs: 4 composition/no-op witnesses with source-authored amounts, routes and reservations",
+      "src/native_slice.rs: unscoped self-only pre-CAS witness",
+      "src/effect_tests.rs: pinned execution/fact/current worker authority witness",
+      "src/storage/concurrency_checks.rs: actual partial publication aborts, unknown outcome, reopen and real authority races",
+      "source-derived integrity, exact owner inventories, AVL/root summaries, backup/restore and current receipt/cursor disclosure"
+    ],
+    "counterexamples": [
+      "Node owner-only plan rejected before Update owner metadata support.",
+      "Create then transfer and retarget then transfer initially failed with existing/missing route registration; immediately staged lifecycle fixed both.",
+      "Delete then transfer initially rediscovered a missing producer through original subscribers; prior-settlement deletion handling fixed it."
+    ],
+    "runHashes": [
+      {
+        "file": "next-base-transfer-rust-final.log",
+        "sha256": "01746052701ae7b4c9128ee90e06de18c842f740a236b8386fcb7e469aa5eaf3"
+      },
+      {
+        "file": "next-base-transfer-clippy.log",
+        "sha256": "437c92dc045519ecd1443e09606e820823b8c7defab2527ca6c0a6e91953ce76"
+      },
+      {
+        "file": "next-base-transfer-node.log",
+        "sha256": "b8317e2b13107f05fbc68eba08eeae2e7a114ac993715a440a3d09aa5696dc58"
+      },
+      {
+        "file": "next-base-transfer-fdb-clippy.log",
+        "sha256": "66a69b63c5c7ce05e66b3a8b6c9b0d81681f0a39efd6f0f43b571cbdea3a8167"
+      },
+      {
+        "file": "next-base-transfer-fdb-build.log",
+        "sha256": "769cd63f322ad5da12e7a099452187e85d534d06e5b1aa340f87cb81f94c4f13"
+      },
+      {
+        "file": "next-base-transfer-foundationdb-g7_coordination.json",
+        "sha256": "54dc08aafc9c5ad1c9d0085d7acfc42e48ab27bb7b3e42934c2f12f39928ac4f"
+      },
+      {
+        "file": "next-base-transfer-foundationdb-g7_application.json",
+        "sha256": "8f70a0403bfca82897d141f43b1d502e85e6a6515cd2ac023d37a79ded327c9b"
+      },
+      {
+        "file": "next-base-transfer-redb-g7_coordination.json",
+        "sha256": "a30fcd2ffdab6ad68e9446e0c32f65990d7451970eabb49b6ac90720ee79f08a"
+      },
+      {
+        "file": "next-base-transfer-redb-g7_application.json",
+        "sha256": "457a631cb2fc83c2b38d97ecc69b44eabda637d7afe337502d309db91f5557c0"
+      },
+      {
+        "file": "next-base-transfer-adapters.log",
+        "sha256": "111811c83c9b7894362994ad6746fc1efff862de21f74c9cc21b47d9a9033b84"
+      }
+    ]
+  },
+  "legacy": {
+    "sourceCommit": "1560ba176ff5e92b565e872701fcbea99132ea08",
+    "runtime": "SurrealDB 3.3.0 in-memory, one disposable process",
+    "passed": 11,
+    "generatedBundleSha256": "36520dbea067c69be41b82e57a7a73b799120e8b97e628ce1cc4fb083065109a",
+    "details": "docs/ownership-transfer-legacy.md",
+    "difference": "Legacy direct-group member transfer can silently retain owner while changing other fields. Next Base allows both-accessible transfer and rejects forbidden transfer atomically. Email/phone identity owner remains immutable in legacy; native implementation is separately planned."
+  },
+  "limits": [
+    "No multi-host, throughput, capacity or production-readiness claim.",
+    "Standalone SurrealKV was not rerun.",
+    "No general chronological owner/order streams or non-time subscriber cuts added; these remain C3.",
+    "Built-in business memberships are source UUID/slot based; no automatic owner-derived business indexes or ancestor transfers added.",
+    "Login/delivery credentials remain planned; ordinary transfer does not implement mutable identity linkage or weaken secret ingress."
+  ],
+  "next": "C3 chronological owner access/order streams and general non-time reactive cuts."
+}

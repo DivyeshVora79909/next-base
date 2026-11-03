@@ -148,10 +148,12 @@ The [N1 model-catalog example](../tools/node/examples/n1-model-catalog.mjs) and 
 
 One `records.mutate` is atomic. Create supplies `op`, `id`, `contract`, `fields` and may
 supply optional canonical UUID `owner`; omission defaults to the actor. A requested owner
-must be accessible, which enables group-owned sharing. Update cannot change owner;
-update supplies `op`, `id`, `if_version`, `set`, `unset`; delete supplies `op`,
-`id`, `if_version`. A command may refer to earlier creations in that mutation.
-Forward references reject. Every source ID may occur in only one command.
+must be accessible, which enables group-owned sharing. Update supplies `op`, `id`,
+`if_version`, `set`, `unset` and optional canonical UUID `owner` metadata outside `set`.
+Omitted owner is unchanged; null is invalid. An owner-only edit uses empty `set`/`unset`
+and requires Update permission plus access to both old and new owners in the tenant.
+Delete supplies `op`, `id`, `if_version`. References resolve against the final staged
+graph, including forward creations. Every source ID may occur in only one command.
 The returned `result.records` contains settled public records/nulls for the
 requested IDs, alongside the confirmed operation ID and a fresh UUID result
 `revision`. Changed records and roots receive that mutation token. An unchanged

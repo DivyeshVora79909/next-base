@@ -255,6 +255,7 @@ impl Binding for EffectDemo {
             .checked_sub(*units)
             .ok_or_else(|| Error::new("overflow", "provider application balance"))?;
         Ok(crate::native_slice::Command::Update {
+            owner: None,
             id,
             if_version: target.version,
             set: BTreeMap::from([("balance".into(), json!(balance.to_string()))]),

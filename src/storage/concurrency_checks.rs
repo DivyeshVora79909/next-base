@@ -355,6 +355,7 @@ fn reference_race(store: &Store<Quantity>, first: &Mutation, winner: &Mutation) 
 /// family name must identify a fresh destination. Redb uses sequential controls.
 pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Result<Value> {
     let mut cases = Vec::new();
+    ownership_transfers(&factory, concurrent, &mut cases)?;
     let family = "g73-authority-repair";
     let db = Arc::new(factory(family)?);
     let controls = Controls::default();
@@ -627,6 +628,195 @@ pub fn run(factory: impl Fn(&str) -> Result<Database>, concurrent: bool) -> Resu
             "Concurrent controls use deterministic overlapping transactions; redb runs the sequential controls only.",
             "Persistent reopen is in-process evidence, not process restart or distributed failover."]}),
     )
+}
+
+fn ownership_transfers(
+    factory: &impl Fn(&str) -> Result<Database>,
+    concurrent: bool,
+    cases: &mut Vec<&'static str>,
+) -> Result<()> {
+    let family = "ownership-transfer-publication";
+    let db = Arc::new(factory(family)?);
+    let controls = Controls::default();
+    let store = create(controlled(db.clone(), &controls))?;
+    store.replace_access(&graph_request(&store, graph_fixture()?)?)?;
+    let manager = store.session(id(3), 0)?;
+    manager.mutate(&request(&manager, json!([source(id(70), "12")]))?)?;
+    let version = manager
+        .get(manager.model().identity(), id(70))?
+        .unwrap()
+        .version;
+    let commands = json!([{"op":"update","id":id(70),"if_version":version,
+        "owner":id(4),"set":{},"unset":[]}]);
+    let before = image(&store)?;
+    for (name, table, key) in [
+        ("transfer-query-epoch-abort", "query_epochs", None),
+        (
+            "transfer-old-owner-removal-abort",
+            "owner_records",
+            Some(crate::security::owner_key(id(3), quantity::SOURCE, id(70))),
+        ),
+        (
+            "transfer-new-owner-insertion-abort",
+            "owner_records",
+            Some(crate::security::owner_key(id(4), quantity::SOURCE, id(70))),
+        ),
+        ("transfer-public-index-abort", "public_records", None),
+        ("transfer-native-source-abort", "native_kv", None),
+        ("transfer-receipt-slot-abort", "receipt_slots", None),
+        ("transfer-operation-receipt-abort", "operations", None),
+    ] {
+        let transfer = request(&manager, commands.clone())?;
+        lock(&controls)?.fault = Some(Fault { table, key });
+        let error = manager.mutate(&transfer).expect_err(name);
+        require(
+            error.code == "injected_abort" && image(&store)? == before,
+            "transfer abort changed complete tables",
+        )?;
+        receipt_absent(&manager, transfer.operation_id)?;
+        cases.push(name);
+    }
+    // Ordinary mutations only read local_runtime; the last publication boundary
+    // is the operation receipt, not a shared runtime/header write.
+    let abort = request(&manager, commands.clone())?;
+    let error = manager
+        .mutate_controlled(
+            &abort,
+            &mut || Ok(Uuid::new_v4()),
+            Some(usize::MAX),
+            &mut || Ok(()),
+            false,
+        )
+        .expect_err("post-receipt transfer abort");
+    require(
+        error.code == "injected_abort" && image(&store)? == before,
+        "post-receipt transfer abort changed complete tables",
+    )?;
+    receipt_absent(&manager, abort.operation_id)?;
+    cases.push("transfer-post-receipt-precommit-abort");
+    let transfer = request(&manager, commands)?;
+    let error = manager
+        .mutate_controlled(
+            &transfer,
+            &mut || Ok(Uuid::new_v4()),
+            None,
+            &mut || Ok(()),
+            true,
+        )
+        .expect_err("lost transfer response");
+    require(
+        error.code == "outcome_unknown",
+        "transfer response classification",
+    )?;
+    quantity(&store, id(70), json!({"value":"12"}), "12", id(4))?;
+    require(
+        image(&store)?["tables"]["owner_records"]
+            == json!([{
+                "key":native_codec::hex(&crate::security::owner_key(id(4), quantity::SOURCE, id(70))),
+                "contract":quantity::SOURCE
+            }]),
+        "transfer exact new-owner inventory",
+    )?;
+    let accepted = image(&store)?;
+    require(
+        manager.operation_status(&transfer.model, &transfer.context, transfer.operation_id)?["status"]
+            == "committed"
+            && manager.mutate(&transfer)?["replayed"] == true
+            && image(&store)? == accepted,
+        "original transfer receipt recovery changed tables",
+    )?;
+    store.check_integrity()?;
+    drop((manager, store, db));
+    reopen(factory, family, &accepted)?;
+    cases.push("transfer-lost-response-original-receipt-replay-and-reopen");
+
+    if concurrent {
+        for (name, loss) in [
+            ("transfer-old-owner-authority-race", 0),
+            ("transfer-destination-authority-race", 1),
+            ("transfer-update-grant-race", 2),
+            ("transfer-active-caller-race", 3),
+            ("transfer-credential-epoch-race", 4),
+        ] {
+            let store = create(factory(name)?)?;
+            let mut graph = graph_fixture()?;
+            store.replace_access(&graph_request(&store, graph.clone())?)?;
+            let manager = store.session(id(3), 0)?;
+            let old_owner = if loss == 0 { id(4) } else { id(3) };
+            let new_owner = if loss == 0 { id(3) } else { id(4) };
+            let mut create = source(id(80), "12");
+            create["owner"] = json!(old_owner);
+            manager.mutate(&request(&manager, json!([create]))?)?;
+            let version = manager
+                .get(manager.model().identity(), id(80))?
+                .unwrap()
+                .version;
+            let transfer = request(
+                &manager,
+                json!([{"op":"update","id":id(80),
+                "if_version":version,"owner":new_owner,"set":{},"unset":[]}]),
+            )?;
+            if loss < 2 {
+                graph
+                    .principals
+                    .iter_mut()
+                    .find(|p| p.id == id(4))
+                    .unwrap()
+                    .parents = vec![id(1)];
+            } else {
+                let caller = graph.principals.iter_mut().find(|p| p.id == id(3)).unwrap();
+                match loss {
+                    2 => {
+                        caller
+                            .grants
+                            .contracts
+                            .get_mut(&quantity::SOURCE)
+                            .unwrap()
+                            .remove(&Action::Update);
+                    }
+                    3 => caller.active = false,
+                    _ => caller.credential_epoch += 1,
+                }
+            }
+            let authority = graph_request(&store, graph)?;
+            let mut accepted = Value::Null;
+            let mut calls = 0;
+            let error = manager
+                .mutate_controlled(
+                    &transfer,
+                    &mut || Ok(Uuid::new_v4()),
+                    None,
+                    &mut || {
+                        calls += 1;
+                        store.replace_access(&authority)?;
+                        accepted = image(&store)?;
+                        Ok(())
+                    },
+                    false,
+                )
+                .expect_err("transfer under revoked authority must conflict");
+            require(
+                error.code == "transaction_conflict" && calls == 1 && image(&store)? == accepted,
+                "revoked-authority transfer did not abort once with exact rollback",
+            )?;
+            receipt_absent(&manager, transfer.operation_id)?;
+            require(
+                manager
+                    .mutate(&transfer)
+                    .expect_err("current authority denial")
+                    .code
+                    == "forbidden"
+                    && image(&store)? == accepted,
+                "retry reused stale transfer authority",
+            )?;
+            quantity(&store, id(80), json!({"value":"12"}), "12", old_owner)?;
+            store.check_integrity()?;
+            drop((manager, store));
+            reopen(factory, name, &accepted)?;
+            cases.push(name);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -356,6 +356,13 @@ pub enum Command {
         id: Uuid,
         #[serde(with = "uuid_text")]
         if_version: Uuid,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "crate::native_codec::optional_uuid_text::serialize",
+            deserialize_with = "crate::native_codec::optional_uuid_text::deserialize_present"
+        )]
+        owner: Option<Uuid>,
         set: BTreeMap<String, serde_json::Value>,
         unset: Vec<String>,
     },
@@ -987,9 +994,10 @@ pub fn settle_with_ids<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
         commands,
         allocate,
         false,
-        &mut |_, command, old, _| {
-            if old.is_some_and(|r| r.owner != context.actor)
-                || matches!(command, Command::Create { owner: Some(owner), .. } if *owner != context.actor)
+        &mut |_, command, old, new| {
+            if old.into_iter().chain(new).any(|r| r.owner != context.actor)
+                || matches!(command, Command::Create { owner: Some(owner), .. }
+                    | Command::Update { owner: Some(owner), .. } if *owner != context.actor)
             {
                 Err(Error::new("forbidden", "source authority"))
             } else {
@@ -1247,6 +1255,60 @@ pub(crate) fn settle_calculation_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn unscoped_owner_metadata_remains_self_only_before_cas() {
+        let prepared = crate::model::PreparedModel::load().unwrap();
+        let model = prepared.engine();
+        let context = Context {
+            tenant: Uuid::from_u128(1),
+            actor: Uuid::from_u128(2),
+        };
+        let id = Uuid::from_u128(10);
+        let version = Uuid::from_u128(11);
+        let record = Record {
+            contract: 4,
+            tenant: context.tenant,
+            owner: context.actor,
+            version,
+            input: Input::bind(4, json!({"native_unit":1})).unwrap(),
+            derived: None,
+        };
+        let rows = [
+            (
+                Key::Meta,
+                Stored::Meta(Meta {
+                    model: prepared.identity().into(),
+                    codec: native_codec::CODEC.into(),
+                    tenant: context.tenant,
+                    actor: context.actor,
+                }),
+            ),
+            (Key::Record(id), Stored::Record(record)),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.encode(), native_codec::encode(&key, &value).unwrap()))
+        .collect::<BTreeMap<_, _>>();
+        for if_version in [version, Uuid::nil()] {
+            let mut ws = Workspace::new(|key: &[u8]| Ok(rows.get(key).cloned()), 1000);
+            let error = settle(
+                &mut ws,
+                model,
+                context,
+                &[Command::Update {
+                    id,
+                    if_version,
+                    owner: Some(Uuid::from_u128(3)),
+                    set: BTreeMap::new(),
+                    unset: vec![],
+                }],
+            )
+            .err()
+            .unwrap();
+            assert_eq!(error.code, "forbidden");
+            assert!(ws.finish().unwrap().is_empty());
+        }
+    }
 
     #[test]
     fn prepared_calculation_and_exact_bindings() {

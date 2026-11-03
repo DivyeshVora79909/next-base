@@ -470,6 +470,7 @@ mod tests {
             for left in [id(11), id(10)] {
                 let current_version = ws.record(id(20)).unwrap().unwrap().version;
                 let command = crate::native_slice::Command::Update {
+                    owner: None,
                     id: id(20),
                     if_version: current_version,
                     set: serde_json::from_value(json!({"left":left})).unwrap(),

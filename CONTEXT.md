@@ -1,15 +1,55 @@
 # Current checkpoint
 
-## Next authorized checkpoint — ownership transfers
+## C2.T — Ordinary ownership transfers
 
-The latest user explicitly supersedes the ownership-immutability restriction below:
-ordinary records should allow transfers when the caller has Update permission and
-access to both old and new owners, within the same tenant. Implementation is pending;
-this run only performed a small source audit and prepared
-[the execution handoff](docs/ownership-transfer-handoff.md). Implement that checkpoint
-before resuming broader C3 work. Do not restore readers or the population counter.
-Use the actual agent environment: earlier subscription-specific routing, subagent
-trees and conversation commit quotas do not constrain an API-based continuation.
+Update accepts optional canonical UUID `owner` metadata outside model `set`; omitted
+means unchanged and null rejects. Owner-only edits accept empty `set`/`unset`. Current
+Update permission and access to BOTH old and new owners are required in the same
+tenant/transaction, without an additional Read grant. Old-owner and destination scope
+checks precede CAS diagnostics; final records are checked before publication. Delete
+remains self/strict-descendant only. The unscoped native entrypoint remains self-only.
+
+Generated outputs follow their producer even with unchanged calculated values. Public
+owner indexes and both owner/contract query epochs move atomically; ordinary business
+root/member identities stay source UUID/slot based. Root summaries retain their explicit
+hidden-contribution disclosure contract, and cursors/receipt disclosure use current
+authority. Same-owner/no-input-change updates preserve source versions, memberships and
+query guards while retaining conflict reads and operation receipts. The scheduler skips
+initial no-op producers but still discovers them through changed dependencies.
+
+Composed settlements use immediately staged output identities, query subscriptions and
+memberships; create/retarget/delete followed by a transfer in one Attempt is covered.
+Original route discovery ignores producers already deleted by an earlier settlement.
+Effect application explicitly rejects owner metadata or owner changes. Transfers preserve
+pinned requester/intent/facts; pre-start worker authority and durable fact application
+retain their existing boundaries. Email/phone identity linkage remains separately planned
+and immutable, not an ordinary-transfer exception silently removed.
+
+The owner policy identity is
+`owner-only-update-both-owners-accessible-delete-self-descendants-2`.
+Codec remains `native-slice-kv-12`; changed prepared identities require explicit store
+recreation. See [checkpoint evidence](docs/checkpoints/c2-ownership-transfer.json) and
+[bounded legacy comparison](docs/ownership-transfer-legacy.md). The comparison freshly
+generated ordinary clauses and passed 11 disposable SurrealDB 3.3.0 witnesses. Legacy
+group-member transfer can silently retain ownership; Next Base intentionally permits it
+when both owners are accessible and rejects forbidden transfers atomically.
+
+Acceptance: 298 Rust all-target tests passed (0 ignored), 176 full Node tests passed
+(0 skipped), formatting and default/FDB all-target Clippy with warnings denied passed.
+Real FoundationDB 7.3.77 on one disposable local process/host passed coordination /
+lifecycle / application / effects / predicates at 18 / 14 / 19 / 27 / 24; sequential
+redb controls passed 15 / 10 / 13 / 27 / 16. Transfer coverage includes seven physical
+write abort points plus post-receipt abort, exact old/new indexes, original-operation
+unknown-outcome recovery, and concurrent old-owner/new-owner scope, Update grant,
+active-caller and credential-epoch revocation. Original independent output-producing
+create/delete and conflicting owner-epoch/business-root controls remain. These are
+local correctness results; no multi-host/throughput/capacity claim. SurrealKV was not
+rerun. Source-derived integrity, generated provenance, receipt replay, reopen and
+backup/restore are checked; broader C3 capabilities are not implied.
+
+Next dependency: resume C3 chronological owner access/order streams and general non-time
+reactive cuts from [the C3 handoff](docs/c3-accounting-handoff.md). These remain planned;
+do not restore readers, a shared population counter or legacy compatibility machinery.
 
 ## C2.O — Owner-only access accepted
 
@@ -21,7 +61,8 @@ and direct group parents only. Direct tenant-parent records are excluded from or
 data scope; tenant-grant inheritance remains a separate legacy rule. Delete permits self
 and strict descendants only. Admin actions do not widen ordinary scope. Create may specify
 `owner` as a canonical UUID; omission defaults to the actor. A requested owner must be
-accessible, enabling group-owned sharing. Update cannot change owner.
+accessible, enabling group-owned sharing. C2.O's immutable Update owner restriction is
+superseded by C2.T above; its acceptance numbers below remain historical.
 
 Privileged engine balancing/cascades validate hidden records without granting client
 access. A root record read authorizes explicitly declared public summary data for its

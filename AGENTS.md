@@ -51,7 +51,9 @@ do not impose that policy on every workstation. Keep user updates concise.
   Direct tenant-parent records are excluded from ordinary scope; tenant-grant inheritance
   remains a separate legacy rule. Delete permits self or strict descendants only. Admin
   actions do not widen ordinary scope. Create may specify canonical UUID `owner` (default
-  actor), authorized against the requested owner; Update cannot change owner. Trusted balancing/derivation may validate
+  actor), authorized against the requested owner. Update may supply canonical UUID
+  `owner` metadata and requires Update permission plus access to both old and new owners
+  before CAS diagnostics and in the final transaction graph. Trusted balancing/derivation may validate
   hidden records but cannot disclose them or authorize extra client mutations.
 - Stage source, typed references, memberships, summaries, dependency effects,
   authority repairs, receipts and applicable effect intent; commit once.

@@ -617,6 +617,16 @@ impl<B: Binding> Store<B> {
                     if old.is_some_and(|r| !scope.can_write(r, action)) {
                         return Err(crate::access::denied());
                     }
+                    // Check destination scope before CAS or input diagnostics.
+                    // The current transactional scope contains only this tenant's
+                    // principals, so absent and foreign owners share one denial.
+                    if let Command::Update {
+                        owner: Some(owner), ..
+                    } = command
+                        && !scope.accessible.contains(owner)
+                    {
+                        return Err(crate::access::denied());
+                    }
                     if let Some(new) = new {
                         if !scope.can_write(new, action) {
                             return Err(crate::access::denied());

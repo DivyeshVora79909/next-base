@@ -20,7 +20,13 @@ Direct tenant-parent records are excluded from ordinary data scope; tenant-grant
 inheritance remains an independent legacy rule. Delete permits self or strict descendants
 only. Admin actions do not widen ordinary data scope. Create may specify `owner` as a
 canonical UUID, defaulting to actor when omitted; requested owners must be accessible,
-which enables group-owned sharing. Update cannot change owner. C2.O acceptance is complete;
+which enables group-owned sharing. Update accepts optional canonical UUID `owner`
+metadata, requiring Update permission and access to both old and new owners. Omission
+retains ownership; an owner-only edit accepts empty `set`/`unset`. Destination scope is
+checked before CAS diagnostics and final records are checked before publication. The
+policy identity changes with these semantics; codec remains `native-slice-kv-12`, and
+earlier prepared identities require explicit store recreation. See the
+[transfer checkpoint](checkpoints/c2-ownership-transfer.json). Historical C2.O acceptance is complete;
 see the [checkpoint](checkpoints/c2-owner-only.json). Verification passed 284 Rust
 all-target tests (0 ignored), all 174 full Node tests (0 skipped), formatting, and
 default/FDB all-target Clippy with `-D warnings`. The prior C2.R
@@ -94,7 +100,7 @@ links, structural spans and family summaries. [`index.rs`](../src/index.rs) and
 The [mathematical contract](index-mathematics.md) separates arbitrary key order,
 structural count, business summaries and quantified validators. Universal structural
 count/count-only indexing is implemented in C1.1; business counts retain their
-own declared meaning. Current codec v10 requires explicit store recreation.
+own declared meaning. Current codec `native-slice-kv-12` requires explicit store recreation.
 Constant-size associative summaries permit logarithmic path work per changed occurrence;
 full mutation work also includes fanout, reference checks, authority repairs and cascades.
 Arbitrary aggregates or authority graphs do not inherit a universal logarithmic bound.

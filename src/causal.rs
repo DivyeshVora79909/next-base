@@ -294,16 +294,6 @@ struct Plan<B: ReactiveBinding> {
 fn uses_scheduler<B: Binding>(model: &Prepared<B>, contract: &Contract) -> bool {
     contract.uses_causal_scheduler::<B::Index>() || model.has_publication_dependents(contract.code)
 }
-fn original<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
-    ws: &mut Attempt<L, B>,
-    id: Uuid,
-) -> Result<Option<ModelRecord<B>>> {
-    match ws.original(&Key::Record(id))? {
-        Some(StoredValue::Record(r)) => Ok(Some(r)),
-        None => Ok(None),
-        _ => Err(Error::new("corrupt_state", "old record type")),
-    }
-}
 fn subscriptions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     model: &Prepared<B>,
@@ -314,7 +304,7 @@ fn subscriptions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     let mut before = BTreeMap::new();
     if let Some(old) = old {
         for query in &model.contract(old.contract)?.queries {
-            if let Some(value) = ws.original(&Key::Query(Address::new(id, query.slot)))? {
+            if let Some(value) = ws.get(&Key::Query(Address::new(id, query.slot)))? {
                 let StoredValue::Query(q) = value else {
                     return Err(Error::new("corrupt_state", "old query type"));
                 };
@@ -449,7 +439,14 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
     let mut pending = BTreeSet::new();
     let mut roots = ws.causal_impacts();
     let mut discovered_publications = BTreeSet::new();
+    let previous: BTreeMap<_, _> = changes.iter().map(|c| (c.id, &c.old)).collect();
     for c in changes {
+        // A true no-op must not detach and reinsert otherwise unchanged AVL
+        // memberships. Other changed sources can still discover this producer
+        // through Direct routes or root impacts below.
+        if c.old == c.new {
+            continue;
+        }
         if c.old.as_ref().into_iter().chain(c.new.as_ref()).any(|r| {
             model
                 .contract(r.contract)
@@ -534,7 +531,21 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
             continue;
         }
         let record = ws.record(id)?;
-        let old_record = original(ws, id)?;
+        if record.is_none()
+            && !previous.contains_key(&id)
+            && matches!(ws.original(&Key::Record(id))?, Some(StoredValue::Record(_)))
+        {
+            // Original subscriber scans can rediscover a producer deleted by
+            // an earlier settlement in this Attempt. Its staged teardown is
+            // already complete. A source absent in both images is still corrupt.
+            continue;
+        }
+        // The caller may settle multiple command chunks in one Attempt. Source
+        // inputs precede this call in ModelChange; managed outputs and query
+        // caches still hold the preceding settlement until evaluation below.
+        let old_record = previous
+            .get(&id)
+            .map_or_else(|| record.clone(), |old| (*old).clone());
         let producer = record
             .as_ref()
             .or(old_record.as_ref())
@@ -571,17 +582,16 @@ pub fn settle<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: ReactiveBinding>(
         }
         for role in roles {
             let a = Address::new(id, role);
-            if let Some(v) = ws.original(&Key::Role(a))? {
+            if let Some(v) = ws.get(&Key::Role(a))? {
                 let StoredValue::Role(b) = v else {
                     return Err(Error::new("corrupt_state", "role type"));
                 };
-                if b.retired
-                    || ws.original(&Key::Reserved(b.output))? != Some(StoredValue::Reserved(a))
+                if b.retired || ws.get(&Key::Reserved(b.output))? != Some(StoredValue::Reserved(a))
                 {
                     return Err(Error::new("corrupt_state", "role reservation"));
                 }
                 plan.bindings.insert(role, b.output);
-                if let Some(output) = original(ws, b.output)? {
+                if let Some(output) = ws.record(b.output)? {
                     if output.input.managed() != Some((id, role)) {
                         return Err(Error::new("corrupt_state", "role output owner"));
                     }
@@ -841,6 +851,289 @@ fn member_slot<B: Binding>(model: &Prepared<B>, contract: u16) -> Result<u16> {
 mod tests {
     use super::*;
     use crate::{binding::Calculation, native_slice::Input};
+
+    mod ownership_composition {
+        use super::*;
+        use crate::{
+            index::TimeKey,
+            indexes::standard::Leaf,
+            models::equipment::{Equipment, Input as EquipmentInput},
+            native_codec,
+            native_slice::{Command, Meta, Settled},
+        };
+        use serde_json::json;
+        type Bytes = BTreeMap<Vec<u8>, Vec<u8>>;
+
+        fn id(value: u128) -> Uuid {
+            Uuid::from_u128(value)
+        }
+
+        // Native transaction composition control; local integration tests own
+        // the principal graph and both-owner action authorization witnesses.
+        fn stage<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+            ws: &mut Attempt<L, Equipment>,
+            model: &Prepared<Equipment>,
+            commands: &[Command],
+            allocate: &mut dyn FnMut() -> Result<Uuid>,
+        ) -> Result<Settled> {
+            crate::mutation::settle_authorized(
+                ws,
+                model,
+                Context {
+                    tenant: id(1),
+                    actor: id(2),
+                },
+                commands,
+                allocate,
+                false,
+                &mut |_, _, _, _| Ok(()),
+                &mut |_, _| Ok(()),
+            )
+        }
+
+        fn create(record: u128, contract: u16, fields: serde_json::Value) -> Command {
+            Command::Create {
+                id: id(record),
+                contract,
+                owner: None,
+                fields,
+            }
+        }
+
+        fn reservation(record: u128, starts: i64) -> Command {
+            create(
+                record,
+                410,
+                json!({
+                    "pool":id(100),"starts":starts.to_string(),"ends":(starts+5).to_string(),
+                    "requested":"3","active":true,
+                }),
+            )
+        }
+
+        fn update<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+            ws: &mut Attempt<L, Equipment>,
+            record: u128,
+            owner: Option<Uuid>,
+            set: serde_json::Value,
+        ) -> Command {
+            Command::Update {
+                id: id(record),
+                if_version: ws.record(id(record)).unwrap().unwrap().version,
+                owner,
+                set: set.as_object().unwrap().clone().into_iter().collect(),
+                unset: vec![],
+            }
+        }
+
+        fn seed(reservations: &[(u128, i64)]) -> (Prepared<Equipment>, Bytes) {
+            let model = Prepared::<Equipment>::load().unwrap();
+            let mut bytes = BTreeMap::from([(
+                Key::Meta.encode(),
+                native_codec::encode_for::<Equipment>(
+                    &Key::Meta,
+                    &StoredValue::Meta(Meta {
+                        model: model.identity().into(),
+                        codec: native_codec::CODEC.into(),
+                        tenant: id(1),
+                        actor: id(2),
+                    }),
+                )
+                .unwrap(),
+            )]);
+            let mut commands = vec![];
+            for pool in [100, 101] {
+                commands.push(create(pool, 101, json!({"unit":1})));
+                commands.push(create(
+                    pool + 100,
+                    205,
+                    json!({
+                        "pool":id(pool),"at":"0","quantity":"10",
+                    }),
+                ));
+            }
+            commands.extend(
+                reservations
+                    .iter()
+                    .map(|(record, at)| reservation(*record, *at)),
+            );
+            let mut ws =
+                Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+            let mut allocated = 900;
+            stage(&mut ws, &model, &commands, &mut || {
+                let output = id(allocated);
+                allocated += 1;
+                Ok(output)
+            })
+            .unwrap();
+            let batch = ws.finish().unwrap();
+            drop(ws);
+            for (key, value) in batch {
+                if let Some(value) = value {
+                    bytes.insert(key, value);
+                } else {
+                    bytes.remove(&key);
+                }
+            }
+            (model, bytes)
+        }
+
+        fn no_allocation() -> Result<Uuid> {
+            Err(Error::new(
+                "unexpected_allocation",
+                "existing roles must retain output identities",
+            ))
+        }
+
+        fn check_output_facts<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
+            ws: &mut Attempt<L, Equipment>,
+            pool: u128,
+            owner: u128,
+        ) {
+            let producer = ws.record(id(300)).unwrap().unwrap();
+            assert_eq!(producer.owner, id(owner));
+            // Two source-authored dates and quantity determine exact outputs;
+            // expected amounts do not come from query or writer caches.
+            for (role, output, at, quantity) in [(11, 900, 10, -3), (29, 901, 15, 3)] {
+                let role_id = Address::new(id(300), role);
+                assert_eq!(
+                    ws.get(&Key::Role(role_id)).unwrap(),
+                    Some(StoredValue::Role(Role {
+                        output: id(output),
+                        retired: false,
+                    }))
+                );
+                assert_eq!(
+                    ws.get(&Key::Reserved(id(output))).unwrap(),
+                    Some(StoredValue::Reserved(role_id))
+                );
+                let row = ws.record(id(output)).unwrap().unwrap();
+                assert_eq!(row.owner, id(owner));
+                assert_eq!(row.version, producer.version);
+                assert_eq!(
+                    row.input,
+                    EquipmentInput::Output {
+                        producer: id(300),
+                        role,
+                        pool: id(pool),
+                        at,
+                        quantity,
+                    }
+                );
+                let node = tree::node(ws, Address::new(id(pool), 7), Address::new(id(output), 23))
+                    .unwrap();
+                assert_eq!(node.key.value, TimeKey::new(at));
+                assert_eq!(node.leaf, Leaf::Financial(quantity));
+            }
+            for root in [100, 101] {
+                let members = routes::select(
+                    ws,
+                    &Key::Incoming(id(root)),
+                    std::ops::Bound::Unbounded,
+                    std::ops::Bound::Unbounded,
+                    false,
+                )
+                .unwrap();
+                let mut expected = BTreeSet::from([Address::new(id(root + 100), 1)]);
+                if root == pool {
+                    expected.extend([
+                        Address::new(id(300), 1),
+                        Address::new(id(900), 2),
+                        Address::new(id(901), 2),
+                    ]);
+                }
+                assert_eq!(members.into_iter().collect::<BTreeSet<_>>(), expected);
+            }
+        }
+
+        #[test]
+        fn create_then_owner_transfer_in_one_attempt_keeps_output_identities() {
+            let (model, bytes) = seed(&[]);
+            let mut ws =
+                Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+            let mut allocated = 900;
+            stage(&mut ws, &model, &[reservation(300, 10)], &mut || {
+                let output = id(allocated);
+                allocated += 1;
+                Ok(output)
+            })
+            .unwrap();
+            assert_eq!(allocated, 902);
+            let command = update(&mut ws, 300, Some(id(3)), json!({}));
+            stage(&mut ws, &model, &[command], &mut no_allocation).unwrap();
+            check_output_facts(&mut ws, 100, 3);
+        }
+
+        #[test]
+        fn retarget_then_owner_transfer_in_one_attempt_uses_staged_output_routes() {
+            let (model, bytes) = seed(&[(300, 10)]);
+            let mut ws =
+                Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+            let retarget = update(&mut ws, 300, None, json!({"pool":id(101)}));
+            stage(&mut ws, &model, &[retarget], &mut no_allocation).unwrap();
+            let transfer = update(&mut ws, 300, Some(id(3)), json!({}));
+            stage(&mut ws, &model, &[transfer], &mut no_allocation).unwrap();
+            check_output_facts(&mut ws, 101, 3);
+        }
+
+        #[test]
+        fn delete_then_owner_transfer_in_one_attempt_ignores_retired_subscribers() {
+            let (model, bytes) = seed(&[(300, 10), (301, 30)]);
+            let mut ws =
+                Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+            let delete = Command::Delete {
+                id: id(301),
+                if_version: ws.record(id(301)).unwrap().unwrap().version,
+            };
+            stage(&mut ws, &model, &[delete], &mut no_allocation).unwrap();
+            let transfer = update(&mut ws, 300, Some(id(3)), json!({}));
+            stage(&mut ws, &model, &[transfer], &mut no_allocation).unwrap();
+            check_output_facts(&mut ws, 100, 3);
+            assert!(ws.record(id(301)).unwrap().is_none());
+            for (role, output) in [(11, 902), (29, 903)] {
+                let address = Address::new(id(301), role);
+                assert_eq!(
+                    ws.get(&Key::Role(address)).unwrap(),
+                    Some(StoredValue::Role(Role {
+                        output: id(output),
+                        retired: true,
+                    }))
+                );
+                assert_eq!(
+                    ws.get(&Key::Reserved(id(output))).unwrap(),
+                    Some(StoredValue::Reserved(address))
+                );
+                assert!(ws.record(id(output)).unwrap().is_none());
+            }
+        }
+
+        #[test]
+        fn same_owner_updates_preserve_shuffled_output_tree_bytes() {
+            let sources = [
+                (308, 10),
+                (301, 30),
+                (306, 50),
+                (300, 70),
+                (307, 90),
+                (302, 110),
+                (305, 130),
+                (303, 150),
+                (304, 170),
+            ];
+            let (model, bytes) = seed(&sources);
+            for (record, _) in sources {
+                let mut ws =
+                    Attempt::<_, Equipment>::new(|key: &[u8]| Ok(bytes.get(key).cloned()), 200_000);
+                let command = update(&mut ws, record, Some(id(2)), json!({}));
+                stage(&mut ws, &model, &[command], &mut no_allocation).unwrap();
+                assert!(
+                    ws.finish().unwrap().is_empty(),
+                    "same-owner no-op changed native bytes for {record}"
+                );
+                assert!(ws.record(id(record)).unwrap().is_some());
+            }
+        }
+    }
 
     // Keep authored inputs separately from the native image: expected results
     // must never depend on writer-produced private outputs or query caches.
@@ -1120,6 +1413,7 @@ mod tests {
                 &mut bytes,
                 &model,
                 vec![Command::Update {
+                    owner: None,
                     id,
                     if_version: version,
                     set: set.as_object().unwrap().clone().into_iter().collect(),

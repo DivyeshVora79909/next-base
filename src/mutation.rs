@@ -230,7 +230,10 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                 if previous.version != *if_version {
                     return Err(Error::new("stale_version", "source version"));
                 }
-                if let Command::Update { set, unset, .. } = command {
+                if let Command::Update {
+                    owner, set, unset, ..
+                } = command
+                {
                     let declaration = model.contract(previous.contract)?;
                     if !unset.is_empty()
                         || set.keys().any(|key| {
@@ -249,6 +252,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
                         .ok_or_else(|| Error::new("internal", "input object"))?
                         .extend(set.clone());
                     let mut next = previous.clone();
+                    next.owner = owner.unwrap_or(previous.owner);
                     next.input = model.validate(previous.contract, &value)?;
                     Some(next)
                 } else {
@@ -485,6 +489,7 @@ mod tests {
             fields: json!({"value":"1"}),
         };
         let update = |if_version, value| Command::Update {
+            owner: None,
             id,
             if_version,
             set: BTreeMap::from([("value".into(), json!(value))]),
