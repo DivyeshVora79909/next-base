@@ -1,5 +1,16 @@
 # Current checkpoint
 
+## Next authorized checkpoint — ownership transfers
+
+The latest user explicitly supersedes the ownership-immutability restriction below:
+ordinary records should allow transfers when the caller has Update permission and
+access to both old and new owners, within the same tenant. Implementation is pending;
+this run only performed a small source audit and prepared
+[the execution handoff](docs/ownership-transfer-handoff.md). Implement that checkpoint
+before resuming broader C3 work. Do not restore readers or the population counter.
+Use the actual agent environment: earlier subscription-specific routing, subagent
+trees and conversation commit quotas do not constrain an API-based continuation.
+
 ## C2.O — Owner-only access accepted
 
 ModelRecord has an owner only; Reference has no reader flag. No reader inference or
