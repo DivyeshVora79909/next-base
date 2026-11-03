@@ -1,11 +1,61 @@
 # Current checkpoint
 
+## E2/R0 — Durable EmailSend and charged submission admission
+
+Implemented and verified on redb and FoundationDB 7.3.77 on one local process/host.
+Services now exposes immutable owner-scoped EmailSend (1002), explicit `email.enqueue`,
+and transient request-bound grants. Original receipt recovery precedes grant validation;
+final staged credential authorization and source/index/intent/receipt publication are
+atomic. Use does not require Credential Read. Email status anchors to the current
+EmailSend owner; hidden platform account/binding and bearer grants are not disclosed.
+Ordinary both-owner transfers, managed creation metadata and no population counter remain.
+
+Accepted jobs retain their exact credential incarnation and secret revision across
+rotation. Shared retained envelopes count once in the eight-MiB service budget;
+rewrap, custody, source-derived checkers and restore include all retained revisions.
+Envelope `rebase-credential-secret-2`, effect codec `rebase-effects-5` and native codec
+`native-slice-kv-15` are explicit breaking identities; recreate older stores.
+
+The owned worker uses distinct Resend/Brevo fake loopback protocols, two bounded
+HTTP calls, explicit no transport retries, exact start confirmation and a 1,000ms
+maximum admission-to-call age. Missing keys stop owned work without a provider call;
+restored keys permit original read-only reconciliation. Success records a durable
+fact with `not_required` application. Uncertainty retains charges and never permits
+a new send merely because lookup is empty. Only current-submit NotAccepted permits
+up to three charged physical starts.
+
+R0 enforces literal point counts in `(now-W, now]` per provider/account/email purpose.
+Start history, quota points, policy/time rows and the exact start marker commit once.
+Equal-time multiplicity, exact boundary expiry, clock regression, denied wake times,
+rollback and unknown ACK recovery are checked. Policies are immutable and prevent
+reset from erasing consumed quota. Retention is bounded to 256 executions/768 starts;
+there is no retention compactor or cross-store account quota claim.
+
+Acceptance: 367 Rust all-target tests passed (0 ignored); 214 full Node tests passed
+(0 skipped) on Node 26.12.0 with the rebuilt default host. Formatting and default/FDB
+all-target Clippy with warnings denied passed. Real FDB coordination/lifecycle/
+application/effects/predicates/credentials/email passed 20/14/19/27/24/6/12; sequential
+redb controls passed 17/10/13/27/16/6/12. E2 injected rollback after each of 12 enqueue
+writes and seven start/admission writes, plus final-write aborts and durable ACK loss.
+Full-slot and authority revocation races ran on FDB; redb results are sequential
+controls. Both actual fake HTTP protocols, pinned old keys, secret/grant nondisclosure,
+key-loss shutdown, byte-exact retained ciphertext/quota restore and reconciliation
+passed. Original effect-demo, owner/index/cursor/rollback and source-derived checks
+remain green. See [E2 evidence](docs/checkpoints/e2-email-rate.json) and
+[E2 contract and entrypoints](docs/e2-email.md). This is local correctness evidence,
+not live provider or multi-host capacity acceptance.
+
+Next dependency: [A0 protected identities](docs/a0-identity.md), then A1 private
+email/phone proof delivery and A2 sessions, E3 objects, E5 full fake-pipeline recovery,
+and fresh committed-source release/bootstrap verification. These remain required,
+unimplemented/unaccepted scope. Optional password mode, C5 live invalidations, E4
+recurrence, frontend, live providers and TiKV remain deferred. The A0 document records
+its concrete implementation contract and source-only legacy comparison.
+
 ## E1 — Credentials, grants and requested lifetime/fanout fixes
 
-Publication status: verified and committed locally; push is blocked by the current
-environment. HTTPS has no GitHub credentials, SSH rejects available identities,
-and the connected GitHub app transport is unreachable. Restore GitHub authentication,
-push this checkpoint to `origin/main`, then begin E2/R0. No E1 reset is needed.
+Publication status: published on `origin/main` as `b88645f`; verified against the
+remote branch on 2026-11-03. E2/R0 implementation continues from this checkpoint.
 
 Implemented and verified on the default backend and one local FoundationDB 7.3.77
 process/host. The compiled `services` binding adds owner-scoped Credential metadata,

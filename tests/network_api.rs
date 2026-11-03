@@ -32,6 +32,7 @@ fn config() -> ServerConfig {
         },
         max_inflight: 16,
         request_timeout_seconds: 5,
+        email: None,
         credentials: None,
         effects: None,
     }

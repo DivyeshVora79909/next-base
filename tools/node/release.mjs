@@ -163,7 +163,7 @@ export async function packageRelease({ source, artifact, output, features = [], 
       binary: { path: 'bin/rebase-next', sha256: binaryHash, provenance: 'committed-export-build' },
       models: Object.fromEntries(models.map(m => [m.selector, modelManifest(m)])),
       formats: { store: models[0].version.store_format, nativeCodec: models[0].catalog.codec,
-        api: models[0].catalog.api, effectCodec: models.find(m => m.catalog.capabilities?.effects?.codec)?.catalog.capabilities.effects.codec ?? null },
+        api: models[0].catalog.api, effectCodec: declaredEffectCodec(models.map(model => model.catalog)) },
       supportedBackends: identities.backends,
       deploymentTemplates: templates,
       nativePrerequisites: { foundationdb: { required: selected.includes('foundationdb'), bundled: false,
@@ -241,8 +241,7 @@ export async function verifyRelease({ directory, checkBinary = true, environment
       || manifest.formats?.nativeCodec !== modelEntries[0][1].codec || manifest.formats?.api !== modelEntries[0][1].api) {
     throw new Error('Shared compiled model format identities differ');
   }
-  const effectCodecs = catalogs.map(catalog => catalog.capabilities?.effects?.codec).filter(value => value !== undefined);
-  if (effectCodecs.length > 1 || (effectCodecs[0] ?? null) !== manifest.formats?.effectCodec) throw new Error('Effect codec identity differs');
+  if (declaredEffectCodec(catalogs) !== manifest.formats?.effectCodec) throw new Error('Effect codec identity differs');
   if (entries.get('bin/rebase-next') !== manifest.binary.sha256) throw new Error('Binary checksum differs from manifest');
   for (const [name, hash] of Object.entries(manifest.sourceFiles ?? {})) if (entries.get(name) !== hash) throw new Error(`Committed source checksum differs: ${name}`);
   if (!Object.keys(manifest.sourceFiles ?? {}).length) throw new Error('Source inventory is empty');
@@ -281,6 +280,14 @@ function modelManifest({ selector, version, catalog, developer, catalogSha256 })
   return { version, model: version.model, storeFormat: version.store_format, api: catalog.api, codec: catalog.codec,
     limits: catalog.capabilities?.limits, behaviorContract: developer.behavior_contract,
     catalog: `catalogs/${selector}.public.json`, catalogSha256 };
+}
+
+function declaredEffectCodec(catalogs) {
+  const codecs = catalogs.map(catalog => catalog.capabilities?.effects?.codec).filter(value => value !== undefined);
+  if (codecs.some(value => typeof value !== 'string' || !value.length) || new Set(codecs).size > 1) {
+    throw new Error('Effect codec identity differs');
+  }
+  return codecs[0] ?? null;
 }
 
 function validateSource(source) {

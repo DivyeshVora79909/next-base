@@ -127,6 +127,31 @@ test('release verifier rejects unlisted files, symlinks and corrupt identities',
   await assert.rejects(() => verifyRelease({ directory: wrongBuild, checkBinary: false }), /build identity digest/);
 });
 
+test('release verifier accepts a shared declared effect codec and rejects model disagreement', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'node-release-effects-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await fixture(root);
+  const manifest = JSON.parse(await readFile(path.join(root, 'BUNDLE.json'), 'utf8'));
+  const catalog = JSON.parse(await readFile(path.join(root, 'catalogs/model.public.json'), 'utf8'));
+  catalog.capabilities.effects = { codec: 'independently-declared-effect-codec' };
+  manifest.formats.effectCodec = catalog.capabilities.effects.codec;
+  manifest.models.second = { ...manifest.models.model, catalog: 'catalogs/second.public.json' };
+  async function saveCatalog(selector, value) {
+    const relative = manifest.models[selector].catalog;
+    await writeFile(path.join(root, relative), `${JSON.stringify(value)}\n`);
+    manifest.models[selector].catalogSha256 = createHash('sha256').update(await readFile(path.join(root, relative))).digest('hex');
+    await writeFile(path.join(root, 'BUNDLE.json'), `${JSON.stringify(manifest)}\n`);
+    await rewriteChecksums(root);
+  }
+  await saveCatalog('model', catalog);
+  await saveCatalog('second', catalog);
+  assert.equal((await verifyRelease({ directory: root, checkBinary: false })).modelCount, 2);
+  await saveCatalog('second', { ...catalog, capabilities: { ...catalog.capabilities, effects: { codec: 'different-effect-codec' } } });
+  await assert.rejects(() => verifyRelease({ directory: root, checkBinary: false }), /Effect codec identity differs/);
+  await saveCatalog('second', { ...catalog, capabilities: { ...catalog.capabilities, effects: { codec: null } } });
+  await assert.rejects(() => verifyRelease({ directory: root, checkBinary: false }), /Effect codec identity differs/);
+});
+
 test('positive package path discovers native identities and verifies a synthetic binary fixture', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'node-release-positive-'));
   t.after(() => rm(root, { recursive: true, force: true }));

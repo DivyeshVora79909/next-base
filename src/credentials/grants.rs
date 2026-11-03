@@ -2,12 +2,13 @@
 use super::crypto::{Crypto, Provider};
 use crate::{
     access::{Action, Scope, denied},
+    binding::Binding,
     email::{EMAIL_OPERATION, EmailRequest, Purpose},
     local::{self, Store},
     models::services::{CREDENTIAL, Services},
     native_codec::{self, Key, StoredValue, decimal, uuid_text},
     native_slice::{Error, ModelRecord, Result},
-    storage::{ReadableTable, WriteTransaction},
+    storage::{ReadTransaction, ReadableTable, WriteTransaction},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -155,24 +156,32 @@ struct Claims {
 
 /// Only this module can construct the accepted binding. E2 persists its safe
 /// identities with durable intent; the grant token and claims are never stored.
-#[allow(
-    dead_code,
-    reason = "E2 consumes this checked binding in the accepting write transaction"
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct AcceptedBinding {
+    #[serde(with = "uuid_text")]
     credential: Uuid,
+    #[serde(with = "uuid_text")]
     incarnation: Uuid,
     provider: Provider,
     account: String,
+    #[serde(with = "decimal")]
     use_epoch: u64,
+    #[serde(with = "decimal")]
     secret_revision: u64,
     selection: Selection,
 }
-#[allow(
-    dead_code,
-    reason = "E2 consumes this checked binding in the accepting write transaction"
-)]
 impl AcceptedBinding {
+    pub(crate) fn validate(&self) -> Result<()> {
+        if self.credential.is_nil()
+            || self.incarnation.is_nil()
+            || self.secret_revision == 0
+            || matches!(self.selection,Selection::Byoc{credential} if credential != self.credential)
+        {
+            return Err(invalid_grant());
+        }
+        super::crypto::validate_account(&self.account).map_err(|_| invalid_grant())
+    }
     pub(crate) fn credential(&self) -> Uuid {
         self.credential
     }
@@ -220,43 +229,42 @@ fn resolve_selection<'a>(
         _ => Err(denied()),
     }
 }
-fn load_record(
+fn load_record<B: Binding>(
     table: &impl ReadableTable<&'static [u8], &'static [u8]>,
     id: Uuid,
-) -> Result<ModelRecord<Services>> {
+) -> Result<ModelRecord<B>> {
     let key = Key::Record(id);
     let bytes = table.get(key.encode().as_slice())?.ok_or_else(denied)?;
-    match native_codec::decode_for::<Services>(&key, bytes.value())? {
+    match native_codec::decode_for::<B>(&key, bytes.value())? {
         StoredValue::Record(record) if record.contract == CREDENTIAL => Ok(record),
         _ => Err(denied()),
     }
 }
-fn check_current(
+fn check_current<B: Binding>(
     scope: &Scope,
-    record: &ModelRecord<Services>,
+    record: &ModelRecord<B>,
     platform: Option<&PlatformBinding>,
 ) -> Result<(Uuid, u64, u64)> {
     explicit_use(scope)?;
+    let (metadata, state) = B::credential_values(record).map_err(|_| denied())?;
     if record.tenant != scope.tenant
         || record.contract != CREDENTIAL
-        || !record.input.enabled
-        || !record
-            .input
+        || !metadata.enabled
+        || !metadata
             .scopes
             .iter()
-            .any(|p| p == Purpose::EmailSend.as_str())
+            .any(|purpose| purpose == Purpose::EmailSend.as_str())
         || match platform {
             None => !scope.accessible.contains(&record.owner),
             Some(binding) => {
-                binding.provider != record.input.provider
-                    || binding.account != record.input.account
+                binding.provider != metadata.provider
+                    || binding.account != metadata.account
                     || binding.purpose != Purpose::EmailSend
             }
         }
     {
         return Err(denied());
     }
-    let state = record.derived.as_ref().ok_or_else(denied)?;
     let revision = state
         .secret_revision
         .filter(|r| *r > 0)
@@ -266,6 +274,7 @@ fn check_current(
     }
     Ok((state.incarnation, state.use_epoch, revision))
 }
+
 fn validate_claims(
     claims: &Claims,
     model: &str,
@@ -321,11 +330,12 @@ impl Store<Services> {
         explicit_use(&scope)?;
         let (credential, platform) = resolve_selection(&runtime.platform, &request.selection)?;
         let table = read.open_table(local::KV)?;
-        let record = load_record(&table, credential)?;
+        let record = load_record::<Services>(&table, credential)?;
         let (incarnation, use_epoch, secret_revision) = check_current(&scope, &record, platform)?;
         let expires_at = now
             .checked_add(i64::from(request.ttl_seconds) * 1000)
             .ok_or_else(invalid_grant)?;
+        let metadata = record.input.credential()?;
         let claims = Claims {
             operation: EMAIL_OPERATION.into(),
             purpose: Purpose::EmailSend,
@@ -339,8 +349,8 @@ impl Store<Services> {
             incarnation,
             use_epoch,
             secret_revision,
-            provider: record.input.provider,
-            account: record.input.account.clone(),
+            provider: metadata.provider,
+            account: metadata.account.clone(),
             request_hash,
             issued_at: now,
             expires_at,
@@ -350,10 +360,68 @@ impl Store<Services> {
         let grant = runtime.crypto.seal_grant(&bytes)?;
         Ok(AuthorizedEmail { grant, expires_at })
     }
+}
 
-    /// Called only inside E2's transaction after original receipt recovery. A
-    /// successful check is not dispatch permission and performs no secret load.
-    #[allow(dead_code, reason = "E2 accepting transaction consumes the E1 grant")]
+/// Fresh grants bind the current revision. Called after receipt recovery inside
+/// the accepting write transaction; the staged final graph is checked separately.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn consume_for_enqueue<B: Binding>(
+    write: &WriteTransaction,
+    model: &crate::model::Prepared<B>,
+    scope: &Scope,
+    header: &local::RuntimeHeader,
+    runtime: &Runtime,
+    email: &EmailRequest,
+    grant: &str,
+    now: i64,
+) -> Result<AcceptedBinding> {
+    explicit_use(scope)?;
+    let request_hash = email.request_hash()?;
+    local::validate_header(header)?;
+    let plaintext = runtime
+        .crypto
+        .open_grant(grant)
+        .map_err(|_| invalid_grant())?;
+    let claims: Claims = serde_json::from_slice(&plaintext).map_err(|_| invalid_grant())?;
+    validate_claims(
+        &claims,
+        model.identity(),
+        header.store_id,
+        scope,
+        &request_hash,
+        now,
+    )?;
+    let table = write.open_table(local::KV)?;
+    let (credential, platform) = resolve_selection(&runtime.platform, &claims.selection)?;
+    if credential != claims.credential {
+        return Err(invalid_grant());
+    }
+    let record = load_record::<B>(&table, credential)?;
+    let (incarnation, use_epoch, secret_revision) = check_current(scope, &record, platform)?;
+    let (metadata, _) = B::credential_values(&record)?;
+    if incarnation != claims.incarnation
+        || use_epoch != claims.use_epoch
+        || secret_revision != claims.secret_revision
+        || metadata.provider != claims.provider
+        || metadata.account != claims.account
+    {
+        return Err(invalid_grant());
+    }
+    let binding = AcceptedBinding {
+        selection: claims.selection,
+        credential,
+        incarnation,
+        provider: metadata.provider,
+        account: metadata.account.clone(),
+        use_epoch,
+        secret_revision,
+    };
+    binding.validate()?;
+    Ok(binding)
+}
+
+impl<B: Binding> Store<B> {
+    #[cfg(test)]
     pub(crate) fn consume_email_grant(
         &self,
         write: &WriteTransaction,
@@ -363,8 +431,6 @@ impl Store<Services> {
         now: i64,
     ) -> Result<AcceptedBinding> {
         let scope = self.write_authority(write)?;
-        explicit_use(&scope)?;
-        let request_hash = email.request_hash()?;
         let header: local::RuntimeHeader = local::decode(
             write
                 .open_table(local::RUNTIME)?
@@ -372,56 +438,125 @@ impl Store<Services> {
                 .ok_or_else(|| local::corrupt("missing runtime header"))?
                 .value(),
         )?;
-        local::validate_header(&header)?;
         self.check_expected_store(header.store_id)?;
-        let plaintext = runtime
-            .crypto
-            .open_grant(grant)
-            .map_err(|_| invalid_grant())?;
-        let claims: Claims = serde_json::from_slice(&plaintext).map_err(|_| invalid_grant())?;
-        validate_claims(
-            &claims,
-            self.model.identity(),
-            header.store_id,
+        consume_for_enqueue(
+            write,
+            &self.model,
             &scope,
-            &request_hash,
+            &header,
+            runtime,
+            email,
+            grant,
             now,
-        )?;
-        let table = write.open_table(local::KV)?;
-        let meta_key = Key::Meta;
-        let meta_bytes = table
-            .get(meta_key.encode().as_slice())?
-            .ok_or_else(|| local::corrupt("missing model header"))?;
-        let StoredValue::Meta(meta) =
-            native_codec::decode_for::<Services>(&meta_key, meta_bytes.value())?
-        else {
-            return Err(local::corrupt("model header type"));
-        };
-        self.check_meta(&meta, &claims.model)?;
-        let (credential, platform) = resolve_selection(&runtime.platform, &claims.selection)?;
-        if credential != claims.credential {
-            return Err(invalid_grant());
-        }
-        let record = load_record(&table, credential)?;
-        let (incarnation, use_epoch, secret_revision) = check_current(&scope, &record, platform)?;
-        if incarnation != claims.incarnation
-            || use_epoch != claims.use_epoch
-            || secret_revision != claims.secret_revision
-            || record.input.provider != claims.provider
-            || record.input.account != claims.account
-        {
-            return Err(invalid_grant());
-        }
-        Ok(AcceptedBinding {
-            selection: claims.selection,
-            credential,
-            incarnation,
-            provider: record.input.provider,
-            account: record.input.account,
-            use_epoch,
-            secret_revision,
-        })
+        )
     }
+}
+
+/// Revalidate current permission and metadata for one already pinned execution.
+/// Platform use keeps the originally accepted credential/account binding; runtime
+/// configuration changes cannot redirect previously accepted intent.
+pub(crate) fn validate_pinned_record<B: Binding>(
+    scope: &Scope,
+    record: &ModelRecord<B>,
+    binding: &AcceptedBinding,
+    require_current_revision: bool,
+) -> Result<()> {
+    binding.validate()?;
+    let platform = match binding.selection() {
+        Selection::Byoc { .. } => None,
+        Selection::Platform { slot } => Some(PlatformBinding {
+            slot: *slot,
+            credential: binding.credential(),
+            provider: binding.provider(),
+            account: binding.account().into(),
+            purpose: Purpose::EmailSend,
+        }),
+    };
+    let (incarnation, use_epoch, current_revision) =
+        check_current(scope, record, platform.as_ref())?;
+    let (metadata, _) = B::credential_values(record)?;
+    if incarnation != binding.incarnation()
+        || use_epoch != binding.use_epoch()
+        || metadata.provider != binding.provider()
+        || metadata.account != binding.account()
+        || binding.secret_revision() > current_revision
+        || (require_current_revision && binding.secret_revision() != current_revision)
+    {
+        return Err(denied());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_pinned<B: Binding>(
+    write: &WriteTransaction,
+    scope: &Scope,
+    binding: &AcceptedBinding,
+) -> Result<()> {
+    let table = write.open_table(local::KV)?;
+    let record = load_record::<B>(&table, binding.credential())?;
+    validate_pinned_record(scope, &record, binding, false)?;
+    retained_envelope::<B>(&table, binding, scope.tenant).map(|_| ())
+}
+
+fn retained_envelope<B: Binding>(
+    table: &impl ReadableTable<&'static [u8], &'static [u8]>,
+    binding: &AcceptedBinding,
+    tenant: Uuid,
+) -> Result<super::crypto::SecretEnvelope> {
+    binding.validate()?;
+    let record = load_record::<B>(table, binding.credential())?;
+    let (metadata, state) = B::credential_values(&record)?;
+    if record.tenant != tenant
+        || state.incarnation != binding.incarnation()
+        || metadata.provider != binding.provider()
+        || metadata.account != binding.account()
+        || state
+            .secret_revision
+            .is_none_or(|current| binding.secret_revision() > current)
+    {
+        return Err(local::corrupt("retained credential identity"));
+    }
+    let key = Key::CredentialSecret(binding.credential(), binding.secret_revision());
+    let bytes = table
+        .get(key.encode())?
+        .ok_or_else(|| local::corrupt("retained credential envelope missing"))?;
+    let StoredValue::CredentialSecret(envelope) =
+        native_codec::decode_for::<B>(&key, bytes.value())?
+    else {
+        return Err(local::corrupt("retained credential envelope role"));
+    };
+    if envelope.incarnation != binding.incarnation() {
+        return Err(local::corrupt("retained credential incarnation"));
+    }
+    Ok(envelope)
+}
+
+pub(crate) fn check_retained_binding<B: Binding>(
+    read: &ReadTransaction,
+    binding: &AcceptedBinding,
+    tenant: Uuid,
+) -> Result<()> {
+    retained_envelope::<B>(&read.open_table(local::KV)?, binding, tenant).map(|_| ())
+}
+
+pub(crate) fn load_pinned_secret<B: Binding>(
+    read: &ReadTransaction,
+    binding: &AcceptedBinding,
+    tenant: Uuid,
+    crypto: &Crypto,
+) -> Result<super::crypto::ApiKeySecret> {
+    let envelope = retained_envelope::<B>(&read.open_table(local::KV)?, binding, tenant)?;
+    crypto.open_secret(
+        &envelope,
+        &super::crypto::SecretContext {
+            tenant,
+            credential: binding.credential(),
+            incarnation: binding.incarnation(),
+            secret_revision: binding.secret_revision(),
+            provider: binding.provider(),
+            account: binding.account().into(),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -447,13 +582,13 @@ mod tests {
             owner: Uuid::from_u128(2),
             created_at: 0,
             version: Uuid::from_u128(3),
-            input: Metadata {
+            input: crate::models::services::Input::Credential(Metadata {
                 label: "mail".into(),
                 provider: Provider::Resend,
                 account: "account".into(),
                 enabled: true,
                 scopes: vec!["email.send".into()],
-            },
+            }),
             derived: Some(Derived {
                 incarnation: Uuid::from_u128(3),
                 has_secret: true,
@@ -507,6 +642,56 @@ mod tests {
         assert!(PlatformBindings::new(vec![binding.clone(), binding]).is_err());
     }
     #[test]
+    fn accepted_revision_survives_rotation_but_current_authority_and_identity_do_not() {
+        let scope = scope();
+        let mut row = record();
+        let mut binding = AcceptedBinding {
+            credential: Uuid::from_u128(5),
+            incarnation: Uuid::from_u128(3),
+            provider: Provider::Resend,
+            account: "account".into(),
+            use_epoch: 0,
+            secret_revision: 1,
+            selection: Selection::Byoc {
+                credential: Uuid::from_u128(5),
+            },
+        };
+        assert!(validate_pinned_record(&scope, &row, &binding, true).is_ok());
+        row.derived.as_mut().unwrap().secret_revision = Some(2);
+        assert!(validate_pinned_record(&scope, &row, &binding, false).is_ok());
+        assert!(validate_pinned_record(&scope, &row, &binding, true).is_err());
+        for mutation in 0..7 {
+            let mut changed = row.clone();
+            match mutation {
+                0 => changed.input.credential_mut().enabled = false,
+                1 => changed.input.credential_mut().scopes.clear(),
+                2 => changed.derived.as_mut().unwrap().use_epoch += 1,
+                3 => changed.derived.as_mut().unwrap().incarnation = Uuid::from_u128(99),
+                4 => changed.input.credential_mut().account = "other".into(),
+                5 => changed.input.credential_mut().provider = Provider::Brevo,
+                _ => changed.owner = Uuid::from_u128(88),
+            }
+            assert!(validate_pinned_record(&scope, &changed, &binding, false).is_err());
+        }
+        row.owner = Uuid::from_u128(1);
+        binding.selection = Selection::Platform {
+            slot: PlatformSlot::TransactionalEmail,
+        };
+        assert!(validate_pinned_record(&scope, &row, &binding, false).is_ok());
+        // No runtime platform mapping is involved in a retained binding.
+        let serialized = serde_json::to_value(&binding).unwrap();
+        assert_eq!(serialized["secret_revision"], "1");
+        let roundtrip: AcceptedBinding = serde_json::from_value(serialized).unwrap();
+        assert!(validate_pinned_record(&scope, &row, &roundtrip, false).is_ok());
+        let mut revoked = scope.clone();
+        revoked.active = false;
+        assert!(validate_pinned_record(&revoked, &row, &roundtrip, false).is_err());
+        revoked = scope.clone();
+        revoked.grants.contracts.clear();
+        revoked.grants.admin = true;
+        assert!(validate_pinned_record(&revoked, &row, &roundtrip, false).is_err());
+    }
+    #[test]
     fn state_and_claim_fences_reject_revocation_expiry_and_request_changes() {
         let scope = scope();
         let row = record();
@@ -545,8 +730,8 @@ mod tests {
         for state in 0..4 {
             let mut changed = row.clone();
             match state {
-                0 => changed.input.enabled = false,
-                1 => changed.input.scopes.clear(),
+                0 => changed.input.credential_mut().enabled = false,
+                1 => changed.input.credential_mut().scopes.clear(),
                 2 => changed.derived.as_mut().unwrap().has_secret = false,
                 _ => changed.derived.as_mut().unwrap().secret_revision = None,
             };

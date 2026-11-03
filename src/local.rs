@@ -76,7 +76,7 @@ pub(crate) fn unhex(text: &str) -> Result<Vec<u8>> {
         .collect()
 }
 
-mod canonical_ids {
+pub(crate) mod canonical_ids {
     use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
     use uuid::Uuid;
     pub fn serialize<S: Serializer>(ids: &[Uuid], serializer: S) -> Result<S::Ok, S::Error> {
@@ -558,6 +558,28 @@ impl<B: Binding> Store<B> {
         lose_response: bool,
         secret: Option<crate::credentials::store::SecretStage<'_>>,
     ) -> Result<Value> {
+        self.mutate_services(
+            request,
+            allocate,
+            abort_after,
+            before_commit,
+            lose_response,
+            secret,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn mutate_services(
+        &self,
+        request: &Mutation,
+        allocate: &mut dyn FnMut() -> Result<Uuid>,
+        abort_after: Option<usize>,
+        before_commit: &mut dyn FnMut() -> Result<()>,
+        lose_response: bool,
+        secret: Option<crate::credentials::store::SecretStage<'_>>,
+        email: Option<crate::email_operations::Stage<'_>>,
+    ) -> Result<Value> {
         if request.returning.len() > 32
             || request.returning.iter().collect::<BTreeSet<_>>().len() != request.returning.len()
         {
@@ -568,7 +590,14 @@ impl<B: Binding> Store<B> {
         }
         let request_hash = match &secret {
             Some(stage) => self.request_hash("credentials.write_secret", stage.request)?,
-            None => self.request_hash("records.mutate", request)?,
+            None => self.request_hash(
+                if email.is_some() {
+                    "email.enqueue"
+                } else {
+                    "records.mutate"
+                },
+                request,
+            )?,
         };
         let write = self.begin_write()?;
         let scope = self.write_authority(&write)?;
@@ -707,6 +736,11 @@ impl<B: Binding> Store<B> {
                 &mut |_ws, _revision| Ok(()),
             )?;
 
+            crate::credentials::store::retain_revisions(
+                &write,
+                &mut ws,
+                &request.commands.iter().map(Command::id).collect::<Vec<_>>(),
+            )?;
             let mut records = vec![];
             for &id in &request.returning {
                 records.push(ReturnedValue {
@@ -723,6 +757,7 @@ impl<B: Binding> Store<B> {
                 request.operation_id,
                 &request.commands,
                 allocate,
+                email,
             )?;
             let result = ReceiptResult::Records(CommittedValue {
                 operation_id: request.operation_id,
@@ -1333,7 +1368,7 @@ mod tests {
         )
         .unwrap();
         let before = store.observe_for_verification().unwrap();
-        assert_eq!(before["tables"].as_object().unwrap().len(), 13);
+        assert_eq!(before["tables"].as_object().unwrap().len(), 16);
         let request: Mutation = serde_json::from_value(json!({"model":store.model.identity(),"context":store.operation_context(store.model().identity()).unwrap(),"operation_id":Uuid::from_u128(3),
             "commands":[{"op":"create","id":Uuid::from_u128(4),"contract":7,"fields":{"at":"1"}}],"returning":[]})).unwrap();
         for abort in [2, usize::MAX] {

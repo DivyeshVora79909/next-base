@@ -2,6 +2,7 @@
 //! Callers stop service activity before key rotation; CAS still rejects a competing
 //! metadata edit or envelope rewrite. Inspection and rewrap never authorize use.
 use crate::{
+    binding::Binding,
     credentials::crypto::{Crypto, SecretContext, SecretEnvelope},
     local::{
         self, CommittedValue, ReceiptKind, ReceiptResult, ReceiptValue, ReturnedValue,
@@ -19,6 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 const MAX_REWRAP: usize = 16;
+const MAX_REWRAP_ENTRIES: usize = MAX_REWRAP + crate::effects::MAX_RETAINED as usize;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RewrapEntry {
@@ -42,29 +44,47 @@ pub struct RewrapRequest {
 fn fingerprint(envelope: &SecretEnvelope) -> Result<String> {
     Ok(native_codec::hex(&Sha256::digest(local::encode(envelope)?)))
 }
-fn secret_context(record: &ModelRecord<Services>, id: Uuid) -> Result<SecretContext> {
-    let revision = record
-        .derived
-        .as_ref()
-        .and_then(|state| state.secret_revision)
-        .ok_or_else(|| Error::new("unavailable_reference", "credential has no current secret"))?;
+fn secret_context(
+    record: &ModelRecord<Services>,
+    id: Uuid,
+    revision: u64,
+) -> Result<SecretContext> {
+    let (metadata, state) = Services::credential_values(record)?;
+    if revision == 0
+        || state
+            .secret_revision
+            .is_none_or(|current| revision > current)
+    {
+        return Err(Error::new(
+            "unavailable_reference",
+            "credential secret revision unavailable",
+        ));
+    }
     Ok(SecretContext {
         tenant: record.tenant,
         credential: id,
+        incarnation: state.incarnation,
         secret_revision: revision,
-        provider: record.input.provider,
-        account: record.input.account.clone(),
+        provider: metadata.provider,
+        account: metadata.account.clone(),
     })
 }
+
 fn entry_shape(entries: &[RewrapEntry]) -> Result<()> {
     if entries.is_empty()
-        || entries.len() > MAX_REWRAP
+        || entries.len() > MAX_REWRAP_ENTRIES
+        || entries
+            .iter()
+            .map(|entry| (entry.id, entry.secret_revision))
+            .collect::<BTreeSet<_>>()
+            .len()
+            != entries.len()
         || entries
             .iter()
             .map(|entry| entry.id)
             .collect::<BTreeSet<_>>()
             .len()
-            != entries.len()
+            > MAX_REWRAP
         || entries.iter().any(|entry| {
             entry.secret_revision == 0
                 || entry.envelope_sha256.len() != 64
@@ -103,30 +123,45 @@ impl Store<Services> {
             |key: &[u8]| Ok(table.get(key)?.map(|bytes| bytes.value().to_vec())),
             local::MUTATION_WORK_LIMIT,
         );
+        let pins = super::store::pinned_revisions::<Services>(
+            &read.open_table(crate::effects::EXECUTIONS)?,
+        )?;
         let mut entries = Vec::new();
         for &id in ids {
             let record = ws.record(id)?.ok_or_else(|| {
                 Error::new("unavailable_reference", "credential source unavailable")
             })?;
-            let context = secret_context(&record, id)?;
-            let Some(StoredValue::CredentialSecret(envelope)) =
-                ws.get(&Key::CredentialSecret(id))?
-            else {
-                return Err(local::corrupt("missing credential envelope"));
-            };
-            if record.contract != CREDENTIAL
-                || envelope.credential != id
-                || envelope.secret_revision != context.secret_revision
-            {
-                return Err(local::corrupt("credential envelope identity"));
+            let (_, state) = Services::credential_values(&record)?;
+            let current = state.secret_revision.ok_or_else(|| {
+                Error::new("unavailable_reference", "credential has no current secret")
+            })?;
+            let mut revisions = BTreeSet::from([current]);
+            revisions.extend(
+                pins.keys()
+                    .filter_map(|&(credential, revision)| (credential == id).then_some(revision)),
+            );
+            for revision in revisions {
+                let context = secret_context(&record, id, revision)?;
+                let Some(StoredValue::CredentialSecret(envelope)) =
+                    ws.get(&Key::CredentialSecret(id, revision))?
+                else {
+                    return Err(local::corrupt("missing credential envelope"));
+                };
+                if envelope.credential != id
+                    || envelope.secret_revision != revision
+                    || envelope.incarnation != context.incarnation
+                {
+                    return Err(local::corrupt("credential envelope identity"));
+                }
+                entries.push(RewrapEntry {
+                    id,
+                    if_version: record.version,
+                    secret_revision: revision,
+                    envelope_sha256: fingerprint(&envelope)?,
+                });
             }
-            entries.push(RewrapEntry {
-                id,
-                if_version: record.version,
-                secret_revision: context.secret_revision,
-                envelope_sha256: fingerprint(&envelope)?,
-            });
         }
+        entry_shape(&entries)?;
         Ok(RewrapRequest {
             model: self.model().identity().into(),
             context: crate::security::operation_context(
@@ -196,20 +231,40 @@ impl Store<Services> {
                 return Ok(json!({"status":"committed","replayed":true,"result":result}));
             }
             // Validate every selected source/envelope CAS before any decryption.
+            let pins = super::store::pinned_revisions::<Services>(
+                &write.open_table(crate::effects::EXECUTIONS)?,
+            )?;
+            let secret_bytes_before = super::store::retained_secret_bytes(&mut ws, pins.values())?;
             let mut selected = Vec::new();
             for entry in &request.entries {
                 let record = ws.record(entry.id)?.ok_or_else(|| {
                     Error::new("unavailable_reference", "credential source unavailable")
                 })?;
-                let context = secret_context(&record, entry.id)?;
+                if record.version != entry.if_version {
+                    return Err(Error::new(
+                        "stale_version",
+                        "credential rewrap source changed",
+                    ));
+                }
+                let context = secret_context(&record, entry.id, entry.secret_revision)?;
+                let (_, state) = Services::credential_values(&record)?;
+                if state.secret_revision != Some(entry.secret_revision)
+                    && !pins.contains_key(&(entry.id, entry.secret_revision))
+                {
+                    return Err(Error::new(
+                        "stale_version",
+                        "credential revision is no longer retained",
+                    ));
+                }
                 let Some(StoredValue::CredentialSecret(envelope)) =
-                    ws.get(&Key::CredentialSecret(entry.id))?
+                    ws.get(&Key::CredentialSecret(entry.id, entry.secret_revision))?
                 else {
                     return Err(local::corrupt("missing credential envelope"));
                 };
                 if record.contract != CREDENTIAL
                     || envelope.credential != entry.id
                     || envelope.secret_revision != context.secret_revision
+                    || envelope.incarnation != context.incarnation
                 {
                     return Err(local::corrupt("credential envelope identity"));
                 }
@@ -228,13 +283,26 @@ impl Store<Services> {
             for (id, record, context, envelope) in selected {
                 let rewrapped = crypto.rewrap(&envelope, &context)?;
                 ws.put(
-                    Key::CredentialSecret(id),
+                    Key::CredentialSecret(id, context.secret_revision),
                     Some(StoredValue::CredentialSecret(rewrapped)),
                 )?;
-                records.push(ReturnedValue {
-                    id,
-                    record: self.project(&scope, id, Some(record)),
-                });
+                if !records
+                    .iter()
+                    .any(|returned: &ReturnedValue<Services>| returned.id == id)
+                {
+                    records.push(ReturnedValue {
+                        id,
+                        record: self.project(&scope, id, Some(record)),
+                    });
+                }
+            }
+            let secret_bytes_after = super::store::retained_secret_bytes(&mut ws, pins.values())?;
+            if secret_bytes_before != secret_bytes_after {
+                crate::effects::refresh_retained_secret_bytes(
+                    &write,
+                    secret_bytes_before,
+                    secret_bytes_after,
+                )?;
             }
             let result = ReceiptResult::Records(CommittedValue {
                 operation_id: request.operation_id,
@@ -296,36 +364,42 @@ impl Store<Services> {
             let key = Key::decode(key.value())?;
             match native_codec::decode_for::<Services>(&key, value.value())? {
                 StoredValue::Record(record) => {
-                    if let Key::Record(id) = key {
+                    if let Key::Record(id) = key
+                        && record.contract == CREDENTIAL
+                    {
                         sources.insert(id, record);
                     }
                 }
                 StoredValue::CredentialSecret(secret) => {
-                    if let Key::CredentialSecret(id) = key {
-                        secrets.insert(id, secret);
+                    if let Key::CredentialSecret(id, revision) = key {
+                        secrets.insert((id, revision), secret);
                     }
                 }
                 _ => {}
             }
         }
-        let expected: BTreeSet<_> = sources
+        let mut expected: BTreeSet<_> = sources
             .iter()
-            .filter(|(_, record)| {
+            .filter_map(|(&id, record)| {
                 record
                     .derived
                     .as_ref()
-                    .is_some_and(|state| state.has_secret)
+                    .and_then(|state| state.secret_revision)
+                    .map(|revision| (id, revision))
             })
-            .map(|(&id, _)| id)
             .collect();
+        let pins = super::store::pinned_revisions::<Services>(
+            &read.open_table(crate::effects::EXECUTIONS)?,
+        )?;
+        expected.extend(pins.keys().copied());
         if expected != secrets.keys().copied().collect() {
             return Err(local::corrupt("credential custody inventory"));
         }
-        for (id, envelope) in &secrets {
+        for (&(id, revision), envelope) in &secrets {
             let source = sources
-                .get(id)
+                .get(&id)
                 .ok_or_else(|| local::corrupt("orphan credential envelope"))?;
-            let context = secret_context(source, *id)?;
+            let context = secret_context(source, id, revision)?;
             let _secret = crypto.open_secret(envelope, &context)?;
         }
         Ok(
@@ -339,6 +413,282 @@ mod tests {
     use super::*;
     use crate::credentials::store::test_support::*;
     use std::sync::Arc;
+    #[test]
+    fn accepted_jobs_retain_exact_rotations_and_operator_rewraps_every_retained_envelope() {
+        use crate::{
+            access::Action,
+            credentials::grants::{
+                AuthorizeRequest, PlatformBindings, Runtime, load_pinned_secret,
+            },
+            email::{EmailRequest, SendInput},
+            email_operations::{Authorization, Enqueue},
+            models::services::EMAIL_SEND,
+        };
+        let f = fixture();
+        let mut access = graph();
+        for principal in &mut access.principals {
+            if principal.id == id(4) {
+                principal.grants.contracts.insert(
+                    EMAIL_SEND,
+                    [Action::Read, Action::Create, Action::Update, Action::Delete].into(),
+                );
+            }
+        }
+        replace(&f.store, access);
+        let caller = f.store.session(id(4), 0).unwrap();
+        let runtime = Runtime::new(f.crypto.clone(), PlatformBindings::default());
+        let first = sealed(
+            &caller,
+            &f.crypto,
+            id(100),
+            None,
+            None,
+            metadata(true),
+            "retained-original-key",
+        );
+        caller.write_secret(&f.crypto, &first).unwrap();
+        let email = EmailRequest {
+            sender: "sender@example.com".into(),
+            to: vec!["reader@example.net".into()],
+            subject: "retention".into(),
+            text: "literal fixture".into(),
+        };
+        let selection = crate::credentials::grants::Selection::Byoc {
+            credential: id(100),
+        };
+        let grant = caller
+            .authorize_email(
+                &runtime,
+                &AuthorizeRequest {
+                    model: caller.model().identity().into(),
+                    email: email.clone(),
+                    selection: selection.clone(),
+                    ttl_seconds: 60,
+                },
+            )
+            .unwrap();
+        // Acceptance is checked against the final transaction graph. An old
+        // valid grant cannot authorize a job alongside revocation/owner transfer.
+        let original_source = record(&f.store, id(100));
+        for (set, owner) in [
+            (json!({"enabled":false}), None),
+            (json!({"scopes":[]}), None),
+            (json!({}), Some(id(6))),
+        ] {
+            let input = SendInput {
+                email: email.clone(),
+                selection: selection.clone(),
+                execute_at: None,
+                not_after: None,
+            };
+            let request = Enqueue {
+                model: caller.model().identity().into(),
+                context: caller.operation_context(caller.model().identity()).unwrap(),
+                operation_id: Uuid::new_v4(),
+                commands: vec![
+                    crate::native_slice::Command::Create {
+                        id: id(199),
+                        contract: EMAIL_SEND,
+                        owner: None,
+                        fields: serde_json::to_value(input).unwrap(),
+                    },
+                    crate::native_slice::Command::Update {
+                        id: id(100),
+                        if_version: original_source.version,
+                        owner,
+                        set: serde_json::from_value(set).unwrap(),
+                        unset: vec![],
+                    },
+                ],
+                returning: vec![],
+                authorizations: vec![Authorization {
+                    source: id(199),
+                    grant: grant.grant.clone(),
+                }],
+            };
+            let before = f.store.observe_for_verification().unwrap();
+            let decrypts = f.crypto.decrypt_counts();
+            assert_eq!(
+                caller.enqueue_email(&runtime, &request).unwrap_err().code,
+                "forbidden"
+            );
+            assert_eq!(f.store.observe_for_verification().unwrap(), before);
+            assert_eq!(f.crypto.decrypt_counts(), decrypts);
+        }
+        let mut execution_ids = Vec::new();
+        for source in [200, 201] {
+            let input = SendInput {
+                email: email.clone(),
+                selection: selection.clone(),
+                execute_at: None,
+                not_after: None,
+            };
+            let request = Enqueue {
+                model: caller.model().identity().into(),
+                context: caller.operation_context(caller.model().identity()).unwrap(),
+                operation_id: Uuid::new_v4(),
+                commands: vec![crate::native_slice::Command::Create {
+                    id: id(source),
+                    contract: EMAIL_SEND,
+                    owner: None,
+                    fields: serde_json::to_value(input).unwrap(),
+                }],
+                returning: vec![],
+                authorizations: vec![Authorization {
+                    source: id(source),
+                    grant: grant.grant.clone(),
+                }],
+            };
+            let result = caller.enqueue_email(&runtime, &request).unwrap();
+            execution_ids.push(
+                result["result"]["executions"][0]["execution_id"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<Uuid>()
+                    .unwrap(),
+            );
+        }
+        let previous = record(&f.store, id(100));
+        let rotation = sealed(
+            &caller,
+            &f.crypto,
+            id(100),
+            None,
+            Some(previous.version),
+            metadata(true),
+            "rotated-current-key",
+        );
+        let before = f.store.observe_for_verification().unwrap();
+        for abort in [1, 2, usize::MAX] {
+            assert_eq!(
+                caller
+                    .write_secret_controlled(
+                        &f.crypto,
+                        &rotation,
+                        Some(abort),
+                        &mut || Ok(()),
+                        false
+                    )
+                    .unwrap_err()
+                    .code,
+                "injected_abort"
+            );
+            assert_eq!(f.store.observe_for_verification().unwrap(), before);
+        }
+        assert_eq!(
+            caller
+                .write_secret_controlled(&f.crypto, &rotation, None, &mut || Ok(()), true)
+                .unwrap_err()
+                .code,
+            "outcome_unknown"
+        );
+        let counts = f.crypto.decrypt_counts();
+        assert_eq!(
+            caller.write_secret(&f.crypto, &rotation).unwrap()["replayed"],
+            true
+        );
+        assert_eq!(f.crypto.decrypt_counts(), counts);
+        let current = record(&f.store, id(100));
+        assert_eq!(current.derived.as_ref().unwrap().secret_revision, Some(2));
+        assert_eq!(
+            current.derived.as_ref().unwrap().incarnation,
+            previous.derived.as_ref().unwrap().incarnation
+        );
+        let retained = |store: &Store<Services>| {
+            let read = store.db.begin_read().unwrap();
+            read.open_table(local::KV)
+                .unwrap()
+                .iter()
+                .unwrap()
+                .filter_map(|row| {
+                    let (key, _) = row.unwrap();
+                    match Key::decode(key.value()).unwrap() {
+                        Key::CredentialSecret(credential, revision) => Some((credential, revision)),
+                        _ => None,
+                    }
+                })
+                .collect::<BTreeSet<_>>()
+        };
+        assert_eq!(
+            retained(&f.store),
+            BTreeSet::from([(id(100), 1), (id(100), 2)])
+        );
+        let read = f.store.db.begin_read().unwrap();
+        let table = read.open_table(crate::effects::EXECUTIONS).unwrap();
+        let pins = execution_ids
+            .iter()
+            .map(|execution| {
+                let bytes = table.get(execution.as_bytes()).unwrap().unwrap();
+                let row: crate::effects::Execution<Services> =
+                    local::decode(bytes.value()).unwrap();
+                row.email_binding.unwrap()
+            })
+            .collect::<Vec<_>>();
+        for pin in &pins {
+            assert_eq!(pin.secret_revision(), 1);
+            assert_eq!(
+                load_pinned_secret::<Services>(&read, pin, id(1), &f.crypto)
+                    .unwrap()
+                    .as_bytes(),
+                b"retained-original-key"
+            );
+        }
+        drop(table);
+        drop(read);
+        let before_delete = f.store.observe_for_verification().unwrap();
+        let delete = mutation(
+            &caller,
+            json!([{"op":"delete","id":id(100),"if_version":current.version}]),
+        );
+        assert_eq!(caller.mutate(&delete).unwrap_err().code, "invariant");
+        assert_eq!(f.store.observe_for_verification().unwrap(), before_delete);
+        let plan = f.store.credential_rewrap_plan(&[id(100)]).unwrap();
+        assert_eq!(
+            plan.entries
+                .iter()
+                .map(|entry| entry.secret_revision)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([1, 2])
+        );
+        let rotated = Crypto::test_rotated(1, 20);
+        f.store.rewrap_credentials(&rotated, &plan).unwrap();
+        assert_eq!(record(&f.store, id(100)), current);
+        let replacement = Crypto::test_with_seed(20);
+        assert_eq!(
+            f.store.verify_credential_custody(&replacement).unwrap()["secret_envelopes"],
+            2
+        );
+        assert!(f.store.verify_credential_custody(&f.crypto).is_err());
+        let read = f.store.db.begin_read().unwrap();
+        for pin in &pins {
+            assert_eq!(
+                load_pinned_secret::<Services>(&read, pin, id(1), &replacement)
+                    .unwrap()
+                    .as_bytes(),
+                b"retained-original-key"
+            );
+        }
+        drop(read);
+        let next = sealed(
+            &caller,
+            &rotated,
+            id(100),
+            None,
+            Some(current.version),
+            metadata(true),
+            "third-current-key",
+        );
+        caller.write_secret(&rotated, &next).unwrap();
+        assert_eq!(
+            retained(&f.store),
+            BTreeSet::from([(id(100), 1), (id(100), 3)])
+        );
+        assert_eq!(
+            f.store.verify_credential_custody(&replacement).unwrap()["secret_envelopes"],
+            2
+        );
+        f.store.check_integrity().unwrap();
+    }
     #[test]
     fn rewrap_preserves_source_epochs_and_recovers_original_receipt_after_unknown_ack() {
         let f = fixture();
@@ -489,7 +839,7 @@ mod tests {
         );
         caller.write_secret(&f.crypto, &request).unwrap();
         let mut changed = record(&f.store, id(100));
-        changed.input.account = "another-account".into();
+        changed.input.credential_mut().account = "another-account".into();
         let key = Key::Record(id(100));
         let bytes =
             native_codec::encode_for::<Services>(&key, &StoredValue::Record(changed)).unwrap();

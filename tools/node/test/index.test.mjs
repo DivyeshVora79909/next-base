@@ -9,7 +9,7 @@ const expectedExports = [
   'observeResources', 'openFdbEnvironment', 'openNative', 'openOperator', 'overloadProfile',
   'overloadScenario', 'packageRelease', 'parseEnvironment', 'prepareModel', 'preparePopulation',
   'prepareReleaseSource', 'propose', 'reject', 'resolveConfig', 'runWorkload', 'savePlan',
-  'shrinkFailure', 'sourceOracle', 'stageSources', 'startFakeProvider', 'verifyRelease', 'walk',
+  'shrinkFailure', 'sourceOracle', 'stageSources', 'startFakeEmailProvider', 'startFakeProvider', 'verifyRelease', 'walk',
 ].sort();
 
 test('public barrel has an explicit stable export surface', async () => {

@@ -111,6 +111,13 @@ fn dispatch<B: Binding>(
             };
             B::credential_operation(store, runtime, operation)
         }
+        "email.enqueue" if B::credential_enabled() => {
+            let request = bind(params)?;
+            let runtime = runtime.ok_or_else(|| {
+                Error::new("credential_unavailable", "credential runtime unavailable")
+            })?;
+            store.enqueue_email(runtime, &request)
+        }
         "access.replace" => store.replace_access(&bind(params)?),
         "records.get" => {
             let p: Get = bind(params)?;

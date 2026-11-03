@@ -1,10 +1,14 @@
 //! Bounded immutable intent, committed by the ordinary domain transaction.
 //! Provider calls are owned by the worker and never occur in a transaction.
+pub mod admission;
 mod application;
 pub mod conformance;
+pub mod email;
+#[cfg(test)]
+mod email_tests;
 pub mod fake;
 pub(crate) mod inbox;
-mod state;
+pub(crate) mod state;
 mod worker;
 #[cfg(test)]
 mod worker_tests;
@@ -32,7 +36,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const CODEC: &str = "rebase-effects-4";
+pub const CODEC: &str = "rebase-effects-5";
 pub const MAX_UNRESOLVED: u16 = 64;
 pub const MAX_RETAINED: u16 = 256;
 pub const MAX_FACTS: usize = 1024;
@@ -52,12 +56,15 @@ pub(crate) const INBOX: TableDefinition<&[u8], &[u8]> = TableDefinition::new("ef
 pub(crate) const EFFECT_RUNTIME: TableDefinition<&[u8], &[u8]> =
     TableDefinition::new("effect_runtime");
 #[allow(clippy::type_complexity)]
-pub(crate) const TABLES: [(TableDefinition<&[u8], &[u8]>, usize); 5] = [
+pub(crate) const TABLES: [(TableDefinition<&[u8], &[u8]>, usize); 8] = [
     (EXECUTIONS, MAX_RETAINED as usize),
     (DUE, MAX_UNRESOLVED as usize),
     (FACTS, MAX_FACTS),
     (INBOX, MAX_INBOX),
     (EFFECT_RUNTIME, 1),
+    admission::TABLES[0],
+    admission::TABLES[1],
+    admission::TABLES[2],
 ];
 
 #[derive(Clone, Debug, Serialize)]
@@ -72,15 +79,30 @@ pub struct ActionDeclaration {
     pub application_fields: Vec<&'static str>,
 }
 pub(crate) fn capabilities<B: Binding>(action: &ActionDeclaration) -> Value {
-    json!({"action":action,"request_contract":action.source_contract,"codec":CODEC,
+    let mut value = json!({"action":action,"request_contract":action.source_contract,"codec":CODEC,
         "creation":"records.mutate creates an immutable Dispatch and returns executions",
         "status":{"method":"effects.status","params":["model","execution_id"],"visibility":"current target Account read"},
         "cancel":{"method":"effects.cancel","params":["model","context","operation_id","execution_id","if_revision"],"authority":"current target Update and requester or administrator"},
         "outcome":B::effect_outcome_schema(),
         "phases":["ready","waiting","uncertain","succeeded","failed","cancelled"],"default_worker_mode":"disabled",
         "ingress":{"path":"/effects/fake","authentication":"HMAC SHA-256 over account/event/timestamp and exact bytes","raw_bytes":MAX_WEBHOOK},
-        "limits":{"unresolved":MAX_UNRESOLVED,"retained":MAX_RETAINED,"request_bytes":MAX_REQUEST,"private_bytes":MAX_BYTES},
-        "restore":"effect-bearing stores receive a fresh disabled, quarantined activation"})
+        "limits":{"unresolved":MAX_UNRESOLVED,"retained":MAX_RETAINED,"request_bytes":B::effect_request_limit(),"private_bytes":MAX_BYTES},
+        "restore":"effect-bearing stores receive a fresh disabled, quarantined activation"});
+    if B::effect_source_anchor() {
+        value["creation"] =
+            json!("email.enqueue creates immutable EmailSend with transient authorizations");
+        value["status"]["visibility"] = json!("current EmailSend Read and owner scope");
+        value["cancel"]["authority"] =
+            json!("current EmailSend Update/owner scope and requester or administrator");
+        value
+            .as_object_mut()
+            .expect("capabilities")
+            .remove("ingress");
+        value["providers"] = json!(["resend fake loopback", "brevo fake loopback"]);
+        value["application"] = json!("not_required on successful delivery");
+        value["rate"] = json!({"format":admission::FORMAT,"max_policies":admission::MAX_POLICIES,"max_dispatch_age_ms":admission::MAX_DISPATCH_AGE_MS});
+    }
+    value
 }
 #[derive(Clone, Debug)]
 pub struct Template {
@@ -207,6 +229,8 @@ pub(crate) struct Execution<B: Binding> {
     pub action: u16,
     pub action_version: String,
     pub provider_account: String,
+    pub email_binding: Option<crate::credentials::grants::AcceptedBinding>,
+    pub email_starts: Vec<Start>,
     #[serde(with = "uuid_text")]
     pub target: Uuid,
     pub request: B::Input,
@@ -305,6 +329,9 @@ fn schedule(template: &Template, now: i64) -> Result<(i64, i64)> {
     Ok((at, end))
 }
 fn hash_request<B: Binding>(request: &B::Input, action: &ActionDeclaration) -> Result<String> {
+    if let Some(email) = B::email_input(request) {
+        return email.email.request_hash();
+    }
     Ok(native_codec::hex(&Sha256::digest(local::encode(&(
         action, request,
     ))?)))
@@ -379,6 +406,11 @@ fn replace_execution<B: Binding>(
 ) -> Result<()> {
     ensure(before.same_intent(row), "immutable execution changed")?;
     ensure(
+        row.email_starts.starts_with(&before.email_starts)
+            && row.email_starts.len() <= before.email_starts.len() + 1,
+        "email start history changed",
+    )?;
+    ensure(
         row.revision > before.revision,
         "execution revision did not advance",
     )?;
@@ -441,6 +473,12 @@ pub(crate) fn create_tables(write: &WriteTransaction) -> Result<()> {
 }
 pub(crate) fn reset_tables<B: Binding>(write: &WriteTransaction) -> Result<()> {
     let old = runtime_write(write)?;
+    if write.open_table(admission::SCOPES)?.len()? != 0 {
+        return Err(Error::new(
+            "invariant",
+            "retained rate policy prevents reset",
+        ));
+    }
     if old.mode.active() || old.unresolved != 0 || old.inbox_pending != 0 {
         return Err(Error::new(
             "invariant",
@@ -455,7 +493,10 @@ pub(crate) fn reset_tables<B: Binding>(write: &WriteTransaction) -> Result<()> {
     {
         let (_, value) = row.map_err(local::storage)?;
         let fact: state::Fact<B> = local::decode(value.value())?;
-        if fact.disposition == Disposition::Succeeded && fact.applied_revision.is_none() {
+        if B::effect_application_required()
+            && fact.disposition == Disposition::Succeeded
+            && fact.applied_revision.is_none()
+        {
             return Err(Error::new(
                 "invariant",
                 "unapplied provider fact prevents reset",
@@ -534,6 +575,7 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     operation_id: Uuid,
     commands: &[Command],
     allocate: &mut dyn FnMut() -> Result<Uuid>,
+    email_stage: Option<crate::email_operations::Stage<'_>>,
 ) -> Result<Option<PreparedIntents<B>>> {
     let Some(action) = B::effect_action() else {
         return Ok(None);
@@ -589,40 +631,75 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         let source = ws
             .record(*id)?
             .ok_or_else(|| local::corrupt("settled effect source missing"))?;
-        let template = B::effect_template(&source.input)?
+        let mut template = B::effect_template(&source.input)?
             .ok_or_else(|| Error::new("model", "effect declaration/template disagree"))?;
-        ensure(
-            source.contract == action.source_contract
-                && source
-                    .input
-                    .references()
-                    .iter()
-                    .filter(|(_, _, slot)| *slot == action.reference_slot)
-                    .copied()
-                    .collect::<Vec<_>>()
-                    == [(
-                        template.target,
-                        action.target_contract,
-                        action.reference_slot,
-                    )],
-            "effect template reference differs",
-        )?;
-        let target = ws
-            .record(template.target)?
-            .ok_or_else(|| Error::new("unavailable_reference", "effect target missing"))?;
-        if target.contract != action.target_contract || target.tenant != scope.tenant {
-            return Err(Error::new(
-                "unavailable_reference",
-                "effect target type/tenant",
-            ));
-        }
-        if !scope.grants.allows(source.contract, Action::Create)
-            || !scope.can_write(&target, Action::Update)
-        {
-            return Err(crate::access::denied());
-        }
+        let email_binding = if B::effect_source_anchor() {
+            template.target = *id;
+            let input =
+                B::email_input(&source.input).ok_or_else(|| local::corrupt("email source type"))?;
+            if !scope.can_write(&source, Action::Create) {
+                return Err(crate::access::denied());
+            }
+            let stage = email_stage.ok_or_else(crate::access::denied)?;
+            let grant = stage
+                .request
+                .authorizations
+                .iter()
+                .find(|auth| auth.source == *id)
+                .ok_or_else(crate::access::denied)?;
+            let pin = crate::credentials::grants::consume_for_enqueue::<B>(
+                write,
+                model,
+                scope,
+                header,
+                stage.runtime,
+                &input.email,
+                &grant.grant,
+                now,
+            )?;
+            if pin.selection() != &input.selection {
+                return Err(crate::access::denied());
+            }
+            let credential = ws
+                .record(pin.credential())?
+                .ok_or_else(crate::access::denied)?;
+            crate::credentials::grants::validate_pinned_record(scope, &credential, &pin, true)?;
+            Some(pin)
+        } else {
+            ensure(
+                source.contract == action.source_contract
+                    && source
+                        .input
+                        .references()
+                        .iter()
+                        .filter(|(_, _, slot)| *slot == action.reference_slot)
+                        .copied()
+                        .collect::<Vec<_>>()
+                        == [(
+                            template.target,
+                            action.target_contract,
+                            action.reference_slot,
+                        )],
+                "effect template reference differs",
+            )?;
+            let target = ws
+                .record(template.target)?
+                .ok_or_else(|| Error::new("unavailable_reference", "effect target missing"))?;
+            if target.contract != action.target_contract || target.tenant != scope.tenant {
+                return Err(Error::new(
+                    "unavailable_reference",
+                    "effect target type/tenant",
+                ));
+            }
+            if !scope.grants.allows(source.contract, Action::Create)
+                || !scope.can_write(&target, Action::Update)
+            {
+                return Err(crate::access::denied());
+            }
+            None
+        };
         let request_bytes = local::encode(&source.input)?;
-        if request_bytes.len() > MAX_REQUEST {
+        if request_bytes.len() > B::effect_request_limit() {
             return Err(Error::new("request_limit", "effect request bytes"));
         }
         let (execute_at, not_after) = schedule(&template, now)?;
@@ -662,7 +739,11 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             source: *id,
             action: action.code,
             action_version: action.version.into(),
-            provider_account: action.provider_account.into(),
+            provider_account: email_binding
+                .as_ref()
+                .map_or_else(|| action.provider_account.into(), |b| b.account().into()),
+            email_binding,
+            email_starts: vec![],
             target: template.target,
             request_hash: hash_request::<B>(&source.input, &action)?,
             request: source.input,
@@ -696,6 +777,23 @@ pub(crate) fn prepare<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             return Err(Error::new("state_limit", "effect private byte capacity"));
         }
         rows.push(row);
+    }
+    if B::credential_enabled() {
+        let pins = crate::credentials::store::pinned_revisions::<B>(&table)?;
+        let before = crate::credentials::store::retained_secret_bytes(ws, pins.values())?;
+        let after = crate::credentials::store::retained_secret_bytes(
+            ws,
+            pins.values()
+                .chain(rows.iter().filter_map(|r| r.email_binding.as_ref())),
+        )?;
+        runtime.accounted_bytes = runtime
+            .accounted_bytes
+            .checked_sub(before)
+            .and_then(|n| n.checked_add(after))
+            .ok_or_else(|| local::corrupt("retained secret budget"))?;
+        if runtime.accounted_bytes > MAX_BYTES {
+            return Err(Error::new("state_limit", "effect private byte capacity"));
+        }
     }
     Ok(Some(PreparedIntents { rows, runtime }))
 }
@@ -744,7 +842,51 @@ fn injected(abort: Option<usize>, point: usize) -> Result<()> {
     }
 }
 
+pub(crate) fn quota_scope(
+    pin: &crate::credentials::grants::AcceptedBinding,
+) -> admission::QuotaScope {
+    admission::QuotaScope {
+        provider: pin.provider(),
+        account: pin.account().into(),
+        purpose: crate::email::Purpose::EmailSend,
+    }
+}
+pub(crate) fn refresh_retained_secret_bytes(
+    write: &WriteTransaction,
+    before: u64,
+    after: u64,
+) -> Result<()> {
+    if before == after {
+        return Ok(());
+    }
+    let mut runtime = runtime_write(write)?;
+    runtime.accounted_bytes = runtime
+        .accounted_bytes
+        .checked_sub(before)
+        .and_then(|n| n.checked_add(after))
+        .ok_or_else(|| local::corrupt("retained secret budget"))?;
+    if runtime.accounted_bytes > MAX_BYTES {
+        return Err(Error::new("state_limit", "effect private byte capacity"));
+    }
+    write_runtime(write, &runtime)
+}
 impl<B: Binding> Store<B> {
+    pub(crate) fn configure_email_admission(&self, policies: &admission::Policies) -> Result<()> {
+        if !B::effect_source_anchor() {
+            return Err(Error::new("invalid_config", "email model required"));
+        }
+        let write = self.begin_write()?;
+        let mut runtime = runtime_write(&write)?;
+        runtime.accounted_bytes = runtime
+            .accounted_bytes
+            .checked_add(admission::configure(&write, policies)?)
+            .ok_or_else(|| local::corrupt("admission bytes"))?;
+        if runtime.accounted_bytes > MAX_BYTES {
+            return Err(Error::new("state_limit", "effect private byte capacity"));
+        }
+        write_runtime(&write, &runtime)?;
+        write.commit().map_err(local::storage)
+    }
     pub fn effect_status(&self, model: &str, id: Uuid) -> Result<Value> {
         if B::effect_action().is_none() {
             return Err(Error::new("unsupported_query", "model has no effects"));
@@ -784,7 +926,14 @@ impl<B: Binding> Store<B> {
                     .map_err(local::storage)?
                     .ok_or_else(|| local::corrupt("linked effect fact missing"))?;
                 let fact: Fact<B> = local::decode(value.value())?;
-                serde_json::to_value(fact.outcome).map_err(local::storage)
+                let mut outcome = serde_json::to_value(fact.outcome).map_err(local::storage)?;
+                if row.email_binding.is_some() {
+                    let object = outcome
+                        .as_object_mut()
+                        .ok_or_else(|| local::corrupt("email outcome shape"))?;
+                    object.remove("account");
+                }
+                Ok::<_, Error>(outcome)
             })
             .transpose()?;
         Ok(
@@ -978,7 +1127,12 @@ pub(crate) fn check<B: Binding>(
                 && row.tenant == meta.tenant
                 && row.action == action.code
                 && row.action_version == action.version
-                && row.provider_account == action.provider_account
+                && (row
+                    .email_binding
+                    .as_ref()
+                    .map_or(row.provider_account == action.provider_account, |b| {
+                        b.account() == row.provider_account
+                    }))
                 && row.operation_epoch <= header.operation_epoch,
             "effect identity/version/origin",
         )?;
@@ -1021,22 +1175,37 @@ pub(crate) fn check<B: Binding>(
         )?;
         ensure(
             row.request.contract() == action.source_contract
-                && local::encode(&row.request)?.len() <= MAX_REQUEST
+                && local::encode(&row.request)?.len() <= B::effect_request_limit()
                 && row.request_hash == hash_request::<B>(&row.request, action)?,
             "effect frozen request/hash",
         )?;
-        let template = B::effect_template(&row.request)?
+        let mut template = B::effect_template(&row.request)?
             .ok_or_else(|| local::corrupt("effect frozen template"))?;
         ensure(
-            row.request
-                .references()
-                .iter()
-                .filter(|(_, _, slot)| *slot == action.reference_slot)
-                .copied()
-                .collect::<Vec<_>>()
-                == [(row.target, action.target_contract, action.reference_slot)],
-            "frozen request reference binding",
+            row.email_binding.is_some() == B::effect_source_anchor(),
+            "effect email binding role",
         )?;
+        if let Some(pin) = &row.email_binding {
+            let input =
+                B::email_input(&row.request).ok_or_else(|| local::corrupt("email request role"))?;
+            ensure(
+                pin.selection() == &input.selection && row.target == row.source,
+                "email source/binding",
+            )?;
+            template.target = row.source;
+            crate::credentials::grants::check_retained_binding::<B>(read, pin, row.tenant)?;
+        } else {
+            ensure(
+                row.request
+                    .references()
+                    .iter()
+                    .filter(|(_, _, slot)| *slot == action.reference_slot)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    == [(row.target, action.target_contract, action.reference_slot)],
+                "frozen request reference binding",
+            )?;
+        }
         ensure(
             template.target == row.target
                 && schedule(&template, row.created_at)? == (row.execute_at, row.not_after),
@@ -1056,6 +1225,34 @@ pub(crate) fn check<B: Binding>(
             due.insert(key, Vec::<u8>::new());
         }
         executions.insert(row.id, row);
+    }
+    let starts = executions
+        .values()
+        .flat_map(|row| {
+            row.email_binding.as_ref().into_iter().flat_map(move |pin| {
+                row.email_starts
+                    .iter()
+                    .map(move |start| admission::ExpectedStart {
+                        scope: quota_scope(pin),
+                        execution: row.id,
+                        start: start.clone(),
+                    })
+            })
+        })
+        .collect::<Vec<_>>();
+    bytes += admission::check(read, &starts)?;
+    if B::credential_enabled() {
+        let table = read.open_table(KV)?;
+        let mut ws = Attempt::<_, B>::new(
+            |key: &[u8]| Ok(table.get(key)?.map(|v| v.value().to_vec())),
+            100_000,
+        );
+        bytes += crate::credentials::store::retained_secret_bytes(
+            &mut ws,
+            executions
+                .values()
+                .filter_map(|row| row.email_binding.as_ref()),
+        )?;
     }
     let mut facts = BTreeMap::new();
     for item in read
@@ -1081,6 +1278,9 @@ pub(crate) fn check<B: Binding>(
                 && B::effect_outcome(&row.request, row.id, &fact.outcome)? == fact.disposition,
             "provider fact binding/hash",
         )?;
+        if let Some(pin) = &row.email_binding {
+            B::effect_validate_binding(&fact.outcome, pin.provider(), pin.account())?;
+        }
         if let Some(revision) = fact.applied_revision {
             ensure(
                 !revision.is_nil()

@@ -6,7 +6,8 @@ const MAX_SNAPSHOT_ROWS = 81_920;
 const MAX_TREE_DEPTH = 64;
 const MAX_TREE_NODES = 81_920;
 const REQUIRED_TABLES = new Set(['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox',
-  'effect_runtime', 'local_runtime', 'native_kv', 'operations', 'public_records', 'query_epochs', 'receipt_slots']);
+  'effect_runtime', 'email_rate_scopes', 'email_rate_starts', 'email_rate_points',
+  'local_runtime', 'native_kv', 'operations', 'public_records', 'query_epochs', 'receipt_slots']);
 const HEX = /^[0-9a-f]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DECIMAL = /^(0|-?[1-9][0-9]*)$/;
@@ -45,7 +46,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   object(backup.payload.tables, 'backup tables');
   const tableNames = Object.keys(backup.payload.tables).sort();
   requireThat([...REQUIRED_TABLES].every(name => tableNames.includes(name))
-    && (tableNames.length === 11 || (tableNames.length === 13
+    && (tableNames.length === 14 || (tableNames.length === 16
       && tableNames.includes('authority') && tableNames.includes('owner_records'))), 'backup application table inventory differs');
   for (const [name, tableRows] of Object.entries(backup.payload.tables)) {
     requireThat(Array.isArray(tableRows) && tableRows.length <= maxRows, `table ${name} exceeds the bounded inventory`);
@@ -106,8 +107,8 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     }
     else if (decodedKey.type === 'reserved') observation.reserved.push({ id: decodedKey.id, source_role: value.data });
     else if (decodedKey.type === 'credential_secret') {
-      validateSecretEnvelope(value.data, decodedKey.id);
-      secrets.set(decodedKey.id, value.data);
+      validateSecretEnvelope(value.data, decodedKey.id, decodedKey.revision);
+      secrets.set(`${decodedKey.id}/${decodedKey.revision}`, value.data);
     }
     if (decodedKey.type === 'access_root' || decodedKey.type === 'access_node') {
       const inventory = decodedKey.type === 'access_root' ? accessRoots : accessNodes;
@@ -123,7 +124,9 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
     }
     else nodes.set(token, { address: decodedKey.address, value: value.data });
   }
-  const credentialSecretInventory = checkSecretInventory(catalog, recordsById, secrets);
+  const executions = decodeRows(backup.payload.tables.effect_executions, 256, 'effect executions');
+  const credentialSecretInventory = checkSecretInventory(catalog, recordsById, secrets, executions);
+  const emailAdmissionCount = checkEmailAdmissions(backup.payload.tables, executions);
   // Public source records define the complete owner catalog. Managed outputs
   // remain native records but are deliberately absent from both catalogs.
   const expectedOwners = new Map();
@@ -274,6 +277,7 @@ export function checkBackupStructure(input, { expectedMembers, maxBytes = MAX_BA
   }
   const result = { status: 'passed', sourceMembership: expectedMembers ? 'checked' : 'not_evaluated',
     credentialSecretInventory, credentialSecretCount: secrets.size, credentialSecretAuthentication: 'not_evaluated',
+    emailAdmissionInventory: 'checked', emailAdmissionCount,
     accessSourceMembership: accessExpected ? 'checked' : 'not_evaluated', accessRootCount: accessRoots.size, accessNodeCount: accessNodes.size,
     rootCount: roots.size, nodeCount: nodes.size, nativeKvRows: rows.length, snapshotBytes: backupBytes.length };
   if (includeObservation) result.observation = Object.freeze(Object.fromEntries(
@@ -290,33 +294,36 @@ function secretBase64(value, min, max) {
   const bytes = Buffer.from(value, 'base64url');
   requireThat(bytes.length >= min && bytes.length <= max && bytes.toString('base64url') === value, 'credential secret encoding length is invalid');
 }
-function validateSecretEnvelope(value, id) {
-  exactKeys(value, ['format', 'credential', 'secret_revision', 'key_id', 'nonce', 'ciphertext'], 'credential secret envelope');
-  requireThat(value.format === 'rebase-credential-secret-1' && value.credential === id, 'credential secret identity differs');
+function validateSecretEnvelope(value, id, revision) {
+  exactKeys(value, ['format', 'incarnation', 'credential', 'secret_revision', 'key_id', 'nonce', 'ciphertext'], 'credential secret envelope');
+  requireThat(value.format === 'rebase-credential-secret-2' && value.credential === id && value.secret_revision === revision, 'credential secret identity differs');
+  nonnilUuid(value.incarnation, 'credential secret incarnation');
   requireThat(canonicalU64(value.secret_revision, 'credential secret revision') > 0n, 'credential secret revision is zero');
   requireThat(typeof value.key_id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.key_id), 'credential secret key ID is invalid');
   secretBase64(value.nonce, 24, 24);
   secretBase64(value.ciphertext, 17, 2048);
   requireThat(Buffer.byteLength(JSON.stringify(value)) <= 2048, 'credential secret envelope byte limit');
 }
-function checkSecretInventory(catalog, records, secrets) {
-  for (const [id, envelope] of secrets) {
-    const source = records.get(id);
+function checkSecretInventory(catalog, records, secrets, executions) {
+  const secretIds = new Set([...secrets.values()].map(row => row.credential));
+  for (const envelope of secrets.values()) {
+    const source = records.get(envelope.credential);
     requireThat(source !== undefined, 'credential secret has no source');
-    requireThat(source.derived?.has_secret === true && source.derived.secret_revision === envelope.secret_revision,
+    requireThat(source.derived?.has_secret === true && source.derived.incarnation === envelope.incarnation
+      && canonicalU64(source.derived.secret_revision, 'credential source revision') >= BigInt(envelope.secret_revision),
       'credential source/private revision differs');
   }
-  if (catalog === undefined) return 'not_evaluated';
-  const declaration = catalog.capabilities?.credentials;
-  if (declaration === undefined) {
+  const declaration = catalog?.capabilities?.credentials;
+  if (catalog !== undefined && declaration === undefined) {
     requireThat(secrets.size === 0, 'credential secret is not declared in the catalog');
+    requireThat([...executions.values()].every(row => row.email_binding === null || row.email_binding === undefined), 'email credential binding is not declared');
     return 'checked';
   }
-  const code = declaration.contract;
-  requireThat(Number.isInteger(code) && catalog.contracts.some(contract => contract.code === code), 'credential source declaration is missing');
-  let expected = 0;
+  const code = declaration?.contract ?? 1001;
+  if (catalog) requireThat(Number.isInteger(code) && catalog.contracts.some(contract => contract.code === code), 'credential source declaration is missing');
+  const expected = new Set();
   for (const [id, source] of records) {
-    if (source.contract !== code) { requireThat(!secrets.has(id), 'credential secret source contract differs'); continue; }
+    if (source.contract !== code) { requireThat(!secretIds.has(id), 'credential secret source contract differs'); continue; }
     const state = source.derived;
     object(state, 'credential derived metadata');
     exactKeys(state, ['has_secret', 'secret_revision', 'use_epoch', 'incarnation'], 'credential derived metadata');
@@ -326,12 +333,108 @@ function checkSecretInventory(catalog, records, secrets) {
     requireThat(!source.input?.enabled || state.has_secret, 'enabled credential has no secret');
     if (state.has_secret) {
       requireThat(canonicalU64(state.secret_revision, 'credential source revision') > 0n, 'credential source revision is zero');
-      requireThat(secrets.get(id)?.secret_revision === state.secret_revision, 'credential current secret is missing or stale');
-      expected += 1;
-    } else requireThat(!secrets.has(id), 'credential unexpected secret');
+      const key = `${id}/${state.secret_revision}`;
+      requireThat(secrets.get(key)?.incarnation === state.incarnation, 'credential current secret is missing or stale');
+      expected.add(key);
+    } else requireThat(!secretIds.has(id), 'credential unexpected secret');
   }
-  requireThat(expected === secrets.size, 'credential secret inventory size differs');
-  return 'checked';
+  for (const [key, execution] of executions) {
+    if (execution.email_binding === null || execution.email_binding === undefined) continue;
+    const pin = execution.email_binding;
+    exactKeys(pin, ['credential', 'incarnation', 'provider', 'account', 'use_epoch', 'secret_revision', 'selection'], 'email credential binding');
+    nonnilUuid(pin.credential, 'email credential identity'); nonnilUuid(pin.incarnation, 'email credential incarnation');
+    providerAccount(pin, 'email credential binding');
+    canonicalU64(pin.use_epoch, 'email credential use epoch');
+    requireThat(canonicalU64(pin.secret_revision, 'email credential revision') > 0n, 'email credential revision is zero');
+    const source = records.get(pin.credential);
+    requireThat(source?.contract === code && source.tenant === execution.tenant && source.derived?.incarnation === pin.incarnation
+      && source.input.provider === pin.provider && source.input.account === pin.account, 'email credential binding differs from source');
+    const anchor = records.get(execution.source);
+    requireThat(UUID.test(execution.id ?? '') && execution.id.replaceAll('-', '') === key && execution.target === execution.source
+      && anchor?.contract === 1002 && anchor.tenant === execution.tenant && canonicalJson(anchor.input) === canonicalJson(execution.request), 'email retained source/request differs');
+    requireThat(canonicalJson(pin.selection) === canonicalJson(execution.request.selection), 'email credential selection differs');
+    if (pin.selection?.kind === 'byoc') {
+      exactKeys(pin.selection, ['kind', 'credential'], 'email credential selection');
+      requireThat(pin.selection.credential === pin.credential, 'email BYOC credential differs');
+    } else {
+      exactKeys(pin.selection, ['kind', 'slot'], 'email credential selection');
+      requireThat(pin.selection.kind === 'platform' && pin.selection.slot === 'transactional_email', 'email platform selection differs');
+    }
+    const secret = `${pin.credential}/${pin.secret_revision}`;
+    requireThat(secrets.get(secret)?.incarnation === pin.incarnation, 'email retained credential revision is missing');
+    expected.add(secret);
+  }
+  requireThat(expected.size === secrets.size, 'credential secret inventory size differs');
+  return catalog === undefined ? 'not_evaluated' : 'checked';
+}
+
+function nonnilUuid(value, label) { requireThat(UUID.test(value ?? '') && value !== '00000000-0000-0000-0000-000000000000', `${label} is invalid`); }
+function providerAccount(value, label) {
+  requireThat(['resend', 'brevo'].includes(value.provider) && typeof value.account === 'string' && /^[A-Za-z0-9._:-]{1,128}$/u.test(value.account), `${label} is invalid`);
+}
+function decodeRows(rows, maximum, label) {
+  requireThat(rows.length <= maximum, `${label} exceeds bounded inventory`);
+  const result = new Map();
+  for (const row of rows) {
+    exactKeys(row, ['key', 'value'], `${label} row`);
+    decodeHex(row.key, `${label} key`);
+    const value = parseFrame(decodeHex(row.value, `${label} value`));
+    object(value, label);
+    result.set(row.key, value);
+  }
+  return result;
+}
+function quotaScope(provider, account) { return { provider, account, purpose: 'email.send' }; }
+function quotaKey(scope) { return createHash('sha256').update('next-base/email-rate-scope/1\0').update(JSON.stringify(scope)).digest('hex'); }
+function checkEmailAdmissions(tables, executions) {
+  const headers = decodeRows(tables.email_rate_scopes, 16, 'email admission policies');
+  const charges = decodeRows(tables.email_rate_starts, 768, 'email admission starts');
+  const points = new Map(tables.email_rate_points.map(row => {
+    exactKeys(row, ['key', 'value'], 'email admission point'); decodeHex(row.key, 'email admission point');
+    requireThat(row.value === '', 'email admission point value differs'); return [row.key, row.value];
+  }));
+  requireThat(points.size <= 768, 'email admission point bound');
+  for (const [key, header] of headers) {
+    exactKeys(header, ['format', 'policy', 'last_at'], 'email admission header');
+    exactKeys(header.policy, ['provider', 'account', 'purpose', 'window_ms', 'limit'], 'email admission policy');
+    const p = header.policy; providerAccount(p, 'email admission policy');
+    requireThat(header.format === 'email-rate-admission-1' && p.purpose === 'email.send'
+      && key === quotaKey(quotaScope(p.provider, p.account)), 'email admission scope identity differs');
+    requireThat(canonicalTime(p.window_ms) > 0n && BigInt(p.window_ms) <= 86_400_000n
+      && Number.isInteger(p.limit) && p.limit >= 1 && p.limit <= 64, 'email admission policy bounds');
+    if (header.last_at !== null) requireThat(canonicalTime(header.last_at) >= 0n, 'email admission clock is negative');
+  }
+  const expected = new Map(), expectedPoints = new Set(), times = new Map();
+  for (const [key, execution] of executions) {
+    const history = execution.email_starts ?? [];
+    requireThat(Array.isArray(history) && history.length <= 3, 'email admission history bounds');
+    if (execution.email_binding === null || execution.email_binding === undefined) {
+      requireThat(history.length === 0, 'email starts without binding'); continue;
+    }
+    const scope = quotaScope(execution.email_binding.provider, execution.email_binding.account), scopeKey = quotaKey(scope);
+    let previous = -1n;
+    for (const [index, start] of history.entries()) {
+      exactKeys(start, ['activation', 'token', 'at', 'attempt'], 'email physical start');
+      nonnilUuid(start.activation, 'email start activation'); nonnilUuid(start.token, 'email start token');
+      const at = canonicalTime(start.at);
+      requireThat(at >= 0n && at >= previous && start.attempt === index + 1, 'email admission history time/attempt differs');
+      requireThat(headers.has(scopeKey), 'email start without quota policy'); previous = at;
+      const identity = `${key}${start.attempt.toString(16).padStart(2, '0')}`;
+      expected.set(identity, { format: 'email-rate-admission-1', scope, execution: execution.id, start });
+      expectedPoints.add(`${scopeKey}${at.toString(16).padStart(16, '0')}${identity}`);
+      if (!times.has(scopeKey)) times.set(scopeKey, []); times.get(scopeKey).push(at);
+    }
+  }
+  requireThat(expected.size <= 768 && charges.size === expected.size && points.size === expectedPoints.size, 'email admission inventory size differs');
+  for (const [key, row] of charges) requireThat(expected.has(key) && canonicalJson(row) === canonicalJson(expected.get(key)), 'email admission differs from execution history');
+  for (const key of points.keys()) requireThat(expectedPoints.has(key), 'email admission ordered point differs');
+  for (const [key, header] of headers) {
+    const values = times.get(key) ?? [];
+    requireThat(header.last_at === (values.length ? values.reduce((a, b) => a > b ? a : b).toString() : null), 'email admission clock differs from history');
+    const window = BigInt(header.policy.window_ms);
+    for (const at of values) requireThat(values.filter(s => at - window < s && s <= at).length <= header.policy.limit, 'email quota exceeded by source starts');
+  }
+  return expected.size;
 }
 
 function emptyStats(kind) {
@@ -522,7 +625,13 @@ function decodeKey(bytes) {
     }
     return { type: 'unique', contract, constraint, targets };
   }
-  const expectedLength = new Set([1, 5, 6, 9, 17]).has(tag) ? 17
+  if (tag === 17) {
+    requireThat(bytes.length === 25, 'invalid credential secret point key');
+    const revision = bytes.readBigUInt64BE(17).toString();
+    requireThat(revision !== '0', 'credential secret point revision is zero');
+    return { type: 'credential_secret', id: formatUuid(bytes.subarray(1, 17)), revision };
+  }
+  const expectedLength = new Set([1, 5, 6, 9]).has(tag) ? 17
     : new Set([2, 3, 4, 7, 8, 10, 11, 12, 15, 16]).has(tag) ? 19 : 0;
   requireThat(expectedLength > 0 && bytes.length === expectedLength, 'invalid native point key');
   const id = formatUuid(bytes.subarray(1, 17));

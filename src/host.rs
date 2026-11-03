@@ -526,7 +526,8 @@ impl Host {
                 let privileged = method.starts_with("service.")
                     || method.starts_with("identity.")
                     || method.starts_with("store.")
-                    || method.starts_with("effects.");
+                    || method.starts_with("effects.")
+                    || method.starts_with("credentials.");
                 if privileged && !self.grants.contains(method) {
                     return Err(Error::new("forbidden", "operator grant absent"));
                 }
@@ -756,6 +757,21 @@ pub fn serve(mut input: impl BufRead, mut output: impl Write) -> io::Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn credential_operator_methods_require_explicit_host_grants() {
+        let mut host = Host::default();
+        host.configure(json!({"model":"services","backend":{"kind":"redb","cluster_file":null},"target":null,"operator_methods":[]})).unwrap();
+        for method in [
+            "credentials.plan",
+            "credentials.rewrap",
+            "credentials.verify",
+        ] {
+            assert_eq!(
+                host.dispatch(method, json!({})).unwrap_err().code,
+                "forbidden"
+            );
+        }
+    }
     #[test]
     fn serialization_never_publishes_a_partial_oversized_result() {
         let value =

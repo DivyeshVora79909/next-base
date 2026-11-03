@@ -3,6 +3,7 @@ import {
 } from './client-wire.mjs';
 
 import { validateCredentialMetadata, validateIngressEnvelope } from '../credentials.mjs';
+import { emailCommands } from './email-plan.mjs';
 
 const PLAN_KEYS = new Set(['format', 'target', 'request', 'fixture', 'kind']);
 const TARGET_KEYS = ['url', 'model', 'store', 'tenant', 'actor', 'credential_epoch'];
@@ -41,7 +42,8 @@ export function validateOperationPlan(plan) {
   const target = plan.target;
   const request = plan.request;
   const secretWrite = plan.kind === 'credential-write';
-  if (Object.hasOwn(plan, 'kind') && !secretWrite) throw rpcError('invalid_plan', 'Unsupported saved plan kind');
+  const emailEnqueue = plan.kind === 'email-enqueue';
+  if (Object.hasOwn(plan, 'kind') && !secretWrite && !emailEnqueue) throw rpcError('invalid_plan', 'Unsupported saved plan kind');
   const requestKeys = secretWrite ? ['model', 'context', 'operation_id', 'id', 'if_version', 'metadata', 'sealed_secret'] : REQUEST_KEYS;
   if (secretWrite && Object.hasOwn(request ?? {}, 'owner')) requestKeys.push('owner');
   if (!isObject(target) || !sameKeys(target, TARGET_KEYS) || !isObject(request) || !sameKeys(request, requestKeys)) {
@@ -64,9 +66,13 @@ export function validateOperationPlan(plan) {
     catch { throw rpcError('invalid_plan', 'Invalid encrypted credential request'); }
   } else {
     validateOperationDraft({ model: request.model, commands: request.commands, returning: request.returning });
+    if (emailEnqueue) {
+      if (Object.hasOwn(plan, 'fixture')) throw rpcError('invalid_plan', 'Email plans cannot contain fixture metadata');
+      emailCommands(request.commands, { requireCanonical: true });
+    }
   }
   if (Object.hasOwn(plan, 'fixture')) encodeJson(plan.fixture, MAX_PLAN_BYTES);
-  const envelope = { jsonrpc: '2.0', id: '00000000-0000-4000-8000-000000000000', method: secretWrite ? 'credentials.write_secret' : 'records.mutate', params: request };
+  const envelope = { jsonrpc: '2.0', id: '00000000-0000-4000-8000-000000000000', method: secretWrite ? 'credentials.write_secret' : emailEnqueue ? 'email.enqueue' : 'records.mutate', params: request };
   if (encodeJson(envelope).byteLength > MAX_REQUEST_BYTES) throw rpcError('invalid_plan', 'Saved mutation exceeds the request byte limit');
   if (encodeJson(plan, MAX_PLAN_BYTES).byteLength > MAX_PLAN_BYTES) throw rpcError('invalid_plan', 'Plan exceeds the file byte limit');
 }

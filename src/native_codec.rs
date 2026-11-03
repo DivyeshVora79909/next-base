@@ -11,7 +11,7 @@ use crate::{
     tree::{Node, Root},
 };
 
-pub const CODEC: &str = "native-slice-kv-14";
+pub const CODEC: &str = "native-slice-kv-15";
 
 pub mod decimal {
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
@@ -206,7 +206,7 @@ pub enum Key {
     Node(Address),
     AccessRoot(Address),
     AccessNode(Address),
-    CredentialSecret(Uuid),
+    CredentialSecret(Uuid, u64),
     Query(Address),
     Incoming(Uuid),
     Direct(Uuid),
@@ -242,7 +242,12 @@ impl Key {
             Self::Node(a) => (3, a.id, Some(a.slot)),
             Self::AccessRoot(a) => (15, a.id, Some(a.slot)),
             Self::AccessNode(a) => (16, a.id, Some(a.slot)),
-            Self::CredentialSecret(id) => (17, *id, None),
+            Self::CredentialSecret(id, revision) => {
+                let mut bytes = vec![17];
+                bytes.extend_from_slice(id.as_bytes());
+                bytes.extend_from_slice(&revision.to_be_bytes());
+                return bytes;
+            }
             Self::Query(a) => (4, a.id, Some(a.slot)),
             Self::Incoming(id) => (5, *id, None),
             Self::Direct(id) => (6, *id, None),
@@ -288,7 +293,8 @@ impl Key {
             });
         }
         let length = match tag {
-            1 | 5 | 6 | 9 | 17 => 17,
+            1 | 5 | 6 | 9 => 17,
+            17 => 25,
             2..=4 | 7 | 8 | 10..=12 | 15 | 16 => 19,
             _ => return Err(bad()),
         };
@@ -311,7 +317,13 @@ impl Key {
             3 => Self::Node(a),
             15 => Self::AccessRoot(a),
             16 => Self::AccessNode(a),
-            17 => Self::CredentialSecret(id),
+            17 => {
+                let revision = u64::from_be_bytes(bytes[17..25].try_into().map_err(|_| bad())?);
+                if revision == 0 {
+                    return Err(bad());
+                }
+                Self::CredentialSecret(id, revision)
+            }
             4 => Self::Query(a),
             5 => Self::Incoming(id),
             6 => Self::Direct(id),
@@ -462,8 +474,11 @@ fn validate<B: Binding>(key: &Key, value: &StoredValue<B>) -> Result<()> {
         (Key::Node(a), StoredValue::Node(n)) => valid_node(a, n),
         (Key::AccessRoot(a), StoredValue::AccessRoot(r)) => valid_root(a, r),
         (Key::AccessNode(a), StoredValue::AccessNode(n)) => valid_node(a, n),
-        (Key::CredentialSecret(id), StoredValue::CredentialSecret(secret)) => {
-            B::credential_enabled() && secret.credential == *id && secret.validate().is_ok()
+        (Key::CredentialSecret(id, revision), StoredValue::CredentialSecret(secret)) => {
+            B::credential_enabled()
+                && secret.credential == *id
+                && secret.secret_revision == *revision
+                && secret.validate().is_ok()
         }
         (Key::Query(a), StoredValue::Query(q)) => {
             a.slot > 0 && q.source.slot > 0 && B::Index::validate_query(q).is_ok()
@@ -532,6 +547,24 @@ pub fn hex(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn retained_secret_keys_have_explicit_revision_bytes_and_reject_legacy_shape() {
+        let credential = Uuid::from_u128(0x0102030405060708090a0b0c0d0e0f10);
+        let key = Key::CredentialSecret(credential, 0x0102030405060708);
+        assert_eq!(
+            key.encode(),
+            vec![
+                17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8
+            ]
+        );
+        assert_eq!(Key::decode(&key.encode()).unwrap(), key);
+        assert!(Key::decode(&key.encode()[..17]).is_err());
+        assert!(Key::decode(&Key::CredentialSecret(credential, 0).encode()).is_err());
+        assert!(
+            Key::CredentialSecret(credential, 255).encode()
+                < Key::CredentialSecret(credential, 256).encode()
+        );
+    }
     #[test]
     fn access_namespaces_are_distinct_and_enforce_native_tree_shapes() {
         use crate::order_value::{ORDER_INDEX, OrderAtom, OrderKey};

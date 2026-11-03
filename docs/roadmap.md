@@ -168,14 +168,15 @@ Measure bytes, changed memberships, hot ancestors and conflicts for tenant/owner
 Do not add a shared global count/root solely for convenience or claim filtered counts from raw rank.
 Measure write coordination of each opted-in root; do not impose a universal analytics root.
 
-## R0 — Declarative rate admission, after its scoped contract is selected
+## R0 — Scoped charged email submissions (accepted)
 
-Use [rate admission](rate-admission.md) to choose point-count online admission or fixed-window
-endpoint/prefix-max validation. Neither is inferred from the presence of interval stabbing.
-Reuse the existing root write guard where it supplies coordination. Accept only after racing
-workers, unknown start ACK, quota accounting, clock-only expiry, ties and delayed/backdated
-cases pass independent checks. Integrate admission with the existing dispatch-start transaction;
-do not perform a check and provider call as two unprotected steps. This feature is not in M0.
+[E2/R0](e2-email.md) selects immutable point-count admission per provider/account/
+email purpose in the store transaction domain. Protected policy/time and range reads
+share the exact charged start transaction; quota denial consumes no submission attempt.
+Ties, exact expiry, clock regression, stale calls, every-write rollback, unknown ACKs
+and real FoundationDB races passed. This is bounded email submission admission,
+not a generic mutable-policy limiter or a quota shared across independent stores.
+See [acceptance evidence](checkpoints/e2-email-rate.json).
 
 ## C4 — Adaptive valid population from the same catalog (accepted)
 
@@ -210,13 +211,13 @@ The [server plan](server-execution.md) preserves existing execution/fact/applica
 machinery while adding strict typed capabilities. E0 records the service contract pass;
 C3/C4 and [E1 credentials](e1-credentials.md) are accepted. E1 also fixes managed
 UUID lifetime creation metadata and array-reference tentative fanout selection.
-[E2/R0](e2-email.md), A0–A2, E3, E5 and fresh release verification follow in dependency order.
+[E2/R0](e2-email.md) is accepted. [A0 identities](a0-identity.md), A1–A2, E3, E5 and fresh release verification follow in dependency order.
 
 | Gate | Scope | Dependencies |
 | --- | --- | --- |
 | E0 | Current/absent capabilities, modes and recovery obligations | C0 and existing effect evidence; planning only |
 | E1 | Accepted Credential records, secret-safe ingress, use authorization and bounded grants | Existing authority; C2 reference/uniqueness rules where needed |
-| E2 | One EmailSend contract with independent Resend/Brevo adapters and durable jobs | E1 contracts; reuse the present worker state machine |
+| E2 | Accepted EmailSend, pinned secrets, independent fake Resend/Brevo transports and R0 charged starts | E1; shared worker and exact original recovery |
 | E3 | Authorized object grants, immutable finalize and recoverable cleanup | E1–E2; one selected object adapter |
 | E4 | Optional recurrence producing ordinary one-shot jobs | E2 and protected occurrence uniqueness; no workflow engine |
 | E5 | Independent fake full-pipeline, failure and recovery verification | Each selected E feature; C4 catalog tooling where used |

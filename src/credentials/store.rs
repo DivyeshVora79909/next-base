@@ -5,7 +5,7 @@ use crate::{
     credentials::crypto::{Crypto, IngressContext, IngressEnvelope, Metadata, SecretContext},
     local::{Mutation, RuntimeHeader, Store},
     model::Prepared,
-    models::services::{CREDENTIAL, Derived, Services},
+    models::services::{CREDENTIAL, Services},
     native_codec::{Key, StoredValue, optional_uuid_text, uuid_text},
     native_slice::{Attempt, Command, Context, Error, Result},
 };
@@ -90,10 +90,7 @@ pub(crate) fn stage_secret<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Bindin
     }
     request.metadata.validate()?;
     let old_state = if let Some(record) = &old {
-        let metadata: Metadata = serde_json::from_value(
-            serde_json::to_value(&record.input).map_err(crate::local::storage)?,
-        )
-        .map_err(|_| Error::new("corrupt_state", "credential source metadata"))?;
+        let (metadata, state) = B::credential_values(record)?;
         if metadata.provider != request.metadata.provider
             || metadata.account != request.metadata.account
         {
@@ -102,29 +99,41 @@ pub(crate) fn stage_secret<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Bindin
                 "credential provider and account are immutable",
             ));
         }
-        let state: Derived = serde_json::from_value(
-            serde_json::to_value(&record.derived).map_err(crate::local::storage)?,
-        )
-        .map_err(|_| Error::new("corrupt_state", "credential system metadata"))?;
-        state.validate()?;
-        Some(state)
+        Some(state.clone())
     } else {
         None
     };
     let prior_revision = old_state.as_ref().and_then(|state| state.secret_revision);
-    match (prior_revision, ws.get(&Key::CredentialSecret(request.id))?) {
-        (None, None) => {}
-        (Some(revision), Some(StoredValue::CredentialSecret(envelope)))
-            if envelope.credential == request.id && envelope.secret_revision == revision =>
-        {
-            envelope.validate()?;
+    if let Some(revision) = prior_revision {
+        match ws.get(&Key::CredentialSecret(request.id, revision))? {
+            Some(StoredValue::CredentialSecret(envelope))
+                if envelope.credential == request.id
+                    && envelope.secret_revision == revision
+                    && old_state
+                        .as_ref()
+                        .is_some_and(|state| envelope.incarnation == state.incarnation) =>
+            {
+                envelope.validate()?
+            }
+            _ => return Err(Error::new("corrupt_state", "credential private inventory")),
         }
-        _ => return Err(Error::new("corrupt_state", "credential private inventory")),
     }
     let secret_revision = prior_revision
         .unwrap_or(0)
         .checked_add(1)
         .ok_or_else(|| Error::new("revision_exhausted", "credential secret revision"))?;
+    if ws
+        .get(&Key::CredentialSecret(request.id, secret_revision))?
+        .is_some()
+    {
+        return Err(Error::new(
+            "corrupt_state",
+            "next credential revision already exists",
+        ));
+    }
+    let incarnation = old_state
+        .as_ref()
+        .map_or_else(Uuid::new_v4, |state| state.incarnation);
     let ingress = IngressContext {
         model: model.identity().into(),
         store: header.store_id,
@@ -148,15 +157,182 @@ pub(crate) fn stage_secret<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Bindin
         &SecretContext {
             tenant: context.tenant,
             credential: request.id,
+            incarnation,
             secret_revision,
             provider: request.metadata.provider,
             account: request.metadata.account.clone(),
         },
     )?;
     ws.put(
-        Key::CredentialSecret(request.id),
+        Key::CredentialSecret(request.id, secret_revision),
         Some(StoredValue::CredentialSecret(envelope)),
     )
+}
+
+/// Derive retention from the protected execution inventory, including terminal
+/// executions until their durable rows are actually swept. There is no pin cache.
+pub(crate) fn pinned_revisions<B: Binding>(
+    table: &crate::storage::Table<&'static [u8], &'static [u8]>,
+) -> Result<std::collections::BTreeMap<(Uuid, u64), crate::credentials::grants::AcceptedBinding>> {
+    let mut pins = std::collections::BTreeMap::new();
+    for (position, row) in table.iter()?.enumerate() {
+        if position >= crate::effects::MAX_RETAINED as usize {
+            return Err(Error::new(
+                "work_limit",
+                "credential execution retention bound",
+            ));
+        }
+        let (key, bytes) = row?;
+        let execution: crate::effects::Execution<B> = crate::local::decode(bytes.value())?;
+        if key.value() != execution.id.as_bytes() {
+            return Err(Error::new("corrupt_state", "credential execution identity"));
+        }
+        if let Some(binding) = execution.email_binding {
+            binding.validate()?;
+            let pair = (binding.credential(), binding.secret_revision());
+            if let Some(previous) = pins.insert(pair, binding.clone())
+                && (previous.incarnation() != binding.incarnation()
+                    || previous.provider() != binding.provider()
+                    || previous.account() != binding.account())
+            {
+                return Err(Error::new(
+                    "corrupt_state",
+                    "inconsistent credential retention identity",
+                ));
+            }
+        }
+    }
+    Ok(pins)
+}
+
+/// The effect budget counts shared encrypted revisions once, including pins to
+/// older rotations. This uses actual staged encoded bytes rather than estimates.
+pub(crate) fn retained_secret_bytes<'a, L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    ws: &mut Attempt<L, B>,
+    bindings: impl IntoIterator<Item = &'a crate::credentials::grants::AcceptedBinding>,
+) -> Result<u64> {
+    let mut keys = std::collections::BTreeSet::new();
+    let mut total = 0u64;
+    for binding in bindings {
+        binding.validate()?;
+        let key = Key::CredentialSecret(binding.credential(), binding.secret_revision());
+        if !keys.insert(key.clone()) {
+            continue;
+        }
+        let value = ws
+            .get(&key)?
+            .ok_or_else(|| Error::new("corrupt_state", "retained credential envelope missing"))?;
+        if !matches!(&value,StoredValue::CredentialSecret(envelope) if envelope.incarnation == binding.incarnation())
+        {
+            return Err(Error::new(
+                "corrupt_state",
+                "retained credential envelope identity",
+            ));
+        }
+        let bytes = crate::native_codec::encode_for::<B>(&key, &value)?;
+        total = total
+            .checked_add((key.encode().len() + bytes.len()) as u64)
+            .ok_or_else(|| Error::new("work_limit", "credential retained bytes overflow"))?;
+    }
+    Ok(total)
+}
+
+/// Publish only source-current and execution-pinned envelopes. Protected range
+/// reads fence concurrent acceptance and deletion; all removals share source commit.
+pub(crate) fn retain_revisions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    write: &crate::storage::WriteTransaction,
+    ws: &mut Attempt<L, B>,
+    changed_ids: &[Uuid],
+) -> Result<()> {
+    if !B::credential_enabled() || changed_ids.is_empty() {
+        return Ok(());
+    }
+    let mut credentials = std::collections::BTreeSet::new();
+    for &id in changed_ids {
+        let current = ws.record(id)?;
+        let original = ws.original(&Key::Record(id))?;
+        if current
+            .as_ref()
+            .is_some_and(|record| record.contract == CREDENTIAL)
+            || matches!(original,Some(StoredValue::Record(record)) if record.contract == CREDENTIAL)
+        {
+            credentials.insert(id);
+        }
+    }
+    if credentials.is_empty() {
+        return Ok(());
+    }
+    let pins = pinned_revisions::<B>(&write.open_table(crate::effects::EXECUTIONS)?)?;
+    let table = write.open_table(crate::local::KV)?;
+    for id in credentials {
+        let record = ws.record(id)?;
+        let mut keep = std::collections::BTreeSet::new();
+        for (&(credential, revision), binding) in &pins {
+            if credential != id {
+                continue;
+            }
+            let record = record
+                .as_ref()
+                .ok_or_else(|| Error::new("invariant", "credential is retained by an execution"))?;
+            let (metadata, state) = B::credential_values(record)?;
+            if state.incarnation != binding.incarnation()
+                || metadata.provider != binding.provider()
+                || metadata.account != binding.account()
+            {
+                return Err(Error::new("corrupt_state", "retained credential identity"));
+            }
+            keep.insert(revision);
+        }
+        if let Some(record) = &record {
+            let (_, state) = B::credential_values(record)?;
+            if let Some(revision) = state.secret_revision {
+                keep.insert(revision);
+            }
+            for &revision in &keep {
+                let key = Key::CredentialSecret(id, revision);
+                match ws.get(&key)? {
+                    Some(StoredValue::CredentialSecret(envelope))
+                        if envelope.credential == id
+                            && envelope.incarnation == state.incarnation
+                            && envelope.secret_revision == revision
+                            && state
+                                .secret_revision
+                                .is_some_and(|current| revision <= current) =>
+                    {
+                        envelope.validate()?
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            "corrupt_state",
+                            "retained credential envelope missing",
+                        ));
+                    }
+                }
+            }
+        }
+        let lower = Key::CredentialSecret(id, 0).encode();
+        let upper = Key::CredentialSecret(id, u64::MAX).encode();
+        for (position, row) in table
+            .range(lower.as_slice()..=upper.as_slice())?
+            .enumerate()
+        {
+            if position > crate::effects::MAX_RETAINED as usize {
+                return Err(Error::new(
+                    "work_limit",
+                    "credential revision retention bound",
+                ));
+            }
+            let (key, _) = row?;
+            let key = Key::decode(key.value())?;
+            let Key::CredentialSecret(_, revision) = key else {
+                return Err(Error::new("corrupt_state", "credential revision range"));
+            };
+            if !keep.contains(&revision) {
+                ws.put(key, None)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Store<Services> {
@@ -323,12 +499,20 @@ pub(crate) mod test_support {
     pub fn envelope(store: &Store<Services>, id: Uuid) -> Option<SecretEnvelope> {
         let read = store.db.begin_read().unwrap();
         let table = read.open_table(crate::local::KV).unwrap();
+        let source_bytes = table.get(Key::Record(id).encode()).unwrap()?;
+        let StoredValue::Record(source) =
+            crate::native_codec::decode_for::<Services>(&Key::Record(id), source_bytes.value())
+                .unwrap()
+        else {
+            panic!("source role");
+        };
+        let revision = source.derived.as_ref()?.secret_revision?;
         table
-            .get(Key::CredentialSecret(id).encode())
+            .get(Key::CredentialSecret(id, revision).encode())
             .unwrap()
             .map(|bytes| {
                 match crate::native_codec::decode_for::<Services>(
-                    &Key::CredentialSecret(id),
+                    &Key::CredentialSecret(id, revision),
                     bytes.value(),
                 )
                 .unwrap()
@@ -408,8 +592,9 @@ pub(crate) mod test_support {
             tenant: record.tenant,
             credential: id,
             secret_revision: record.derived.as_ref().unwrap().secret_revision.unwrap(),
-            provider: record.input.provider,
-            account: record.input.account.clone(),
+            incarnation: record.derived.as_ref().unwrap().incarnation,
+            provider: record.input.credential().unwrap().provider,
+            account: record.input.credential().unwrap().account.clone(),
         }
     }
 }
@@ -418,7 +603,7 @@ pub(crate) mod test_support {
 mod tests {
     use super::test_support::*;
     use super::*;
-    use crate::{credentials::crypto::Provider, storage::ReadableTable};
+    use crate::{credentials::crypto::Provider, models::services::Derived, storage::ReadableTable};
     use std::sync::Arc;
 
     #[test]
@@ -440,7 +625,7 @@ mod tests {
         assert_eq!(
             first.derived,
             Some(Derived {
-                incarnation: first.version,
+                incarnation: first_envelope.incarnation,
                 has_secret: true,
                 secret_revision: Some(1),
                 use_epoch: 0
@@ -501,7 +686,7 @@ mod tests {
             id(100),
             None,
             Some(enabled.version),
-            enabled.input.clone(),
+            enabled.input.credential().unwrap().clone(),
             "fixture-secret-beta",
         );
         caller.write_secret(&f.crypto, &rotate).unwrap();
@@ -510,7 +695,7 @@ mod tests {
         assert_eq!(
             rotated.derived,
             Some(Derived {
-                incarnation: first.version,
+                incarnation: first_envelope.incarnation,
                 has_secret: true,
                 secret_revision: Some(2),
                 use_epoch: 2
@@ -722,7 +907,11 @@ mod tests {
                 json!([{"op":"create","id":id(100),"contract":CREDENTIAL,"fields":disabled}]),
             ))
             .unwrap();
-        let incarnation = record(&f.store, id(100)).version;
+        let incarnation = record(&f.store, id(100))
+            .derived
+            .as_ref()
+            .unwrap()
+            .incarnation;
         assert_eq!(
             record(&f.store, id(100)).derived,
             Some(Derived {
@@ -871,7 +1060,7 @@ mod tests {
             "inventory-fixture-secret",
         );
         caller.write_secret(&f.crypto, &write).unwrap();
-        let key = Key::CredentialSecret(id(100));
+        let key = Key::CredentialSecret(id(100), 1);
         let read = f.store.db.begin_read().unwrap();
         let saved = read
             .open_table(crate::local::KV)
@@ -901,7 +1090,7 @@ mod tests {
         f.store.check_integrity().unwrap();
         let mut orphan = envelope(&f.store, id(100)).unwrap();
         orphan.credential = id(999);
-        let orphan_key = Key::CredentialSecret(id(999));
+        let orphan_key = Key::CredentialSecret(id(999), 1);
         let encoded = crate::native_codec::encode_for::<Services>(
             &orphan_key,
             &StoredValue::CredentialSecret(orphan),
@@ -915,6 +1104,11 @@ mod tests {
             .unwrap();
         write.commit().unwrap();
         assert_eq!(f.store.check_integrity().unwrap_err().code, "corrupt_state");
+        let create = mutation(
+            &caller,
+            json!([{"op":"create","id":id(999),"contract":CREDENTIAL,"fields":metadata(true)}]),
+        );
+        assert_eq!(caller.mutate(&create).unwrap_err().code, "corrupt_state");
         assert_eq!(f.crypto.decrypt_counts(), counts);
     }
 }

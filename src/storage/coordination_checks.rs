@@ -24,11 +24,19 @@ use uuid::Uuid;
 
 pub(crate) type Written = BTreeSet<(String, Vec<u8>)>;
 #[derive(Clone)]
+pub(crate) struct Scan {
+    pub(crate) table: String,
+    pub(crate) lower: Bound<Vec<u8>>,
+    pub(crate) upper: Bound<Vec<u8>>,
+    pub(crate) limit: usize,
+}
+#[derive(Clone)]
 pub(crate) struct Trace {
     pub(crate) label: String,
     pub(crate) reads: Written,
     pub(crate) writes: Written,
     pub(crate) scanned_tables: BTreeSet<String>,
+    pub(crate) scans: Vec<Scan>,
     pub(crate) outcome: String,
     pub(crate) commit_us: u128,
     pub(crate) read_value_bytes: u64,
@@ -69,6 +77,7 @@ impl Backend for Recording {
             reads: Written::new(),
             writes: Written::new(),
             scanned_tables: BTreeSet::new(),
+            scans: vec![],
             outcome: "not_committed".into(),
             commit_us: 0,
             read_value_bytes: 0,
@@ -113,6 +122,14 @@ impl ReadView for RecordingWrite {
         capture(&self.captures)?.traces[self.index]
             .scanned_tables
             .insert(t.name.clone());
+        capture(&self.captures)?.traces[self.index]
+            .scans
+            .push(Scan {
+                table: t.name.clone(),
+                lower: a.clone(),
+                upper: b.clone(),
+                limit: n,
+            });
         self.inner.scan(t, a, b, n)
     }
     fn list_tables(&self) -> Result<Vec<String>> {
@@ -363,10 +380,18 @@ pub(crate) fn operation<B: Binding>(
     ))
 }
 pub(crate) fn trace_value(trace: &Trace) -> Value {
+    fn bound(bound: &Bound<Vec<u8>>) -> Value {
+        match bound {
+            Bound::Unbounded => Value::Null,
+            Bound::Included(key) => json!({"included":native_codec::hex(key)}),
+            Bound::Excluded(key) => json!({"excluded":native_codec::hex(key)}),
+        }
+    }
     json!({"attempt":trace.label,"outcome":trace.outcome,"commit_us":trace.commit_us,
         "read_value_bytes":trace.read_value_bytes,"put_key_value_bytes":trace.put_key_value_bytes,"access_put_key_value_bytes":trace.access_put_key_value_bytes,
         "application_reads":trace.reads.iter().map(|(table,key)|json!({"table":table,"key":native_codec::hex(key)})).collect::<Vec<_>>(),
         "scanned_tables":trace.scanned_tables,
+        "scans":trace.scans.iter().map(|scan|json!({"table":scan.table,"lower":bound(&scan.lower),"upper":bound(&scan.upper),"page_limit":scan.limit})).collect::<Vec<_>>(),
         "application_writes":trace.writes.iter().map(|(table,key)|json!({"table":table,"key":native_codec::hex(key)})).collect::<Vec<_>>()})
 }
 fn guard_buckets(writes: &Written) -> BTreeSet<(String, u8)> {

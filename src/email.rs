@@ -4,12 +4,204 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use uuid::Uuid;
 
 pub use crate::credentials::crypto::Provider;
 pub const EMAIL_OPERATION: &str = "email-send-1";
 pub const MAX_RECIPIENTS: usize = 16;
 pub const MAX_SUBJECT_BYTES: usize = 512;
 pub const MAX_TEXT_BYTES: usize = 16_384;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SendInput {
+    pub email: EmailRequest,
+    pub selection: crate::credentials::grants::Selection,
+    #[serde(with = "crate::native_codec::optional_decimal")]
+    pub execute_at: Option<i64>,
+    #[serde(with = "crate::native_codec::optional_decimal")]
+    pub not_after: Option<i64>,
+}
+impl<'de> Deserialize<'de> for SendInput {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Time(#[serde(with = "crate::native_codec::optional_decimal")] Option<i64>);
+        struct Visitor;
+        impl<'de> de::Visitor<'de> for Visitor {
+            type Value = SendInput;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an email send object")
+            }
+            fn visit_map<A: de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> std::result::Result<Self::Value, A::Error> {
+                let (mut email, mut selection, mut execute_at, mut not_after) =
+                    (None, None, None, None);
+                while let Some(field) = map.next_key::<String>()? {
+                    match field.as_str() {
+                        "email" if email.is_none() => email = Some(map.next_value()?),
+                        "selection" if selection.is_none() => selection = Some(map.next_value()?),
+                        "execute_at" if execute_at.is_none() => {
+                            execute_at = Some(map.next_value::<Time>()?.0)
+                        }
+                        "not_after" if not_after.is_none() => {
+                            not_after = Some(map.next_value::<Time>()?.0)
+                        }
+                        _ => {
+                            return Err(de::Error::custom("duplicate or unknown email send field"));
+                        }
+                    }
+                }
+                Ok(SendInput {
+                    email: email.ok_or_else(|| de::Error::missing_field("email"))?,
+                    selection: selection.ok_or_else(|| de::Error::missing_field("selection"))?,
+                    execute_at: execute_at.ok_or_else(|| de::Error::missing_field("execute_at"))?,
+                    not_after: not_after.ok_or_else(|| de::Error::missing_field("not_after"))?,
+                })
+            }
+        }
+        deserializer.deserialize_map(Visitor)
+    }
+}
+impl SendInput {
+    pub fn normalized(&self) -> Result<Self> {
+        if self.execute_at.is_some_and(|time| time < 0)
+            || self.not_after.is_some_and(|time| time < 0)
+        {
+            return Err(invalid());
+        }
+        Ok(Self {
+            email: self.email.normalized()?,
+            ..self.clone()
+        })
+    }
+    pub fn validate(&self) -> Result<()> {
+        if &self.normalized()? != self {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub fn bind(value: Value) -> Result<Self> {
+        let input: Self = serde_json::from_value(value.clone()).map_err(|_| invalid())?;
+        input.validate()?;
+        if serde_json::to_value(&input).map_err(|_| invalid())? != value {
+            return Err(invalid());
+        }
+        Ok(input)
+    }
+    pub fn schema() -> Value {
+        let time = json!({"anyOf":[{"type":"null"},{"type":"string","pattern":"^(0|[1-9][0-9]*)$","x-rebase-range":["0","9223372036854775807"]}]});
+        json!({"type":"object","additionalProperties":false,"required":["email","selection","execute_at","not_after"],"properties":{
+            "email":EmailRequest::schema(),"selection":crate::credentials::grants::Selection::schema(),"execute_at":time,"not_after":time
+        }})
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+pub struct EmailOutcome {
+    #[serde(with = "crate::native_codec::uuid_text")]
+    pub execution_id: Uuid,
+    pub provider: Provider,
+    pub account: String,
+    pub request_hash: String,
+    pub disposition: crate::effects::Disposition,
+    pub receipt: Option<String>,
+}
+impl<'de> Deserialize<'de> for EmailOutcome {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Receipt(Option<String>);
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Fields {
+            #[serde(with = "crate::native_codec::uuid_text")]
+            execution_id: Uuid,
+            provider: Provider,
+            account: String,
+            request_hash: String,
+            disposition: crate::effects::Disposition,
+            receipt: Receipt,
+        }
+        struct Visitor;
+        impl<'de> de::Visitor<'de> for Visitor {
+            type Value = EmailOutcome;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an email outcome object")
+            }
+            fn visit_map<A: de::MapAccess<'de>>(
+                self,
+                map: A,
+            ) -> std::result::Result<Self::Value, A::Error> {
+                let fields = Fields::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                Ok(EmailOutcome {
+                    execution_id: fields.execution_id,
+                    provider: fields.provider,
+                    account: fields.account,
+                    request_hash: fields.request_hash,
+                    disposition: fields.disposition,
+                    receipt: fields.receipt.0,
+                })
+            }
+        }
+        deserializer.deserialize_map(Visitor)
+    }
+}
+impl std::fmt::Debug for EmailOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EmailOutcome")
+            .field("execution_id", &self.execution_id)
+            .field("provider", &self.provider)
+            .field("disposition", &self.disposition)
+            .finish_non_exhaustive()
+    }
+}
+impl EmailOutcome {
+    pub fn validate(
+        &self,
+        request: &EmailRequest,
+        execution: Uuid,
+    ) -> Result<crate::effects::Disposition> {
+        use crate::effects::Disposition;
+        crate::credentials::crypto::validate_account(&self.account)?;
+        if execution.is_nil()
+            || self.execution_id != execution
+            || self.request_hash != request.request_hash()?
+            || self.receipt.as_ref().is_some_and(|receipt| {
+                receipt.is_empty()
+                    || receipt.len() > 128
+                    || !receipt
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"_:-".contains(&b))
+            })
+            || match self.disposition {
+                Disposition::NotAccepted => self.receipt.is_some(),
+                _ => self.receipt.is_none(),
+            }
+        {
+            return Err(Error::new(
+                "invalid_outcome",
+                "email provider result is invalid",
+            ));
+        }
+        Ok(self.disposition)
+    }
+    pub fn validate_binding(&self, provider: Provider, account: &str) -> Result<()> {
+        if self.provider != provider || self.account != account {
+            return Err(Error::new(
+                "invalid_outcome",
+                "email provider binding differs",
+            ));
+        }
+        Ok(())
+    }
+    pub fn schema() -> Value {
+        json!({"type":"object","additionalProperties":false,"required":["execution_id","provider","account","request_hash","disposition","receipt"],"properties":{
+            "execution_id":{"type":"string","format":"uuid"},"provider":{"enum":["resend","brevo"]},"account":{"type":"string","pattern":"^[A-Za-z0-9._:-]{1,128}$"},
+            "request_hash":{"type":"string","pattern":"^[0-9a-f]{64}$"},"disposition":{"enum":["waiting","succeeded","not_accepted","failed"]},
+            "receipt":{"anyOf":[{"type":"null"},{"type":"string","pattern":"^[A-Za-z0-9_:-]{1,128}$"}]}
+        }})
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Purpose {
@@ -156,6 +348,85 @@ impl EmailRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn send_input_requires_canonical_complete_object_and_normalized_email() {
+        let input = SendInput {
+            email: request().normalized().unwrap(),
+            selection: crate::credentials::grants::Selection::Byoc {
+                credential: Uuid::from_u128(8),
+            },
+            execute_at: None,
+            not_after: None,
+        };
+        let value = serde_json::to_value(&input).unwrap();
+        assert_eq!(SendInput::bind(value.clone()).unwrap(), input);
+        for field in ["email", "selection", "execute_at", "not_after"] {
+            let mut missing = value.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(SendInput::bind(missing).is_err());
+        }
+        for time in [
+            json!(0),
+            json!("00"),
+            json!("-1"),
+            json!("9223372036854775808"),
+        ] {
+            let mut changed = value.clone();
+            changed["execute_at"] = time;
+            assert!(SendInput::bind(changed).is_err());
+        }
+        let sequence = json!([input.email, input.selection, null, null]);
+        assert!(serde_json::from_value::<SendInput>(sequence).is_err());
+        let mut changed = input.clone();
+        changed.email = request();
+        assert!(changed.validate().is_err());
+        assert_eq!(changed.normalized().unwrap(), input);
+    }
+    #[test]
+    fn email_outcomes_bind_provider_account_execution_and_exact_request() {
+        let execution = Uuid::from_u128(9);
+        let request = request().normalized().unwrap();
+        let outcome = EmailOutcome {
+            execution_id: execution,
+            provider: Provider::Resend,
+            account: "test-account".into(),
+            request_hash: request.request_hash().unwrap(),
+            disposition: crate::effects::Disposition::Succeeded,
+            receipt: Some("resend:public-test-receipt".into()),
+        };
+        assert_eq!(
+            outcome.validate(&request, execution).unwrap(),
+            crate::effects::Disposition::Succeeded
+        );
+        assert!(outcome.validate(&request, Uuid::from_u128(10)).is_err());
+        assert!(
+            outcome
+                .validate_binding(Provider::Brevo, "test-account")
+                .is_err()
+        );
+        assert!(
+            outcome
+                .validate_binding(Provider::Resend, "other-account")
+                .is_err()
+        );
+        let mut changed = request.clone();
+        changed.text.push('!');
+        assert!(outcome.validate(&changed, execution).is_err());
+        for receipt in [None, Some("bad\nreceipt".into()), Some("x".repeat(129))] {
+            let mut changed = outcome.clone();
+            changed.receipt = receipt;
+            assert!(changed.validate(&request, execution).is_err());
+        }
+        let mut rejected = outcome.clone();
+        rejected.disposition = crate::effects::Disposition::NotAccepted;
+        assert!(rejected.validate(&request, execution).is_err());
+        rejected.receipt = None;
+        assert!(rejected.validate(&request, execution).is_ok());
+        let mut value = serde_json::to_value(&rejected).unwrap();
+        value.as_object_mut().unwrap().remove("receipt");
+        assert!(serde_json::from_value::<EmailOutcome>(value).is_err());
+        assert!(!format!("{outcome:?}").contains("test-account"));
+    }
     fn request() -> EmailRequest {
         EmailRequest {
             sender: " Sender@EXAMPLE.COM ".into(),

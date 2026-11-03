@@ -1,7 +1,9 @@
 # E2 EmailSend and scoped R0 admission
 
-Status: concrete implementation contract; no E2/R0 acceptance is claimed here.
-Implement after [E1](e1-credentials.md), before A0–A2, E3 and E5 in the
+Status: implemented and accepted within the bounded fake/native scope below.
+See [source-bound evidence](checkpoints/e2-email-rate.json): 367 Rust tests, 214 Node
+tests, real local FoundationDB races and redb controls. Implemented after
+[E1](e1-credentials.md), before the still-required A0–A2, E3 and E5 in the
 [roadmap](roadmap.md). This selects the bounded fake-adapter scope left open by
 [server execution](server-execution.md) and [rate admission](rate-admission.md).
 Native email jobs and rate admission are required checkpoints. Live Resend/Brevo
@@ -318,3 +320,36 @@ configured real FoundationDB concurrency checks; label process/host topology.
 E5 later composes the selected native email/auth/object services into the full
 fake recovery workload. E2/R0 acceptance does not finish that required gate or
 establish live delivery, multi-host worker coordination or unlimited retention.
+
+## Implemented entrypoints and operation
+
+Use `client.prepareEmail({ model, commands, returning })` to normalize and persist
+an `email-enqueue` plan. Obtain each request-bound grant through `email.authorize`,
+then call `client.enqueueEmail(plan, [{ source, grant }])`. `client.execute` rejects
+email plans so bearer evidence cannot accidentally become saved intent. Use ordinary
+`client.status(plan)`/`operations.status` after an unknown enqueue outcome, and
+`effects.status` for each committed execution. Recovery keeps the original target,
+operation context and source identities. The final wire envelope includes the
+grants and still obeys the 64-KiB RPC limit.
+
+`ServerConfig.email` selects disabled/delivery/reconcile mode, fixed fake origins,
+quota policies and an optional local probe directory. It composes the existing
+credential runtime; it cannot be enabled alongside the old fake-demo worker.
+Policies persist even when the worker is disabled. A configured rate scope prevents
+store reset, because this checkpoint has no charge/retention compactor. Ordinary
+secret rotation preserves pinned revisions; stopped operator rewrap enumerates
+current and retained ciphertext and updates actual byte accounting atomically.
+
+On a custody failure, the owned worker stops and leaves the original charged start
+for reconciliation. A failed joined service can already be absent at the host;
+Node clears its local service identity only after an explicit matching
+`service_not_running` response. Timeout alone never clears ownership. Restore keeps
+work quarantined, retains exact ciphertext and quota facts, and permits read-only
+reconciliation after matching keys are supplied. Restoring keys does not authorize
+a new submission.
+
+The native adapter suite injects after every actual enqueue and admission/start
+write and drops acknowledgements only after real commits. Its FoundationDB runs
+use one local process/host. The independent Node fake providers validate expected
+source email, account and key, and keep distinct submission/observation/acceptance
+counts. No live Resend/Brevo behavior or distributed throughput is inferred.

@@ -74,7 +74,7 @@ function uniqueRow(key, holder) { return { key: typeof key === 'string' ? key : 
 function hex(text) { return Buffer.from(text, 'utf8').toString('hex'); }
 function backupWith(rows) {
   const tables = { native_kv: rows };
-  for (const name of ['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
+  for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
     'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) tables[name] = [];
   const payload = { format: 'rebase-authorized-observation-1', complete: true, tables };
   const sha256 = createHash('sha256').update(canonicalJson(payload)).digest('hex');

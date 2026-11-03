@@ -215,6 +215,13 @@ class NativeHost {
         this.#fail(failure);
         throw failure;
       }
+    }, error => {
+      // A joined worker can report failure after the host has removed its
+      // service owner. Only an explicit follow-up absence response for the
+      // tracked identity clears local ownership; timeouts remain uncertain.
+      if (error?.name === 'NativeHostError' && error.code === 'service_not_running'
+        && this.#service !== null && this.#service === admittedParams?.service) this.#service = null;
+      throw error;
     });
   }
 

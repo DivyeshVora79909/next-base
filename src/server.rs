@@ -32,6 +32,8 @@ pub struct ServerConfig {
     pub effects: Option<crate::effects::fake::Config>,
     #[serde(default)]
     pub credentials: Option<crate::credentials::Config>,
+    #[serde(default)]
+    pub email: Option<crate::effects::email::Config>,
 }
 #[derive(Clone)]
 struct App<B: Binding> {
@@ -197,11 +199,16 @@ fn webhook_error(error: Error) -> Response {
     response(status, json!({"error":error.code}))
 }
 
+struct PreparedServer {
+    routes: Router,
+    admission: Arc<Semaphore>,
+    credentials: Option<Arc<crate::credentials::grants::Runtime>>,
+}
 fn router_with_admission<B: Binding>(
     store: Arc<Store<B>>,
     config: &ServerConfig,
     expected_store: Option<uuid::Uuid>,
-) -> Result<(Router, Arc<Semaphore>)> {
+) -> Result<PreparedServer> {
     if !store.secured {
         return Err(Error::new(
             "invalid_input",
@@ -214,6 +221,11 @@ fn router_with_admission<B: Binding>(
     }
     validate_configuration::<B>(config)?;
     let permits = Arc::new(Semaphore::new(usize::from(config.max_inflight)));
+    let credentials = config
+        .credentials
+        .as_ref()
+        .map(|c| c.load::<B>().map(Arc::new))
+        .transpose()?;
     let app = App {
         store,
         verifier: Arc::new(Verifier::new(config.identity.clone())?),
@@ -225,25 +237,22 @@ fn router_with_admission<B: Binding>(
             .and_then(|effects| effects.ingress_secret_file.as_ref())
             .map(|path| crate::effects::inbox::Secret::load(path).map(Arc::new))
             .transpose()?,
-        credentials: config
-            .credentials
-            .as_ref()
-            .map(|c| c.load::<B>().map(Arc::new))
-            .transpose()?,
+        credentials: credentials.clone(),
         effect_probe_directory: config
             .effects
             .as_ref()
             .and_then(|effects| effects.probe_directory.clone()),
     };
-    Ok((
-        Router::new()
+    Ok(PreparedServer {
+        routes: Router::new()
             .route("/health", get(health))
             .route("/rpc", post(call::<B>))
             .route("/effects/fake", post(webhook::<B>))
             .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
             .with_state(app),
-        permits,
-    ))
+        admission: permits,
+        credentials,
+    })
 }
 
 /// Configuration-only validation shared by standalone startup and owned service
@@ -251,6 +260,15 @@ fn router_with_admission<B: Binding>(
 pub(crate) fn validate_configuration<B: Binding>(config: &ServerConfig) -> Result<()> {
     if let Some(credentials) = &config.credentials {
         credentials.validate::<B>()?;
+    }
+    if let Some(email) = &config.email {
+        if config.effects.is_some() || config.credentials.is_none() {
+            return Err(Error::new(
+                "invalid_config",
+                "email worker requires its credential runtime and exclusive provider configuration",
+            ));
+        }
+        email.validate::<B>()?;
     }
     if let Some(effects) = &config.effects {
         effects.validate::<B>()?;
@@ -271,7 +289,7 @@ pub(crate) fn validate_configuration<B: Binding>(config: &ServerConfig) -> Resul
 }
 
 pub fn router<B: Binding>(store: Arc<Store<B>>, config: &ServerConfig) -> Result<Router> {
-    Ok(router_with_admission(store, config, None)?.0)
+    Ok(router_with_admission(store, config, None)?.routes)
 }
 
 /// One bound native service. Explicit stop joins HTTP, all admitted blocking
@@ -305,10 +323,13 @@ pub(crate) async fn start_scoped<B: Binding>(
     };
     let checked = config.clone();
     let owner = store.clone();
-    let (routes, admission) =
-        tokio::task::spawn_blocking(move || router_with_admission(owner, &checked, expected_store))
-            .await
-            .map_err(|_| Error::new("internal", "service validation task"))??;
+    let PreparedServer {
+        routes,
+        admission,
+        credentials,
+    } = tokio::task::spawn_blocking(move || router_with_admission(owner, &checked, expected_store))
+        .await
+        .map_err(|_| Error::new("internal", "service validation task"))??;
     let listener = TcpListener::bind(config.listen)
         .await
         .map_err(|e| Error::new("transport", e.to_string()))?;
@@ -319,28 +340,54 @@ pub(crate) async fn start_scoped<B: Binding>(
     let worker = if B::effect_action().is_some() {
         let owner = store.clone();
         let mode = config
-            .effects
+            .email
             .as_ref()
-            .map_or(crate::effects::WorkerMode::Disabled, |effects| effects.mode);
+            .map(|email| email.mode)
+            .or_else(|| config.effects.as_ref().map(|effects| effects.mode))
+            .unwrap_or(crate::effects::WorkerMode::Disabled);
+        if let Some(email) = &config.email {
+            let policies = crate::effects::admission::Policies::new(email.policies.clone())?;
+            let owner = store.clone();
+            tokio::task::spawn_blocking(move || owner.configure_email_admission(&policies))
+                .await
+                .map_err(|_| Error::new("internal", "email admission configuration task"))??;
+        }
         let activation = tokio::task::spawn_blocking(move || owner.activate_effect_worker(mode))
             .await
             .map_err(|_| Error::new("internal", "worker activation task"))??;
-        config
-            .effects
-            .filter(|effects| effects.mode.active())
-            .map(|effects| {
-                let owner = store.clone();
-                let receiver = stop.subscribe();
-                let failed = stop.clone();
-                tokio::spawn(async move {
-                    let result =
-                        crate::effects::fake::run(owner, effects, activation, receiver).await;
-                    if result.is_err() {
-                        let _ = failed.send(true);
-                    }
-                    result
+        if let Some(email) = config.email.filter(|email| email.mode.active()) {
+            let keys = credentials.ok_or_else(|| {
+                Error::new("invalid_config", "email credential runtime unavailable")
+            })?;
+            let owner = store.clone();
+            let receiver = stop.subscribe();
+            let failed = stop.clone();
+            Some(tokio::spawn(async move {
+                let result =
+                    crate::effects::email::run(owner, email, keys, activation, receiver).await;
+                if result.is_err() {
+                    let _ = failed.send(true);
+                }
+                result
+            }))
+        } else {
+            config
+                .effects
+                .filter(|effects| effects.mode.active())
+                .map(|effects| {
+                    let owner = store.clone();
+                    let receiver = stop.subscribe();
+                    let failed = stop.clone();
+                    tokio::spawn(async move {
+                        let result =
+                            crate::effects::fake::run(owner, effects, activation, receiver).await;
+                        if result.is_err() {
+                            let _ = failed.send(true);
+                        }
+                        result
+                    })
                 })
-            })
+        }
     } else {
         None
     };
@@ -467,6 +514,7 @@ mod tests {
             },
             max_inflight: 1,
             request_timeout_seconds: 1,
+            email: None,
             credentials: None,
             effects: None,
         };
@@ -519,6 +567,7 @@ mod tests {
                 identity: identity.clone(),
                 max_inflight: 2,
                 request_timeout_seconds: 2,
+                email: None,
                 credentials: None,
                 effects: None,
             },
@@ -769,6 +818,7 @@ mod tests {
                 identity,
                 max_inflight: 1,
                 request_timeout_seconds: 1,
+                email: None,
                 credentials: None,
                 effects: None,
             },

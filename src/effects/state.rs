@@ -34,6 +34,7 @@ pub enum Disposition {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Application {
     None,
+    NotRequired,
     Pending,
     Blocked,
     Applied,
@@ -192,6 +193,7 @@ impl<B: Binding> Execution<B> {
             && self.source == other.source
             && self.action == other.action
             && self.action_version == other.action_version
+            && self.email_binding == other.email_binding
             && self.provider_account == other.provider_account
             && self.target == other.target
             && self.request == other.request
@@ -305,7 +307,7 @@ impl<B: Binding> Execution<B> {
                                 && self.phase == Phase::Ready
                                 && !self.quarantined
                                 && self.cancellation.is_none()
-                                && self.attempts > 0
+                                && (self.email_binding.is_some() || self.attempts > 0)
                         }
                         Mode::Reconcile => {
                             self.observations > 0
@@ -317,6 +319,39 @@ impl<B: Binding> Execution<B> {
                 "effect lease",
             )?;
         }
+        ensure(
+            self.email_binding.is_some() || self.email_starts.is_empty(),
+            "unexpected email starts",
+        )?;
+        if self.email_binding.is_some() {
+            ensure(
+                self.email_starts.len() == usize::from(self.attempts),
+                "email physical attempt count",
+            )?;
+            for (index, start) in self.email_starts.iter().enumerate() {
+                ensure(
+                    start.attempt as usize == index + 1
+                        && !start.token.is_nil()
+                        && !start.activation.is_nil()
+                        && start.at >= self.created_at
+                        && start.at >= self.execute_at
+                        && start.at < self.not_after
+                        && (index == 0 || self.email_starts[index - 1].at <= start.at),
+                    "email retained start",
+                )?;
+            }
+            ensure(
+                self.started
+                    .as_ref()
+                    .is_none_or(|start| self.email_starts.last() == Some(start)),
+                "email last start",
+            )?;
+        }
+        ensure(
+            (self.application == Application::NotRequired)
+                == (self.phase == Phase::Succeeded && !B::effect_application_required()),
+            "effect optional application",
+        )?;
         if let Some(start) = &self.started {
             ensure(
                 !start.activation.is_nil()

@@ -85,6 +85,39 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
             "model has no credential operations",
         ))
     }
+    fn email_input(_input: &Self::Input) -> Option<&crate::email::SendInput> {
+        None
+    }
+    fn credential_values(
+        _record: &crate::native_slice::ModelRecord<Self>,
+    ) -> Result<(
+        &crate::credentials::crypto::Metadata,
+        &crate::models::services::Derived,
+    )> {
+        Err(crate::native_slice::Error::new(
+            "unsupported_query",
+            "credential model required",
+        ))
+    }
+    fn effect_source_anchor() -> bool {
+        false
+    }
+    fn effect_request_limit() -> usize {
+        crate::effects::MAX_REQUEST
+    }
+    fn effect_application_required() -> bool {
+        true
+    }
+    fn effect_validate_binding(
+        _outcome: &Self::Outcome,
+        _provider: crate::credentials::crypto::Provider,
+        _account: &str,
+    ) -> Result<()> {
+        Err(crate::native_slice::Error::new(
+            "invalid_input",
+            "email provider binding unavailable",
+        ))
+    }
     fn effect_action() -> Option<crate::effects::ActionDeclaration> {
         None
     }

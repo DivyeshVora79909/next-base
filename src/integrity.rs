@@ -1681,6 +1681,7 @@ mod tests {
             },
             max_inflight: 1,
             request_timeout_seconds: 5,
+            email: None,
             credentials: None,
             effects: None,
         };

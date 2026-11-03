@@ -23,13 +23,13 @@ test('credential private inventory follows catalog source revisions without disc
   const tenant = '11111111-1111-4111-8111-111111111111';
   const source = { contract: 1001, tenant, owner: tenant, created_at: '0', input: { enabled: true },
     derived: { has_secret: true, secret_revision: '1', use_epoch: '0', incarnation: NODE_ID } };
-  const envelope = { format: 'rebase-credential-secret-1', credential: ROOT_ID, secret_revision: '1', key_id: 'public-test-vault',
+  const envelope = { format: 'rebase-credential-secret-2', incarnation: NODE_ID, credential: ROOT_ID, secret_revision: '1', key_id: 'public-test-vault',
     nonce: Buffer.alloc(24, 1).toString('base64url'), ciphertext: Buffer.alloc(32, 2).toString('base64url') };
   const catalog = { model: 'public-test-model', capabilities: { credentials: { contract: 1001 } }, contracts: [{ code: 1001, access_indexes: [] }] };
   const rows = [
     { key: '00', value: hex(JSON.stringify({ type: 'meta', data: { model: catalog.model, tenant } })) },
     { key: `01${ROOT_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'record', data: source })) },
-    { key: `11${ROOT_ID.replaceAll('-', '')}`, value: hex(JSON.stringify({ type: 'credential_secret', data: envelope })) },
+    { key: `11${ROOT_ID.replaceAll('-', '')}0000000000000001`, value: hex(JSON.stringify({ type: 'credential_secret', data: envelope })) },
   ];
   const backup = backupWith(rows);
   const check = (copy, options = {}) => { resign(copy); return checkBackupStructure(JSON.stringify(copy), { catalog, ...options }); };
@@ -82,6 +82,68 @@ test('role creation provenance is a strict nullable nonnegative i64 timestamp', 
     const backup = backupWith([row({ output: NODE_ID, retired: false, first_created_at })]);
     assert.throws(() => checkBackupStructure(JSON.stringify(backup)), /role|time/);
   }
+});
+
+test('retained credential revisions and admission forests derive from immutable execution bindings and physical starts', () => {
+  const tenant = '11111111-1111-4111-8111-111111111111';
+  const emailId = '22222222-2222-4222-8222-222222222222';
+  const executionId = '33333333-3333-4333-8333-333333333333';
+  const scope = { provider: 'resend', account: 'mail', purpose: 'email.send' };
+  const scopeKey = createHash('sha256').update('next-base/email-rate-scope/1\0').update(JSON.stringify(scope)).digest('hex');
+  const input = { email: { sender: 'a@example.com', to: ['b@example.net'], subject: 'hello', text: 'body' },
+    selection: { kind: 'byoc', credential: ROOT_ID }, execute_at: null, not_after: null };
+  const credential = { contract: 1001, tenant, owner: tenant, created_at: '0', input: { enabled: true, provider: 'resend', account: 'mail' },
+    derived: { has_secret: true, secret_revision: '2', use_epoch: '0', incarnation: NODE_ID } };
+  const email = { contract: 1002, tenant, owner: tenant, created_at: '0', input, derived: null };
+  const pin = { credential: ROOT_ID, incarnation: NODE_ID, provider: 'resend', account: 'mail', use_epoch: '0', secret_revision: '1', selection: input.selection };
+  const catalog = { model: 'public-test-model', capabilities: { credentials: { contract: 1001 } },
+    contracts: [{ code: 1001, access_indexes: [] }, { code: 1002, access_indexes: [] }] };
+  const raw = (key, value) => ({ key, value: hex(JSON.stringify(value)) });
+  const native = (tag, id, type, data, revision = '') => raw(`${tag}${id.replaceAll('-', '')}${revision}`, { type, data });
+  function fixture(times = ['0', '9'], limit = 2) {
+    const rows = [raw('00', { type: 'meta', data: { model: catalog.model, tenant } }),
+      native('01', ROOT_ID, 'record', credential), native('01', emailId, 'record', email)];
+    for (const revision of ['1', '2']) rows.push(native('11', ROOT_ID, 'credential_secret', {
+      format: 'rebase-credential-secret-2', incarnation: NODE_ID, credential: ROOT_ID, secret_revision: revision,
+      key_id: 'test-vault', nonce: Buffer.alloc(24, 1).toString('base64url'), ciphertext: Buffer.alloc(32, 2).toString('base64url'),
+    }, BigInt(revision).toString(16).padStart(16, '0')));
+    const starts = times.map((at, index) => ({ activation: ROOT_ID, token: `00000000-0000-0000-0000-${(index + 1).toString().padStart(12, '0')}`, at, attempt: index + 1 }));
+    const backup = backupWith(rows), tables = backup.payload.tables;
+    tables.effect_executions = [raw(executionId.replaceAll('-', ''), {
+      id: executionId, tenant, source: emailId, target: emailId, request: input, email_binding: pin, email_starts: starts,
+    })];
+    tables.email_rate_scopes = [raw(scopeKey, { format: 'email-rate-admission-1', policy: { ...scope, window_ms: '10', limit }, last_at: times.at(-1) ?? null })];
+    tables.email_rate_starts = starts.map(start => raw(`${executionId.replaceAll('-', '')}${start.attempt.toString(16).padStart(2, '0')}`, {
+      format: 'email-rate-admission-1', scope, execution: executionId, start,
+    }));
+    tables.email_rate_points = starts.map(start => ({ key: `${scopeKey}${BigInt(start.at).toString(16).padStart(16, '0')}${executionId.replaceAll('-', '')}${start.attempt.toString(16).padStart(2, '0')}`, value: '' }));
+    return backup;
+  }
+  const check = backup => { resign(backup); return checkBackupStructure(JSON.stringify(backup), { catalog }); };
+  assert.equal(check(fixture()).credentialSecretCount, 2);
+  assert.equal(check(fixture()).emailAdmissionCount, 2);
+  assert.equal(check(fixture(['0', '10'], 1)).emailAdmissionCount, 2, 'exact expiry excludes the old point');
+  assert.throws(() => check(fixture(['9', '9'], 1)), /quota/);
+  assert.throws(() => check(fixture(['0', '9', '9'], 2)), /quota/);
+  const edit = (row, mutate) => { const value = JSON.parse(Buffer.from(row.value, 'hex')); mutate(value); row.value = hex(JSON.stringify(value)); };
+  for (const mutation of [
+    backup => { backup.payload.tables.native_kv.splice(3, 1); },
+    backup => { backup.payload.tables.native_kv.splice(4, 1); },
+    backup => { backup.payload.tables.email_rate_points = []; },
+    backup => { backup.payload.tables.email_rate_starts = []; },
+    backup => { backup.payload.tables.email_rate_scopes = []; },
+    backup => edit(backup.payload.tables.email_rate_scopes[0], value => { value.last_at = '8'; }),
+    backup => edit(backup.payload.tables.email_rate_starts[0], value => { value.start.token = NODE_ID; }),
+    backup => edit(backup.payload.tables.effect_executions[0], value => { value.email_binding.account = 'other-account'; }),
+    backup => edit(backup.payload.tables.effect_executions[0], value => { value.email_binding.incarnation = ROOT_ID; }),
+    backup => edit(backup.payload.tables.effect_executions[0], value => { value.email_starts[0].attempt = 2; }),
+    backup => edit(backup.payload.tables.effect_executions[0], value => { value.email_starts = []; }),
+  ]) {
+    const backup = fixture(); mutation(backup); assert.throws(() => check(backup), /credential|email/);
+  }
+  const orphan = fixture();
+  edit(orphan.payload.tables.effect_executions[0], value => { value.email_binding.secret_revision = '2'; });
+  assert.throws(() => check(orphan), /credential secret inventory/);
 });
 
 test('checks a bounded complete backup captured from the real N2 operator', { skip: !hasBinary && `missing ${binary}` }, async () => {
@@ -452,7 +514,7 @@ function encodeKey(tag, id) { return `${tag.toString(16).padStart(2, '0')}${id.r
 function hex(text) { return Buffer.from(text, 'utf8').toString('hex'); }
 function backupWith(rows) {
   const payload = { format: 'rebase-authorized-observation-1', complete: true, tables: { native_kv: rows } };
-  for (const name of ['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
+  for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime',
     'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) payload.tables[name] = [];
   const backup = { format: 'rebase-backup-1', sha256: '', payload };
   resign(backup);

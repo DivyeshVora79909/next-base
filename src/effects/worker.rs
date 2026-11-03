@@ -168,9 +168,16 @@ impl<B: Binding> Store<B> {
         let target = ws.record(row.target)?.ok_or_else(crate::access::denied)?;
         if scope.tenant != row.tenant
             || !scope.grants.allows(action.source_contract, Action::Create)
-            || !scope.can_write(&target, Action::Update)
+            || !(if row.email_binding.is_some() {
+                scope.accessible.contains(&target.owner)
+            } else {
+                scope.can_write(&target, Action::Update)
+            })
         {
             return Err(crate::access::denied());
+        }
+        if let Some(pin) = &row.email_binding {
+            crate::credentials::grants::validate_pinned::<B>(write, &scope, pin)?;
         }
         Ok(())
     }
@@ -178,7 +185,7 @@ impl<B: Binding> Store<B> {
     pub(crate) fn claim_effect(&self, candidate: &Candidate) -> Result<Option<Claim>> {
         self.claim_effect_at(candidate, None)
     }
-    pub(super) fn claim_effect_at(
+    pub(crate) fn claim_effect_at(
         &self,
         candidate: &Candidate,
         supplied: Option<i64>,
@@ -227,7 +234,9 @@ impl<B: Binding> Store<B> {
             } else {
                 match self.effect_submit_authority(&write, &row) {
                     Ok(()) => {
-                        row.attempts += 1;
+                        if row.email_binding.is_none() {
+                            row.attempts += 1;
+                        }
                         row.lease = Some(new_lease(runtime.activation, Mode::Submit, now)?);
                     }
                     Err(error) if error.code == "forbidden" => {
@@ -266,6 +275,21 @@ impl<B: Binding> Store<B> {
         claim: &Claim,
         supplied: Option<i64>,
     ) -> Result<Option<Claim>> {
+        self.start_effect_admitted_at(claim, supplied, None)
+    }
+    pub(crate) fn start_effect_email(
+        &self,
+        claim: &Claim,
+        policies: &admission::Policies,
+    ) -> Result<Option<Claim>> {
+        self.start_effect_admitted_at(claim, None, Some(policies))
+    }
+    pub(crate) fn start_effect_admitted_at(
+        &self,
+        claim: &Claim,
+        supplied: Option<i64>,
+        policies: Option<&admission::Policies>,
+    ) -> Result<Option<Claim>> {
         let write = self.begin_write().map_err(local::storage)?;
         let now = clock(supplied)?;
         let mut runtime = runtime_write(&write)?;
@@ -296,12 +320,33 @@ impl<B: Binding> Store<B> {
             if now < row.execute_at {
                 return Err(stale());
             }
-            row.started = Some(Start {
+            let start = Start {
                 activation: claim.activation,
                 token: claim.token,
                 at: now,
-                attempt: row.attempts,
-            });
+                attempt: row.attempts + u8::from(row.email_binding.is_some()),
+            };
+            if let Some(pin) = &row.email_binding {
+                let policies = policies
+                    .ok_or_else(|| Error::new("invalid_input", "email rate policy required"))?;
+                match admission::admit(&write, policies, &quota_scope(pin), row.id, &start)? {
+                    admission::Decision::Admitted { added_bytes } => {
+                        runtime.accounted_bytes = runtime
+                            .accounted_bytes
+                            .checked_add(added_bytes)
+                            .ok_or_else(|| local::corrupt("admission bytes"))?;
+                        row.attempts = start.attempt;
+                        row.email_starts.push(start.clone());
+                        row.started = Some(start);
+                    }
+                    admission::Decision::RetryAt(at) => {
+                        row.lease = None;
+                        row.next_at = at.min(row.not_after);
+                    }
+                }
+            } else {
+                row.started = Some(start);
+            }
         }
         row.advance()?;
         replace_execution(&write, &mut runtime, &before, &row, None)?;
@@ -326,6 +371,13 @@ impl<B: Binding> Store<B> {
     }
 
     pub(crate) fn confirm_effect_start(&self, claim: &Claim) -> Result<Execution<B>> {
+        self.confirm_effect_start_at(claim, None)
+    }
+    pub(super) fn confirm_effect_start_at(
+        &self,
+        claim: &Claim,
+        supplied: Option<i64>,
+    ) -> Result<Execution<B>> {
         let read = self.begin_read().map_err(local::storage)?;
         let runtime = runtime_read(&read)?;
         let table = read.open_table(EXECUTIONS).map_err(local::storage)?;
@@ -334,14 +386,42 @@ impl<B: Binding> Store<B> {
             .map_err(local::storage)?
             .ok_or_else(stale)?;
         let row: Execution<B> = local::decode(value.value())?;
-        if !row.matches_claim(&runtime, claim, now_millis()?)
+        let now = clock(supplied)?;
+        if !row.matches_claim(&runtime, claim, now)
             || claim.mode != Mode::Submit
             || row
                 .started
                 .as_ref()
                 .is_none_or(|s| s.token != claim.token || s.activation != claim.activation)
             || row.phase != Phase::Ready
+            || row.email_binding.is_some()
+                && (now >= row.not_after
+                    || row
+                        .started
+                        .as_ref()
+                        .is_none_or(|s| now < s.at || now - s.at > 1000))
         {
+            return Err(stale());
+        }
+        if let Some(pin) = &row.email_binding {
+            admission::confirm(
+                &read,
+                &quota_scope(pin),
+                row.id,
+                row.started.as_ref().ok_or_else(stale)?,
+            )?;
+        }
+        Ok(row)
+    }
+    pub(crate) fn confirm_effect_reconcile(&self, claim: &Claim) -> Result<Execution<B>> {
+        let read = self.begin_read()?;
+        let runtime = runtime_read(&read)?;
+        let table = read.open_table(EXECUTIONS)?;
+        let value = table
+            .get(claim.execution.as_bytes().as_slice())?
+            .ok_or_else(stale)?;
+        let row: Execution<B> = local::decode(value.value())?;
+        if claim.mode != Mode::Reconcile || !row.matches_claim(&runtime, claim, now_millis()?) {
             return Err(stale());
         }
         Ok(row)
@@ -477,6 +557,9 @@ pub(super) fn record_fact<B: Binding>(
     if local::encode(outcome)?.len() > MAX_OUTCOME {
         return Err(Error::new("request_limit", "provider outcome bytes"));
     }
+    if let Some(pin) = &row.email_binding {
+        B::effect_validate_binding(outcome, pin.provider(), pin.account())?;
+    }
     let disposition = B::effect_outcome(&row.request, row.id, outcome)?;
     let digest = outcome_digest::<B>(outcome)?;
     let key = fact_key(row.id, &digest)?;
@@ -537,7 +620,11 @@ pub(super) fn record_fact<B: Binding>(
         match disposition {
             Disposition::Succeeded => {
                 row.phase = Phase::Succeeded;
-                row.application = Application::Pending;
+                row.application = if B::effect_application_required() {
+                    Application::Pending
+                } else {
+                    Application::NotRequired
+                };
                 row.terminal_fact = Some(digest);
                 row.reservation = false;
                 row.quarantined = false;

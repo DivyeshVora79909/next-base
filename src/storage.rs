@@ -14,6 +14,7 @@ pub mod conformance;
 pub mod coordination_checks;
 pub mod credential_checks;
 pub mod diagnostic_checks;
+pub mod email_checks;
 #[cfg(feature = "foundationdb")]
 pub mod foundationdb;
 pub mod lifecycle_checks;

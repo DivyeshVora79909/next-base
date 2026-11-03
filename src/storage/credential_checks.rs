@@ -45,7 +45,7 @@ fn context() -> Context {
         actor: id(2),
     }
 }
-fn fixture_crypto() -> Result<Crypto> {
+pub(crate) fn fixture_crypto() -> Result<Crypto> {
     let path = std::env::temp_dir().join(format!(
         "rebase-public-credential-fixture-{}",
         Uuid::new_v4()
@@ -72,7 +72,7 @@ fn fixture_crypto() -> Result<Crypto> {
     drop(file);
     Crypto::load(&path)
 }
-fn graph() -> Result<Graph> {
+pub(crate) fn graph() -> Result<Graph> {
     let mut graph = Graph::bootstrap(context())?.graph;
     for (number, parent) in [(3, 2), (4, 2), (7, 3)] {
         graph.principals.push(Principal {
@@ -99,7 +99,7 @@ fn graph() -> Result<Graph> {
     }
     Ok(graph)
 }
-fn replace(store: &Store<Services>, graph: Graph) -> Result<()> {
+pub(crate) fn replace(store: &Store<Services>, graph: Graph) -> Result<()> {
     let if_revision = store.access_graph(store.model().identity())?["revision"]
         .as_str()
         .ok_or_else(|| fail("graph revision"))?
@@ -117,7 +117,7 @@ fn setup(db: Database) -> Result<Store<Services>> {
     replace(&store, graph()?)?;
     Ok(store)
 }
-fn record(store: &Store<Services>, id: Uuid) -> Result<ModelRecord<Services>> {
+pub(crate) fn record(store: &Store<Services>, id: Uuid) -> Result<ModelRecord<Services>> {
     let read = store.db.begin_read()?;
     let table = read.open_table(local::KV)?;
     let bytes = table
@@ -134,10 +134,15 @@ fn envelope(
 ) -> Result<crate::credentials::crypto::SecretEnvelope> {
     let read = store.db.begin_read()?;
     let table = read.open_table(local::KV)?;
+    let revision = record(store, id)?
+        .derived
+        .and_then(|state| state.secret_revision)
+        .ok_or_else(|| fail("missing secret revision"))?;
     let bytes = table
-        .get(Key::CredentialSecret(id).encode())?
+        .get(Key::CredentialSecret(id, revision).encode())?
         .ok_or_else(|| fail("missing secret"))?;
-    match native_codec::decode_for::<Services>(&Key::CredentialSecret(id), bytes.value())? {
+    match native_codec::decode_for::<Services>(&Key::CredentialSecret(id, revision), bytes.value())?
+    {
         StoredValue::CredentialSecret(secret) => Ok(secret),
         _ => Err(fail("secret role")),
     }
@@ -156,6 +161,22 @@ fn sealed(
         enabled: true,
         scopes: vec!["email.send".into()],
     };
+    sealed_metadata(
+        store,
+        crypto,
+        (credential, owner, if_version, operation_id),
+        payload,
+        metadata,
+    )
+}
+pub(crate) fn sealed_metadata(
+    store: &Store<Services>,
+    crypto: &Crypto,
+    target: (Uuid, Option<Uuid>, Option<Uuid>, Uuid),
+    payload: &[u8],
+    metadata: Metadata,
+) -> Result<WriteSecret> {
+    let (credential, owner, if_version, operation_id) = target;
     let context = store.operation_context(store.model().identity())?;
     let (read, _, header) = store.read(store.model().identity())?;
     let scope = store.authority(&read)?;
@@ -238,8 +259,9 @@ fn value(
             tenant: record.tenant,
             credential: id,
             secret_revision: revision,
-            provider: record.input.provider,
-            account: record.input.account.clone(),
+            incarnation: state.incarnation,
+            provider: record.input.credential()?.provider,
+            account: record.input.credential()?.account.clone(),
         },
     )?;
     require(
@@ -249,10 +271,31 @@ fn value(
 }
 fn clean_traces(captures: &Captures) -> Result<()> {
     for trace in &capture(captures)?.traces {
-        require(
-            trace.scanned_tables.is_empty(),
-            "credential mutation scanned inventory",
-        )?;
+        for scan in &trace.scans {
+            let allowed = if scan.table == crate::effects::EXECUTIONS.name() {
+                scan.limit <= 64
+            } else if scan.table == local::KV.name() {
+                match (&scan.lower, &scan.upper) {
+                    (
+                        std::ops::Bound::Included(lower) | std::ops::Bound::Excluded(lower),
+                        std::ops::Bound::Included(upper),
+                    ) => {
+                        lower.len() == 25
+                            && upper.len() == 25
+                            && lower[0] == 17
+                            && lower[..17] == upper[..17]
+                            && scan.limit <= 64
+                    }
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            require(
+                allowed,
+                "credential scan is not bounded execution retention or one credential revision range",
+            )?;
+        }
         require(
             trace
                 .reads

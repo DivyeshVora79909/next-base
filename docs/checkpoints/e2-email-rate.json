@@ -1,0 +1,369 @@
+{
+  "checkpoint": "E2 durable EmailSend and scoped R0 charged submissions",
+  "status": "accepted within bounded fake/native scope",
+  "base_commit": "b88645fa7926bdae92fd68afa6ec623e099f49fe",
+  "native_codec": "native-slice-kv-15",
+  "effect_codec": "rebase-effects-5",
+  "credential_secret_format": "rebase-credential-secret-2",
+  "admission_format": "email-rate-admission-1",
+  "services_behavior": "services-email-send-pinned-credential-revisions-2",
+  "source_sha256": {
+    "Cargo.lock": "b1c67427f79bdfbd5d5e50f5e5ea9607291b3014c6a9525177c581f303eb9cc8",
+    "Cargo.toml": "a6443745e30652df59a4220542c9da7c5ab25cdd8beb49372bf8c2acee9446c8",
+    "docs/e2-email.md": "15233e4e28ee7753ccadc5210a0642223808922aeea2ee44a28c244e0d4857a7",
+    "docs/rate-admission.md": "598176e7b8aae9f22f9ba9bf0877ddb212436c8dd5b7796acada6dd563a442de",
+    "examples/g7_application.rs": "11f58a2dc6949058dd4da365835d0824d26d82a4f2c6c3e14d24d794710f727b",
+    "src/access.rs": "d522f442742fc65c05d0120120bbc3eeb9d4f4f5ca14653161037c04cc33256f",
+    "src/binding.rs": "035b0e4503ea54441a37d07abf35ac1d036dc5ac391da9902810f973c8b719cd",
+    "src/causal.rs": "8ab3d56979e30e813192c7194848d97874bb7f6cf677d82224e990a2477447ee",
+    "src/credentials/crypto.rs": "2097a55c800d03f97f54b8bb2d99292a8613b3f96dce67f696eb1981a78aa700",
+    "src/credentials/grants.rs": "de66f14771f78d51824936b69773e622a6c925691f51da5d84b1370b404ffe23",
+    "src/credentials/lifecycle.rs": "3d7dc26907714df84a794b5a89382c01133615eed2bf0440e495b830c93b2991",
+    "src/credentials/store.rs": "211a4873d2daec957d1ea8e4b7ba74332270670cfcb58ead672fea42b2b417f9",
+    "src/effect_tests.rs": "a7bf4800da2f5e76bc3ae22fedcb15322d149d91b5d754686b53986c25381576",
+    "src/effects.rs": "0583d508f27604eb4e2abb4675695e90310d045455890e816fc6684cd6553e23",
+    "src/effects/admission.rs": "e1474bf7ab3d8fbd0533328d398ba6d9c53d9c55a53b4b2611d36e634f26527b",
+    "src/effects/email.rs": "d23cb474be76e79386af871dff102c3445dd3837e09627c8a20f84c86765e91a",
+    "src/effects/email_tests.rs": "bd5c56c328a8d5f6e6ef6a40e18aa7beedb806532047daae860283930825897b",
+    "src/effects/state.rs": "c715d5ef438dfbf1bd1f4cd8756d6c89b1771ac37ea2cdf8d65a54ed78d5386d",
+    "src/effects/worker.rs": "7c2ffe8d4998c89f73b562fdd0e7e38f5aececb7cfcb294e0c8e006209fae6d5",
+    "src/effects/worker_tests.rs": "e569fb371cf52f66e2eec8124a586e37ca251a946b3a62ef4adbda7ebbeb0ff6",
+    "src/email.rs": "74b316d0df445490ccfd8f4d2fd82ec11a207e6728227697f6f251e6298eb003",
+    "src/email_operations.rs": "0a5cabc084bdf8661758bcde37897f43324f29a5dbb862729a5ee4eb0ad25dd1",
+    "src/host.rs": "a1baacfdd0c2f1ce3a8e366b71501f0df9545c73f8950688694cee087d7cf723",
+    "src/integrity.rs": "dfc73b5d8dc7eb969dee55d6e51d0669be073f40b3244366f5e3a7dd2d957de2",
+    "src/lib.rs": "92d48763d5ee3321a00d4ae8b9971f98d9fb02c4f09379a667d82366c93921ae",
+    "src/local.rs": "60622a1747f3147585be54857f5a0653cd07ae2f4a6ff99ac0cda0ee22db8f5d",
+    "src/model.rs": "895c5d98175f25c5d1450be4633e60751e8b0037fa3821cd84b9f288e24e88bb",
+    "src/models/services.rs": "c7c5173b3819d92920d4c72b53339e19c827b3301c5541f90b54bd68336c307d",
+    "src/mutation.rs": "1485db314788a425c8035472a4a3469d6ffda610e85f2f44d357eafd26a67b0a",
+    "src/native_codec.rs": "ac428617f9ae1e688a807f83ac91c3d7f081fc255ce28e2b277bedd62d10218f",
+    "src/rpc.rs": "808b316afc930af90facc4cd1a147860f71a0aa9cdc2392c6e6a867692157e37",
+    "src/security.rs": "a60c558f15d9952f565578a6783d0df7c248c7980fb0cb5b3fdde7ad5d37d280",
+    "src/server.rs": "138822610481246784fb12d6c0336e8a44d6f94c5c5dbd25396d0c70c12e7fb3",
+    "src/storage.rs": "6f52ff985e15758b271e8bff6f31f6f2823062ca19787adbafd09d791258c34d",
+    "src/storage/coordination_checks.rs": "ce1dd17adb4985728b6f4602eff93ce166bae00faad05518e88768e312272e0e",
+    "src/storage/credential_checks.rs": "26f2402383de1b13de08862cb8fdf01dd0c129f772e3ae446516ed1be8496f3e",
+    "src/storage/email_checks.rs": "94f07d8c99a3407afb6ef1b52f1a49807fd828a4f40398c1a69197aa7a1c553e",
+    "tests/equipment_http.rs": "01d19f4aafa5a8b2218644f9936a3ebb9973f4be1ca74614ea4aaf6f294ebf2f",
+    "tests/exact_values.rs": "87e1b526a366af7bc955e147fb7472e0a0165e56fa71d3601bbae2e052c827dd",
+    "tests/issue_share.rs": "b42690dba2c801f58319ebebf6ca6f98269479ac886f86ab95a1a07cdf0829b9",
+    "tests/measurement.rs": "7751feab4df7fb88ede2102e578ec30f4f6079d8c3a5a526a895f8df724667d0",
+    "tests/network_api.rs": "ae89596a6bd73fcad57dfe9e596ae125d0acc0db8bad75bea6d045511feb827c",
+    "tests/storage_lifecycle.rs": "d150a4ce7e76306dd50a1424462efaef06c430ac237005f03d3a0f693f670a75",
+    "tools/node/client.mjs": "a06d6065a77c41bde1782eb2b1a86129ef5d444df3e8a33ba64c393350f41f7f",
+    "tools/node/examples/s0-baseline.mjs": "000df75feacc2aa7a1d41755827b3c768f3e8c68c526601d1dddb8176ef5fff1",
+    "tools/node/fake-email-provider.mjs": "c3ba84c37b3ddb70f1d593a755d9c9920a768cbacbae403c9cadec8f0b63cbaf",
+    "tools/node/index.mjs": "f5413cf2c5576e241113376690c11a8dd5fa6e3051c68d42b8477c8dce64e0c6",
+    "tools/node/native.mjs": "8bb77a06dd8bd51106e24b03a17365ff0fe74f3bc94826f2b2e29d1f8e027a1e",
+    "tools/node/private/config-validation.mjs": "46f0909ccb99f2ea169916cb24b75d7128f42b0a9032a6d0aa4e1227eaf1d017",
+    "tools/node/private/email-plan.mjs": "de4efcd4c6f9384a20a1efdb67be82d971de1c768e4fc9b0eeb8f4e161fca7b0",
+    "tools/node/private/operation-plan.mjs": "3a0208cf411db75c8c000fe664bd008197029cfd388676cc08f3a0f9c1b7c253",
+    "tools/node/release.mjs": "03bd69e9e59b2bf9f7d07054fd04bdde7d38c79ff664292832bbe897bdfea8ae",
+    "tools/node/storage-check.mjs": "4893c27e2599f70c27f23925808993db09a2ee2086f8e755e56b2fd35b1df980",
+    "tools/node/test/access-storage.test.mjs": "3bc8bb3d5ca95a8ff5918005225014fb1d5c1a62c3f93f2f4fe5aa3e1dd0b20b",
+    "tools/node/test/e2-email-native.test.mjs": "318a66c9b192ec9f63a62771861a5db039a2d040c9f7f5b82631050bc36a5ab9",
+    "tools/node/test/email-client.test.mjs": "553df9f39c53a3dd3dc98568f75b94f830f52c61165eac5430296d260ab9b73e",
+    "tools/node/test/fake-email-provider.test.mjs": "cb0a8728d40324e41c52e91bd86f9d59abdb797bdf9b5e9e9db3978e25b23c01",
+    "tools/node/test/index.test.mjs": "7b91897f0a4b29aeae301437d79ec06b48fd3ea16ce2862e2a7fafa1630b0876",
+    "tools/node/test/release.test.mjs": "c7652eee419cac21476f0407c73b8dc40b04e625a1904e28cae8daffe92193b3",
+    "tools/node/test/storage-check.test.mjs": "904537f384c0be7cfce213180ce69cca4beb334eccfbb593fd5cbfd6c3611f3f",
+    "tools/node/test/unique-storage.test.mjs": "bca7f3e338bc99ab1ed783a8d83dbd6cf341f5592b9d5d1fe8594948b983e99d"
+  },
+  "verification": {
+    "rust": {
+      "command": "cargo test --all-targets",
+      "passed": 367,
+      "failed": 0,
+      "ignored": 0,
+      "targets": 40,
+      "log_sha256": "be9199becdffc7b7e5d180f3aa1d7f4017a5e0db476a251fb6b2f1a2b4ffd2ba"
+    },
+    "node": {
+      "command": "node --test tools/node/test/*.test.mjs; REBASE_NODE_N1_BINARY through N6 point to rebuilt default host",
+      "version": "26.12.0",
+      "passed": 214,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "e27bc5419f109f75cd66c605476421ec6d4677e65ab0bde602f90aec5c773b99",
+      "binary_sha256": "8850a34de259f81a09a03624af5032a9ce33ce91217a521e528b2e9c3dd1edbe"
+    },
+    "format": "cargo fmt --all -- --check",
+    "clippy": [
+      {
+        "command": "cargo clippy --all-targets -- -D warnings",
+        "status": "passed",
+        "log_sha256": "a702f0baddaf38cd7acbe27f260d3b691ff4c0fefa88aa5c5d9a2bf02c5fbb5a"
+      },
+      {
+        "command": "cargo clippy --all-targets --features foundationdb -- -D warnings",
+        "status": "passed",
+        "log_sha256": "a142cc6feae6ec18b44082461fd848932f130aab55dfbeb5f7f4925edb042d8e"
+      }
+    ],
+    "adapters": {
+      "foundationdb": {
+        "topology": "one local process and host",
+        "version": "7.3.77",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 20
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 14
+          },
+          "application": {
+            "status": "passed",
+            "cases": 19
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12,
+            "cases_detail": [
+              {
+                "case": "e2-one-account-final-slot",
+                "concurrent": true,
+                "first_original_conflict": true,
+                "known_conflict_original_token_retry": true,
+                "physical_starts": 1
+              },
+              {
+                "case": "e2-independent-provider-start",
+                "concurrent": true,
+                "first_original_conflict": true,
+                "known_conflict_original_token_retry": true,
+                "physical_starts": 2
+              },
+              {
+                "actual_writes": 12,
+                "case": "e2-every-enqueue-write-rollback-and-original-receipt",
+                "rollback_positions": 13,
+                "unknown_ack_recovered_without_grant": true
+              },
+              {
+                "actual_writes": 7,
+                "case": "e2-every-start-and-admission-write-rollback-and-unknown-ack",
+                "physical_starts": 1,
+                "rollback_positions": 8,
+                "unknown_ack": "confirmed_original_charge"
+              },
+              {
+                "case": "e2-accept-principal-epoch",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-explicit-use",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-principal-inactive",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-credential-owner",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-principal-epoch",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-explicit-use",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-principal-inactive",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-credential-owner",
+                "concurrent": true,
+                "original_transaction_conflict": true,
+                "physical_starts": 0
+              }
+            ]
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 24
+          }
+        },
+        "reports": {
+          "g7_coordination": {
+            "sha256": "a81ab5b0723b97f369c8325f1331f30e33d8204b2e340d907422c21676624b25"
+          },
+          "g7_application": {
+            "sha256": "564e8241430620b29d112d80f42abf68924169ae76169f46bced30876928b3c3"
+          }
+        }
+      },
+      "redb": {
+        "topology": "sequential local controls",
+        "version": "4.4.0",
+        "suites": {
+          "coordination": {
+            "status": "passed",
+            "cases": 17
+          },
+          "lifecycle": {
+            "status": "passed",
+            "cases": 10
+          },
+          "application": {
+            "status": "passed",
+            "cases": 13
+          },
+          "credentials": {
+            "status": "passed",
+            "cases": 6
+          },
+          "effects": {
+            "status": "passed",
+            "cases": 27
+          },
+          "email": {
+            "status": "passed",
+            "cases": 12,
+            "cases_detail": [
+              {
+                "case": "e2-one-account-final-slot",
+                "concurrent": false,
+                "first_original_conflict": false,
+                "known_conflict_original_token_retry": false,
+                "physical_starts": 1
+              },
+              {
+                "case": "e2-independent-provider-start",
+                "concurrent": false,
+                "first_original_conflict": false,
+                "known_conflict_original_token_retry": false,
+                "physical_starts": 2
+              },
+              {
+                "actual_writes": 12,
+                "case": "e2-every-enqueue-write-rollback-and-original-receipt",
+                "rollback_positions": 13,
+                "unknown_ack_recovered_without_grant": true
+              },
+              {
+                "actual_writes": 7,
+                "case": "e2-every-start-and-admission-write-rollback-and-unknown-ack",
+                "physical_starts": 1,
+                "rollback_positions": 8,
+                "unknown_ack": "confirmed_original_charge"
+              },
+              {
+                "case": "e2-accept-principal-epoch",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-explicit-use",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-principal-inactive",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-accept-credential-owner",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-principal-epoch",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-explicit-use",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-principal-inactive",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              },
+              {
+                "case": "e2-start-credential-owner",
+                "concurrent": false,
+                "original_transaction_conflict": false,
+                "physical_starts": 0
+              }
+            ]
+          },
+          "predicates": {
+            "status": "passed",
+            "cases": 16
+          }
+        },
+        "reports": {
+          "g7_coordination": {
+            "sha256": "954c7cd3ee1a3588fad4680e99d7e6908874de675f36d8d4bd3e33a0d4ef3cb5"
+          },
+          "g7_application": {
+            "sha256": "7e29908a47df3bb53ea7b5cea5fefee98f44ac3a543e0d5d55cf02ac0f352195"
+          }
+        }
+      }
+    }
+  },
+  "obligations": [
+    "Original receipt recovery before grant validity/expiry; normalized intent hash excludes bearer evidence.",
+    "Source Create plus current explicit Use and final staged credential validation; hidden platform binding needs no Credential Read.",
+    "Exact incarnation and accepted secret revision; label/rotation semantics, deletion guard, shared byte accounting and retained rewrap.",
+    "Both-owner transfers and atomic owner/index/cursor/source/effect/receipt publication; no source population counter.",
+    "Literal rolling point count preserves timestamp multiplicity; exact expiry/regression/bounds; immutable policy and reset protection.",
+    "Committed physical starts only; denial persists wake without consuming attempts; at most three charged submissions.",
+    "Only current-submit NotAccepted permits retry; missing or nonacceptance lookup never permits resend.",
+    "Every actual new enqueue and admission/start write rolled back individually; original unknown ACK recovery and actual FDB full-slot/revocation races.",
+    "Independent fake Resend and Brevo HTTP encoders/journals check exact expected email, key and account; no HTTP client retries.",
+    "Missing keys stop owned work before provider calls; repaired keys reconcile original charged work.",
+    "Backup/restore preserves exact retained ciphertext and quota tables, quarantines delivery, and permits read-only reconciliation.",
+    "Public plan/receipt/status/observation checks exclude test provider plaintext and opaque grants; email status excludes hidden account.",
+    "Original effect-demo, managed lifetime/fanout, owner authorization, native source-derived checks and Node release/provenance checks remain green."
+  ],
+  "limits": [
+    "Local correctness, not live provider behavior, distributed throughput or universal quota guarantees.",
+    "Quota domain is one store; all principals/credential versions sharing an account share admission.",
+    "16 immutable policies, limit1..64, window1..86400000ms, 1000ms dispatch age; 256 retained executions and768 starts.",
+    "Eight-MiB bounded effect budget includes distinct retained envelopes; no retention compactor or policy reset.",
+    "Standalone SurrealKV not rerun in this checkpoint.",
+    "A0-A2, E3, E5 and committed-source release/bootstrap remain required and unaccepted.",
+    "Optional password mode, C5, E4, frontend, live providers and TiKV remain deferred."
+  ]
+}

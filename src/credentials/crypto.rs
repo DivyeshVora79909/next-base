@@ -22,7 +22,7 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 pub const INGRESS_FORMAT: &str = "rebase-secret-ingress-1";
-pub const SECRET_FORMAT: &str = "rebase-credential-secret-1";
+pub const SECRET_FORMAT: &str = "rebase-credential-secret-2";
 pub const GRANT_FORMAT: &str = "rebase-email-use-grant-1";
 pub const INGRESS_INFO: &[u8] = b"next-base/credential-ingress/1";
 const GRANT_AAD: &[u8] = b"next-base/email-use-grant/1";
@@ -118,6 +118,7 @@ pub struct IngressDescriptor {
 pub struct SecretContext {
     pub tenant: Uuid,
     pub credential: Uuid,
+    pub incarnation: Uuid,
     pub secret_revision: u64,
     pub provider: Provider,
     pub account: String,
@@ -126,6 +127,8 @@ pub struct SecretContext {
 #[serde(deny_unknown_fields)]
 pub struct SecretEnvelope {
     pub format: String,
+    #[serde(with = "crate::native_codec::uuid_text")]
+    pub incarnation: Uuid,
     #[serde(with = "crate::native_codec::uuid_text")]
     pub credential: Uuid,
     #[serde(with = "crate::native_codec::decimal")]
@@ -136,7 +139,10 @@ pub struct SecretEnvelope {
 }
 impl SecretEnvelope {
     pub fn validate(&self) -> Result<()> {
-        if self.format != SECRET_FORMAT || self.secret_revision == 0 || !valid_key_id(&self.key_id)
+        if self.format != SECRET_FORMAT
+            || self.incarnation.is_nil()
+            || self.secret_revision == 0
+            || !valid_key_id(&self.key_id)
         {
             return Err(invalid());
         }
@@ -417,6 +423,7 @@ impl Crypto {
         )?;
         Ok(SecretEnvelope {
             format: SECRET_FORMAT.into(),
+            incarnation: context.incarnation,
             credential: context.credential,
             secret_revision: context.secret_revision,
             key_id: self.at_rest.active.clone(),
@@ -434,6 +441,7 @@ impl Crypto {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         envelope.validate()?;
         if envelope.credential != context.credential
+            || envelope.incarnation != context.incarnation
             || envelope.secret_revision != context.secret_revision
         {
             return Err(invalid());
@@ -622,13 +630,14 @@ pub fn ingress_aad(context: &IngressContext, expires_at: i64) -> Result<Vec<u8>>
 }
 fn secret_aad(context: &SecretContext) -> Result<Vec<u8>> {
     validate_account(&context.account)?;
-    if context.secret_revision == 0 {
+    if context.incarnation.is_nil() || context.secret_revision == 0 {
         return Err(invalid());
     }
     serde_json::to_vec(&(
         SECRET_FORMAT,
         context.tenant,
         context.credential,
+        context.incarnation,
         context.secret_revision.to_string(),
         context.provider,
         &context.account,
@@ -686,6 +695,7 @@ mod tests {
         SecretContext {
             tenant: c.tenant,
             credential: c.credential,
+            incarnation: Uuid::from_u128(99),
             secret_revision: 1,
             provider: c.metadata.provider,
             account: c.metadata.account,
@@ -830,18 +840,28 @@ mod tests {
             crypto.open_secret(&a, &c).unwrap().as_bytes(),
             secret().as_bytes()
         );
-        for field in 0..5 {
+        for field in 0..6 {
             let mut changed = c.clone();
             match field {
                 0 => changed.tenant = Uuid::new_v4(),
                 1 => changed.credential = Uuid::new_v4(),
                 2 => changed.secret_revision += 1,
                 3 => changed.provider = Provider::Brevo,
-                _ => changed.account.push('x'),
+                4 => changed.account.push('x'),
+                _ => changed.incarnation = Uuid::new_v4(),
             }
             assert!(crypto.open_secret(&a, &changed).is_err());
         }
-        for field in 0..5 {
+        let mut transplanted_context = c.clone();
+        transplanted_context.incarnation = Uuid::new_v4();
+        let mut transplanted = a.clone();
+        transplanted.incarnation = transplanted_context.incarnation;
+        assert!(
+            crypto
+                .open_secret(&transplanted, &transplanted_context)
+                .is_err()
+        );
+        for field in 0..6 {
             let mut changed = a.clone();
             match field {
                 0 => changed.format.push('!'),
@@ -852,7 +872,8 @@ mod tests {
                     bytes[0] ^= 1;
                     changed.ciphertext = URL_SAFE_NO_PAD.encode(bytes);
                 }
-                _ => changed.secret_revision += 1,
+                4 => changed.secret_revision += 1,
+                _ => changed.incarnation = Uuid::new_v4(),
             }
             assert!(crypto.open_secret(&changed, &c).is_err());
         }

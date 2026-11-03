@@ -1,9 +1,10 @@
 # Server execution: planning reference
 
-E1 credentials and bounded grants are now implemented and verified within the
-[credential checkpoint](checkpoints/e1-credentials.json). E2/R0 follows the
-[concrete email contract](e2-email.md); the remaining services below retain their
-planned status until their acceptance checks pass.
+E1 credentials and bounded grants are accepted in the
+[credential checkpoint](checkpoints/e1-credentials.json). [E2/R0](e2-email.md) now
+accepts durable EmailSend, pinned secret revisions, independent fake Resend/Brevo
+transports and charged submission admission. A0–A2, objects and E5 remain planned
+until their own acceptance checks pass.
 
 This is a design and acceptance map, not implemented provider functionality.
 Read with [external effects](external-effects.md), [architecture](architecture.md),
@@ -14,8 +15,8 @@ Read with [external effects](external-effects.md), [architecture](architecture.m
 | Capability | Current native implementation | Planned boundary |
 | --- | --- | --- |
 | HTTP/runtime | Axum, Tokio, bounded blocking RPC, owned shutdown | Retain admission and recovery guarantees |
-| Provider action | One optional compiled action per model; loopback fake only | One typed logical email operation with independent Resend and Brevo adapters |
-| Credentials | Principal `credential_epoch`; fixed fake account; signed inbox file secret | Typed encrypted provider credential records |
+| Provider action | EmailSend with independent Resend/Brevo fake loopback transports; original effect-demo retained | Private authentication delivery and objects |
+| Credentials | Encrypted owner-scoped records, explicit Use grants and accepted revision retention | Additional typed provider credential profiles |
 | Execution | Transactional intent, receipts, leases, facts, application | Reuse for composed durable jobs |
 | Scheduling | One-shot `execute_at` / `not_after` | Optional recurring occurrence materializer |
 | Objects | No blob API, presigning, finalize, or cleanup | Authorized metadata and private object adapter |

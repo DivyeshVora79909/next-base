@@ -72,6 +72,7 @@ export function validateNativeConfigurationShape(configuration) {
 export function validateServiceConfigurationShape(configuration, label = 'service') {
   const keys = ['listen', 'identity', 'max_inflight', 'request_timeout_seconds', 'effects'];
   if (Object.hasOwn(configuration, 'credentials')) keys.push('credentials');
+  if (Object.hasOwn(configuration, 'email')) keys.push('email');
   assertExactKeys(configuration, new Set(keys), label);
   if (configuration.credentials !== undefined && configuration.credentials !== null) {
     assertExactKeys(configuration.credentials, new Set(['keyring', 'platform']), `${label}.credentials`);
@@ -79,6 +80,20 @@ export function validateServiceConfigurationShape(configuration, label = 'servic
     if (!Array.isArray(configuration.credentials.platform) || configuration.credentials.platform.length > 16) {
       throw new ConfigurationError('requires at most 16 explicit platform bindings', `${label}.credentials.platform`);
     }
+  }
+  if (configuration.email !== undefined && configuration.email !== null) {
+    const email = configuration.email;
+    const fields = ['resend_origin', 'brevo_origin', 'policies'];
+    for (const optional of ['mode', 'probe_directory']) if (Object.hasOwn(email, optional)) fields.push(optional);
+    assertExactKeys(email, new Set(fields), `${label}.email`);
+    if (configuration.effects !== null || !configuration.credentials || !Array.isArray(email.policies) || email.policies.length > 16
+      || (email.mode !== undefined && !['disabled', 'delivery', 'reconcile'].includes(email.mode))) {
+      throw new ConfigurationError('requires exclusive email transport, credentials and bounded policies', `${label}.email`);
+    }
+    for (const field of ['resend_origin', 'brevo_origin']) if (typeof email[field] !== 'string' || !email[field]) {
+      throw new ConfigurationError('requires a fixed fake loopback origin', `${label}.email.${field}`);
+    }
+    if (email.probe_directory !== undefined && email.probe_directory !== null) validateAbsolutePath(email.probe_directory, `${label}.email.probe_directory`);
   }
   if (typeof configuration.listen !== 'string' || !configuration.listen || configuration.listen.includes('\0')) {
     throw new ConfigurationError('must be an explicit socket address', `${label}.listen`);

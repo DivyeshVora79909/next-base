@@ -11,6 +11,7 @@ mod dependency;
 pub mod diagnostics;
 pub mod effects;
 pub mod email;
+pub mod email_operations;
 pub mod fixtures;
 pub mod host;
 pub mod identity;

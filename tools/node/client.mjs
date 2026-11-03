@@ -7,6 +7,8 @@ import {
 import { validateOperationDraft as validateDraft, validateOperationPlan as validatePlan } from './private/operation-plan.mjs';
 import { persistWriteOnce } from './private/plan-files.mjs';
 import { sealCredentialIngress, validateCredentialMetadata } from './credentials.mjs';
+import { prepareModel } from './model.mjs';
+import { emailCommands, emailAuthorizations } from './private/email-plan.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -83,8 +85,56 @@ export function connect({ endpoint: endpointInput, credential, timeoutMs = 20_00
     async execute(plan, { signal } = {}) {
       const stablePlan = parseJson(encodeJson(plan, MAX_PLAN_BYTES));
       validatePlan(stablePlan);
+      if (stablePlan.kind === 'email-enqueue') throw rpcError('invalid_plan', 'Email intent requires enqueueEmail with transient authorizations');
       await verifyCurrentTarget(rpc, endpoint, stablePlan.target, signal);
       return rpc(stablePlan.kind === 'credential-write' ? 'credentials.write_secret' : 'records.mutate', stablePlan.request, { signal });
+    },
+    async prepareEmail(draft, { operationId = randomUUID(), signal } = {}) {
+      const stableDraft = parseJson(encodeJson(draft, MAX_REQUEST_BYTES));
+      validateDraft(stableDraft);
+      if (Object.hasOwn(stableDraft, 'fixture')) throw rpcError('invalid_plan', 'Email plans cannot contain fixture metadata');
+      const commands = emailCommands(stableDraft.commands);
+      validateUuid(operationId, 'operationId');
+      const session = await rpc('session.describe', {}, { signal });
+      validateSession(session);
+      if (session.model !== stableDraft.model) throw rpcError('model_mismatch', 'Draft and server model differ');
+      const catalog = await rpc('model.describe', {}, { signal });
+      if (catalog.model !== session.model) throw rpcError('model_mismatch', 'Catalog and server model differ');
+      const model = prepareModel(catalog, { selector: 'services' });
+      for (const command of commands) {
+        if (command.op === 'create' && !model.validate(command.contract, command.fields).valid) {
+          throw rpcError('invalid_plan', 'Email enqueue input does not satisfy the prepared catalog');
+        }
+      }
+      const plan = { format: PLAN_FORMAT, kind: 'email-enqueue',
+        target: { url: endpoint.href, model: session.model, store: session.store, tenant: session.tenant,
+          actor: session.actor, credential_epoch: session.credential_epoch },
+        request: { model: session.model, context: session.operation_context, operation_id: operationId,
+          commands, returning: stableDraft.returning } };
+      const detached = parseJson(encodeJson(plan, MAX_PLAN_BYTES));
+      validatePlan(detached);
+      return deepFreeze(detached);
+    },
+    async enqueueEmail(plan, authorizations, { signal } = {}) {
+      const stablePlan = parseJson(encodeJson(plan, MAX_PLAN_BYTES));
+      validatePlan(stablePlan);
+      if (stablePlan.kind !== 'email-enqueue') throw rpcError('invalid_plan', 'A typed email enqueue plan is required');
+      const evidence = emailAuthorizations(stablePlan.request.commands, authorizations);
+      // Detach and check the FINAL envelope before waiting on session/token work.
+      const params = { ...stablePlan.request, authorizations: evidence };
+      encodeJson({ jsonrpc: '2.0', id: randomUUID(), method: 'email.enqueue', params });
+      await verifyCurrentTarget(rpc, endpoint, stablePlan.target, signal);
+      try { return await rpc('email.enqueue', params, { signal }); }
+      catch (error) {
+        // A transport cause or remote error message can echo bearer evidence.
+        const known = new Set(['outcome_unknown', 'invalid_input', 'invalid_grant', 'forbidden', 'unauthenticated',
+          'busy', 'redirect_rejected', 'operation_conflict', 'operation_expired', 'already_exists', 'stale_version',
+          'unavailable_reference', 'invariant', 'work_limit', 'state_limit', 'request_limit', 'wrong_target',
+          'model_mismatch', 'transaction_conflict', 'transaction_aborted', 'transaction_limit']);
+        throw rpcError(known.has(error?.code) ? error.code : 'outcome_unknown',
+          'Email enqueue failed; retain the original plan and recover its operation status',
+          Number.isInteger(error?.httpStatus) ? { httpStatus: error.httpStatus } : {});
+      }
     },
     async status(plan, { signal } = {}) {
       const stablePlan = parseJson(encodeJson(plan, MAX_PLAN_BYTES));

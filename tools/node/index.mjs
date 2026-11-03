@@ -15,6 +15,7 @@ export { checkBackupStructure } from './storage-check.mjs';
 export { openFdbEnvironment } from './infra.mjs';
 export { observeResources, checkResources } from './observe.mjs';
 export { startFakeProvider } from './fake-provider.mjs';
+export { startFakeEmailProvider } from './fake-email-provider.mjs';
 export {
   stageSources, evaluateSources, sourceOracle, checkSourceSnapshot, checkSourceBackup,
 } from './oracles.mjs';

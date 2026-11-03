@@ -615,7 +615,10 @@ impl<B: Binding> Prepared<B> {
                 || source.visibility != Visibility::Public
                 || target.visibility != Visibility::Public
                 || source.fields.iter().any(|f| f.mutable)
-                || action.application_fields.is_empty()
+                || (action.application_fields.is_empty() == B::effect_application_required())
+                || (B::effect_source_anchor()
+                    && (action.source_contract != action.target_contract
+                        || action.reference_slot != 0))
                 || action
                     .application_fields
                     .iter()
@@ -626,11 +629,12 @@ impl<B: Binding> Prepared<B> {
                     .application_fields
                     .iter()
                     .any(|name| !target.fields.iter().any(|f| f.name == *name && f.mutable))
-                || !source.references.iter().any(|r| {
-                    r.slot == action.reference_slot
-                        && !r.optional
-                        && r.targets == [action.target_contract]
-                })
+                || (!B::effect_source_anchor()
+                    && !source.references.iter().any(|r| {
+                        r.slot == action.reference_slot
+                            && !r.optional
+                            && r.targets == [action.target_contract]
+                    }))
             {
                 return Err(model_error("invalid immutable effect action declaration"));
             }
@@ -850,6 +854,7 @@ fn model_capabilities<B: Binding>() -> Value {
             "credentials.ingress_key",
             "credentials.write_secret",
             "email.authorize",
+            "email.enqueue",
         ]);
     }
     let mut catalog = json!({"methods":methods,
@@ -874,6 +879,7 @@ fn model_capabilities<B: Binding>() -> Value {
         catalog["effects"] = crate::effects::capabilities::<B>(&action);
     }
     if B::credential_enabled() {
+        catalog["email"] = crate::email_operations::capabilities();
         catalog["credentials"] = json!({
             "contract":crate::models::services::CREDENTIAL,
             "metadata_schema":crate::credentials::crypto::Metadata::schema(),

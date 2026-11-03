@@ -126,7 +126,7 @@ function edit(rows, type, fn) {
 function rewrite(bytes, fn) { const backup = JSON.parse(bytes); return seal(fn(backup.payload.tables.native_kv)); }
 function seal(rows) {
   const tables = { native_kv: rows };
-  for (const name of ['effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime', 'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) tables[name] = [];
+  for (const name of ['email_rate_scopes', 'email_rate_starts', 'email_rate_points', 'effect_due', 'effect_executions', 'effect_facts', 'effect_inbox', 'effect_runtime', 'local_runtime', 'operations', 'public_records', 'query_epochs', 'receipt_slots']) tables[name] = [];
   const payload = { format: 'rebase-authorized-observation-1', complete: true, tables };
   return JSON.stringify({ format: 'rebase-backup-1', sha256: createHash('sha256').update(canonical(payload)).digest('hex'), payload });
 }

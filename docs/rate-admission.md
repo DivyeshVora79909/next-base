@@ -1,9 +1,9 @@
 # Rate admission and interval counting
 
-This is a planning contract for a shared email/provider quota. Native ordered
-counts and the complete-prefix algebra provide useful ingredients; a generic rate
-limiter, automatic quota participations and an upper-bound admission hook are
-planned integration, not current provider capabilities.
+[E2/R0](e2-email.md) now implements and verifies the selected bounded point-count
+email submission quota in one store transaction domain. The mathematics below
+also describes alternatives; automatic endpoint participations, mutable policies
+and a generic limiter remain planning work, not accepted provider capabilities.
 
 ## Meaning and time
 
