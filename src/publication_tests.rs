@@ -364,7 +364,6 @@ fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
     let mut result = BTreeSet::new();
     if let Some(input) = input {
         for (parent, _, slot) in input.references() {
-            result.insert((Key::Incoming(parent), Address::new(id, slot)));
             if matches!(input, Input::Copy { .. }) && slot == 1
                 || matches!(input, Input::Join { .. })
             {

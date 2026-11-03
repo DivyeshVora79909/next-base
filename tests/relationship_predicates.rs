@@ -4,10 +4,8 @@ use rebase_semantic_proof::{
     indexes::standard::Standard,
     local::{Mutation, Store},
     model::{self, Contract, InputField, Prepared, Reference, Visibility},
-    native_codec::{self, Address, Key, StoredValue},
+    native_codec::{self, Key, StoredValue},
     native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
-    routes,
-    time_range::TimeRange,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -119,46 +117,14 @@ impl Binding for Schedule {
         Value::Null
     }
     fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
-        ws: &mut Attempt<L, Self>,
+        _ws: &mut Attempt<L, Self>,
         _: &Prepared<Self>,
         _: Context,
-        changes: &[ModelChange<Self>],
+        _changes: &[ModelChange<Self>],
         _: &mut Population,
         _: Uuid,
         _: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
-        // Native bindings maintain reverse references during settlement. These
-        // routes are engine inputs; the oracle below independently scans sources.
-        for change in changes {
-            let before = change
-                .old
-                .as_ref()
-                .and_then(|r| (r.input.kind == 21).then_some(r.input.parent).flatten());
-            let after = change
-                .new
-                .as_ref()
-                .and_then(|r| (r.input.kind == 21).then_some(r.input.parent).flatten());
-            if before != after {
-                if let Some(parent) = before {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(parent),
-                        Address::new(change.id, 1),
-                        TimeRange::ALL,
-                        false,
-                    )?;
-                }
-                if let Some(parent) = after {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(parent),
-                        Address::new(change.id, 1),
-                        TimeRange::ALL,
-                        true,
-                    )?;
-                }
-            }
-        }
         Ok(())
     }
     fn check(store: &Store<Self>) -> Result<Value> {

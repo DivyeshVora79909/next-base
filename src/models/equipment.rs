@@ -15,7 +15,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Equipment;
@@ -293,15 +293,6 @@ fn declarations() -> Result<Vec<Contract>> {
     }
     Ok(contracts)
 }
-fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
-    let mut set = BTreeSet::new();
-    if let Some(input) = input {
-        for (target, _, slot) in input.references() {
-            set.insert((Key::Incoming(target), Address::new(id, slot)));
-        }
-    }
-    set
-}
 fn delivery(input: Option<&Input>) -> Option<(Address, TimeKey, Leaf)> {
     match input {
         Some(Input::Delivery { pool, at, quantity }) => Some((
@@ -346,14 +337,6 @@ impl Binding for Equipment {
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
         for change in changes {
-            let old = registrations(change.id, change.old.as_ref().map(|r| &r.input));
-            let new = registrations(change.id, change.new.as_ref().map(|r| &r.input));
-            for (k, a) in old.difference(&new) {
-                crate::routes::change(ws, k, *a, crate::time_range::TimeRange::ALL, false)?
-            }
-            for (k, a) in new.difference(&old) {
-                crate::routes::change(ws, k, *a, crate::time_range::TimeRange::ALL, true)?
-            }
             crate::mutation::reconcile_member(
                 ws,
                 Address::new(change.id, 17),

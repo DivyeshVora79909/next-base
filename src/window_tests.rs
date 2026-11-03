@@ -16,7 +16,6 @@ use crate::{
     native_slice::{
         Attempt, Context, Error, Model, ModelChange, ModelRecord, Population, Query, Result,
     },
-    routes,
     time_range::{TimeBound, TimeRange},
 };
 use serde::{Deserialize, Serialize};
@@ -299,13 +298,6 @@ fn declarations() -> Vec<Contract> {
     });
     vec![root, entry, reader, output]
 }
-fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
-    input
-        .into_iter()
-        .flat_map(NativeInput::references)
-        .map(|(target, _, slot)| (Key::Incoming(target), Address::new(id, slot)))
-        .collect()
-}
 fn entry_member(input: Option<&Input>) -> Option<(Address, TimeKey, Leaf)> {
     match input {
         Some(Input::Entry { root, at, amount }) => Some((
@@ -350,14 +342,6 @@ impl Binding for WindowModel {
         allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
         for change in changes {
-            let old = registrations(change.id, change.old.as_ref().map(|r| &r.input));
-            let new = registrations(change.id, change.new.as_ref().map(|r| &r.input));
-            for (key, address) in old.difference(&new) {
-                routes::change(ws, key, *address, TimeRange::ALL, false)?;
-            }
-            for (key, address) in new.difference(&old) {
-                routes::change(ws, key, *address, TimeRange::ALL, true)?;
-            }
             crate::mutation::reconcile_member(
                 ws,
                 Address::new(change.id, 17),

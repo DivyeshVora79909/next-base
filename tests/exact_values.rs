@@ -13,9 +13,7 @@ use rebase_semantic_proof::{
     mutation::reconcile_member,
     native_codec::{Address, Key, StoredValue, decimal, uuid_text},
     native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
-    routes,
     server::{self, ServerConfig},
-    time_range::TimeRange,
     values::{Rational, Rounding},
 };
 use serde::{Deserialize, Serialize};
@@ -216,23 +214,6 @@ impl Binding for ExactEntries {
         _allocate: &mut dyn FnMut() -> Result<Uuid>,
     ) -> Result<()> {
         for change in changes {
-            let registrations = |record: Option<
-                &rebase_semantic_proof::native_slice::ModelRecord<Self>,
-            >| {
-                record
-                    .into_iter()
-                    .flat_map(|r| r.input.references())
-                    .map(|(target, _, slot)| (Key::Incoming(target), Address::new(change.id, slot)))
-                    .collect::<std::collections::BTreeSet<_>>()
-            };
-            let before = registrations(change.old.as_ref());
-            let after = registrations(change.new.as_ref());
-            for (key, address) in before.difference(&after) {
-                routes::change(ws, key, *address, TimeRange::ALL, false)?;
-            }
-            for (key, address) in after.difference(&before) {
-                routes::change(ws, key, *address, TimeRange::ALL, true)?;
-            }
             let member = |record: Option<
                 &rebase_semantic_proof::native_slice::ModelRecord<Self>,
             >|

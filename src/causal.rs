@@ -350,12 +350,6 @@ fn subscriptions<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 fn impact(roots: &mut BTreeMap<Address, BTreeSet<i64>>, root: Address, at: i64) {
     roots.entry(root).or_default().insert(at);
 }
-fn incoming<B: Binding>(id: Uuid, r: Option<&ModelRecord<B>>) -> BTreeSet<(Key, Address)> {
-    r.into_iter()
-        .flat_map(|r| r.input.references())
-        .map(|(target, _, slot)| (Key::Incoming(target), Address::new(id, slot)))
-        .collect()
-}
 fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     model: &Prepared<B>,
@@ -381,14 +375,12 @@ fn write_output<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
             .checked_add(1)
             .ok_or_else(|| Error::new("state_limit", "output count"))?;
     }
-    let before = incoming(id, old);
-    let after = incoming(id, new.as_ref());
-    for (k, a) in before.difference(&after) {
-        routes::change(ws, k, *a, TimeRange::ALL, false)?;
-    }
-    for (k, a) in after.difference(&before) {
-        routes::change(ws, k, *a, TimeRange::ALL, true)?;
-    }
+    crate::mutation::reconcile_incoming(
+        ws,
+        id,
+        old.map(|r| &r.input),
+        new.as_ref().map(|r| &r.input),
+    )?;
     if new.is_none() {
         if routes::header(ws, Route::Incoming(id), false)?.is_some_and(|h| !h.is_empty()) {
             return Err(Error::new(

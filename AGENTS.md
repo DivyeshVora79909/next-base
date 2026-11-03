@@ -33,6 +33,8 @@ do not load every historical paper or duplicate these instructions into memories
 3. Delegate disjoint files when it reduces total work; include context, retries and
    integration cost. One owner builds Cargo and one owner integrates Git.
 4. Run checks for changed obligations. A skipped prerequisite or mock is not acceptance.
+   For broad native edits, prefer type/lint checks before expensive test codegen
+   so integration errors fail early; keep one owner for Cargo.
 5. Record results, limits and the next dependency in CONTEXT.md. Commit verified
    checkpoints and push to verified destinations. Continue authorized checkpoints
    without requiring repeated "continue" prompts.

@@ -56,6 +56,11 @@ and model identity; public/developer catalogs are projections of this authority.
 [`binding.rs`](../src/binding.rs) supplies compiled native semantics. Keep new query,
 population and authorization declarations attached to that catalog rather than parallel schemas.
 Typed references have stable slots, target types, optionality and dependency/reader roles.
+The engine automatically maintains Incoming reverse indexes for ordinary source
+mutations and causal managed-output transitions, including late ordinary settlement
+edits. Bindings retain their Direct/Subscribers invalidation policies; they must not
+duplicate Incoming maintenance. Independent checking derives the expected routes
+from complete source references rather than calling the writer helper.
 Implemented model deletion declarations use `reject`; generic cascade/nullify are not supplied.
 Incoming references and subscribers guard deletion and must be repaired in the same final graph.
 1:n uses a child-to-parent reference, with an ordered membership only when a query needs it.

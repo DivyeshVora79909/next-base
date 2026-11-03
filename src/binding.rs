@@ -21,6 +21,8 @@ pub trait NativeInput:
     fn contract(&self) -> u16;
     fn validate(&self) -> Result<()>;
     fn bind(code: u16, fields: Value) -> Result<Self>;
+    /// Actual bound (target, native type hint, stable slot) references. The engine
+    /// validates catalog targets and derives Incoming routes from these facts.
     fn references(&self) -> Vec<(Uuid, u16, u16)>;
     fn managed(&self) -> Option<(Uuid, u16)> {
         None
@@ -58,6 +60,10 @@ pub trait Binding: Copy + Clone + Debug + Eq + Send + Sync + 'static {
     ) -> Result<()> {
         Ok(())
     }
+    /// Maintain authored memberships and explicit Direct/Subscribers policies.
+    /// The engine derives Incoming routes from NativeInput::references before
+    /// settlement and reconciles ordinary final edits afterward. Managed output
+    /// lifecycle belongs to the causal writer, not arbitrary binding mutations.
     fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
         ws: &mut Attempt<L, Self>,
         model: &Prepared<Self>,

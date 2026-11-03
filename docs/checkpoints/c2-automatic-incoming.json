@@ -1,0 +1,165 @@
+{
+  "format": "next-base-automatic-incoming-1",
+  "checkpoint": "C2.A",
+  "status": "accepted bounded engine-owned typed-reference Incoming indexes",
+  "parentCommit": "48f293210e6361bb12ba5bfb9b083454023ebe44",
+  "inputs": [
+    {
+      "path": "src/binding.rs",
+      "sha256": "6dc2e5050ba5f643daea2d55759064545ffb56a33ce98f17e8a114ad05e696eb"
+    },
+    {
+      "path": "src/causal.rs",
+      "sha256": "55814d7ab682e37591a7d3bad2b005a75d872909b991181ab2a32ecf5c174719"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "713c6bcc002a48a1d5b4de2651c40a62e746fcabb568dbbea578f74f14953fd8"
+    },
+    {
+      "path": "src/models/effect_demo.rs",
+      "sha256": "7cb7b3cd65ac81698728ac5b3bbc53b554d8651af2e7bbaefd7e443ad5179689"
+    },
+    {
+      "path": "src/models/equipment.rs",
+      "sha256": "64c02e390490a6259fd990c14ebd6c1437cf49c501416eef6c5979e6fd365077"
+    },
+    {
+      "path": "src/models/invoicing.rs",
+      "sha256": "a4d6fb175bcdb132516fa8312c0ffce7cc1f5501e36cf642b2f9e15edfc0d8a1"
+    },
+    {
+      "path": "src/models/measurement.rs",
+      "sha256": "97ee520d3ba7ea5e76c73f3826878e8f473702f09bc26805cb839191e723137d"
+    },
+    {
+      "path": "src/models/quantity.rs",
+      "sha256": "a47511d158b8e7eb5a44a49ae67fdd8b0a574e5c51c25e48cfe917cdcecd523b"
+    },
+    {
+      "path": "src/mutation.rs",
+      "sha256": "c52e7d307fc0c88822549bf59a1a9c0468cd237925bae97354bdff1008a9a6a8"
+    },
+    {
+      "path": "src/native_slice.rs",
+      "sha256": "17dde97923412a0412521f8c64211ef73b71faae5f025f1f44b546b3b2f46100"
+    },
+    {
+      "path": "src/parameter_tests.rs",
+      "sha256": "3384e7680ea03e811dc34654f6f815b42af6d3aede2baf81ead8ab42371b6dfe"
+    },
+    {
+      "path": "src/publication_tests.rs",
+      "sha256": "d2b2766be9d2feb428eb00628d5c23b8def515bf78d1cc3fb467286d240753b4"
+    },
+    {
+      "path": "src/reference_tests.rs",
+      "sha256": "a1877923a6466c9fdc228869541faf81babe35f208e5564971291e154a9b0218"
+    },
+    {
+      "path": "src/relationships.rs",
+      "sha256": "c02ca038268fa79baa66855d9b13b15ae8208bcb519b253662e8360fdba183fe"
+    },
+    {
+      "path": "src/storage/coordination_checks.rs",
+      "sha256": "8f565cb009de27f5d7ea2a100f26149dc1edbf3105f018a5521450aa9c36ff34"
+    },
+    {
+      "path": "src/uniqueness.rs",
+      "sha256": "f0c0e457c6029c8854724fb18854984046a4a8f7c5f3315e156f4d9ffbe94945"
+    },
+    {
+      "path": "src/window_tests.rs",
+      "sha256": "ce84fde170b6f9ea5acf50004568eead5b9d3b3861d3f9be4d79b6406923485b"
+    },
+    {
+      "path": "tests/exact_values.rs",
+      "sha256": "2245c022ecb37e323a537a421d40e0b93c7b0c95512242dc9fdd96c3e44a78d1"
+    },
+    {
+      "path": "tests/relationship_predicates.rs",
+      "sha256": "259b6bcb9c08c8de2d0e5cbe7cd537162cc5413e738e3d53c5aa65c6344c2421"
+    }
+  ],
+  "semantics": {
+    "authority": "NativeInput.references plus actual prepared catalog target types/tenant; raw hints nonbinding",
+    "writer": "one strict reconcile_incoming helper used for ordinary commands before model settlement and causal managed output transitions",
+    "lateRepair": "ordinary source edits made by settlement compare with proposed command state or per-call entry graph; explicit and entry IDs remain candidates for restored no-ops",
+    "composition": "reusing one Attempt across settlements preserves Incoming and unique claims using explicit per-call entry baselines; each call validates its bounded graph",
+    "limits": "raw ordinary deletion outside command lifecycle explicitly rejected; ordinary creation/managed writes require shared lifecycle",
+    "preserved": "Direct and Subscribers policies, independent source-derived route inventories, reserved identities, checked capacity accounting, receipts and current authority",
+    "identity": "reference policy v2-engine-incoming joins prepared identity; physical codec stays kv-10"
+  },
+  "checks": {
+    "defaultRust": {
+      "passed": 284,
+      "failed": 0,
+      "ignored": 0,
+      "allTargets": true,
+      "includesExampleTests": true,
+      "logSha256": "b972f075a30e54b3e07741b14e623287408104a1d3caf114cde856380d7d2146"
+    },
+    "focusedAfterLintStyle": {
+      "target": "parameter_tests",
+      "passed": 7,
+      "logSha256": "1dc8d8039327c43b382a5d7d2ec95001ac159bf9224cbf0525f147e38453c4c3"
+    },
+    "node": {
+      "passed": 171,
+      "failed": 0,
+      "skipped": 0,
+      "nativeIntegrationEnabled": true,
+      "version": "24.22.1",
+      "logSha256": "bbbf1c87157eed4aa37a28542ce6566a58cae350958fa3c9e3dd37f184149ab6"
+    },
+    "clippy": {
+      "defaultAllTargets": true,
+      "foundationdbTargets": [
+        "g7_coordination",
+        "relationship_predicates"
+      ],
+      "warningsDenied": true,
+      "defaultLogSha256": "c5f8d4cb44574385ebfd549cfe59c7cbe8f1baf44711a634be017efde2ae93b2",
+      "foundationdbLogSha256": "c2a3f7bc0af98abac82c0e75a6cf0e676cc1edf248e9bb091866551a8b1430dd"
+    },
+    "foundationdb": {
+      "topology": "one FoundationDB 7.3.77 process on one local host; not multi-host performance evidence",
+      "coordinationCases": 15,
+      "lifecycleCases": 14,
+      "resultLogSha256": "d9bbfef0fa03212b857d579fb11ebf233e9e92b9140e96cfb9288cbea1eff454",
+      "parentChildPrimitive": {
+        "passed": 1,
+        "commitOrders": 2,
+        "scope": "shared mutation/rule primitive with Store-seeded source graph; no query epoch, receipt or Population coordination writes",
+        "logSha256": "da6265a5b0cc5ea8303317f02de8fa6001edcba7d791bc312fcc2c4d9208b17c"
+      }
+    },
+    "redb": {
+      "topology": "local redb; sequential writer controls",
+      "coordinationCases": 12,
+      "lifecycleCases": 10,
+      "logSha256": "3fcc98f0e54dd81e534679977422f0538d57d2336ecbb7638a69054f0242f056"
+    },
+    "format": "cargo fmt --all; git diff --check"
+  },
+  "witnesses": [
+    "binding with zero Incoming code: all six creation/deletion permutations, reopen and exact Snapshot.finish inventory",
+    "optional/polymorphic references, duplicate identical pairs, distinct slots, cycles, catalog type/tenant rejection and dangling-delete rollback",
+    "settlement-only ordinary retarget and explicit proposed source restored to database original",
+    "two settlements in one Attempt with a noncommand retarget back to the prior source graph; one publication and independent finish",
+    "two settlements restore original unique tuple and record; staged temporary claim removed and original claim restored",
+    "corrupt missing/extra/stale Incoming route inventories independently rejected",
+    "raw noncommand ordinary deletion rejects with exact full-state rollback",
+    "existing managed-output zero/retire/recreate and S0 chunked setup regressions pass",
+    "actual adapter coordination/lifecycle campaigns and parent-child read/write skew"
+  ],
+  "validationOrderNote": "After the full regression and Node runs, the existing G7 fixture ancestry alone was corrected for C2.R owner-inclusive readers. Final all-target/default and FoundationDB Clippy plus actual redb/FoundationDB campaigns verify that fixture without weakening its access/cursor assertions.",
+  "limits": [
+    "one local host per adapter campaign; FoundationDB 7.3.77 single-process controls are not multi-host performance proof",
+    "redb serializes writers; its campaign uses sequential controls",
+    "reference automation does not infer model-specific Direct invalidation or query subscription semantics",
+    "arbitrary raw Binding workspace writes are not a replacement for shared creation/deletion/managed lifecycles",
+    "C3 capacity accounting/global population coordination and access/order streams remain deferred to their own gates",
+    "SurrealKV-specific campaign was not rerun"
+  ]
+}

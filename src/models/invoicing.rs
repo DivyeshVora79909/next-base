@@ -722,7 +722,6 @@ fn registrations(
     if let Some(input) = input {
         let contract = model.contract(input.contract())?;
         for (target, _, slot) in input.references() {
-            registrations.insert((Key::Incoming(target), Address::new(id, slot)));
             if contract.uses_direct(slot) {
                 registrations.insert((Key::Direct(target), Address::new(id, slot)));
             }

@@ -95,6 +95,10 @@ Own-input/immediate-parent predicates and parent-edit revalidation are accepted
 as C2.P: see [semantics](relationships.md#pure-parentchild-rules) and
 [evidence](checkpoints/c2-relationship-predicates.json). Broader global or reverse
 cardinality rules are not inferred. Preserve the following full C2 obligations.
+Engine-owned Incoming bookkeeping is accepted as C2.A: see
+[evidence](checkpoints/c2-automatic-incoming.json). Binding authoring requires typed
+references, without a second manual Incoming implementation. Direct/Subscribers
+policies remain separate. C3 accounting is the next bounded prerequisite.
 
 Expose one prepared schema/reference catalog with explicit reader and deletion semantics.
 Keep implemented reject behavior distinct from any newly supported deletion policy.

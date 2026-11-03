@@ -309,11 +309,7 @@ fn member(input: Option<&Input>) -> Option<(Address, TimeKey, Observation)> {
     }
 }
 fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
-    let mut registrations: BTreeSet<_> = input
-        .into_iter()
-        .flat_map(NativeInput::references)
-        .map(|(target, _, slot)| (Key::Incoming(target), Address::new(id, slot)))
-        .collect();
+    let mut registrations = BTreeSet::new();
     if let Some(
         Input::ObservationReport { instrument, .. } | Input::LatestObservation { instrument, .. },
     ) = input

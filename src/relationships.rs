@@ -258,9 +258,8 @@ mod tests {
         local::{KV, Mutation, Store},
         model::Contract,
         models::quantity::{Input, JOIN, Quantity, SOURCE},
-        native_codec::{self, Address},
+        native_codec::{self},
         native_slice::{Context, Model, ModelChange, Population},
-        time_range::TimeRange,
     };
     use serde_json::json;
     use std::{collections::BTreeMap, sync::Arc};
@@ -318,44 +317,14 @@ mod tests {
             Ok(())
         }
         fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
-            ws: &mut Attempt<L, Self>,
+            _ws: &mut Attempt<L, Self>,
             _: &Prepared<Self>,
             _: Context,
-            changes: &[ModelChange<Self>],
+            _changes: &[ModelChange<Self>],
             _: &mut Population,
             _: Uuid,
             _: &mut dyn FnMut() -> Result<Uuid>,
         ) -> Result<()> {
-            for change in changes {
-                let old: BTreeSet<_> = change
-                    .old
-                    .iter()
-                    .flat_map(|r| r.input.references())
-                    .collect();
-                let new: BTreeSet<_> = change
-                    .new
-                    .iter()
-                    .flat_map(|r| r.input.references())
-                    .collect();
-                for (target, _, slot) in old.difference(&new) {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(*target),
-                        Address::new(change.id, *slot),
-                        TimeRange::ALL,
-                        false,
-                    )?;
-                }
-                for (target, _, slot) in new.difference(&old) {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(*target),
-                        Address::new(change.id, *slot),
-                        TimeRange::ALL,
-                        true,
-                    )?;
-                }
-            }
             Ok(())
         }
         fn check(store: &Store<Self>) -> Result<Value> {

@@ -1,5 +1,32 @@
 # Current checkpoint
 
+## C2.A — Engine-owned reverse-reference indexes
+
+The shared mutation path derives Incoming indexes directly from typed references;
+bindings no longer implement that bookkeeping. Stage ordinary commands after all
+source headers/typed checks and before settlement. The causal managed-output
+writer uses the same strict helper at its existing header lifecycle transitions.
+The late ordinary pass includes both changed records and explicit IDs, using the
+proposed command or current call's entry state as baseline; this undoes staged
+routes even if settlement restores a source to its original value. Repeated
+settlement calls in one Attempt preserve both routes and unique claims, including
+restored-source no-ops. Settlement-only ordinary edits also work.
+
+Direct and ranged Subscribers policies are preserved. Independent Snapshot route
+inventories remain source-derived. Native hints do not override catalog types;
+duplicate identical target/slot pairs collapse, distinct slots stay separate.
+Traversal/sorting inputs and late candidates consume work budget. Ordinary raw
+creation without shared lifecycle and raw managed writes remain unsupported;
+noncommand ordinary deletion is explicitly rejected before publication.
+Reference-policy identity changes; physical codec stays kv-10. See
+docs/checkpoints/c2-automatic-incoming.json and docs/relationships.md.
+
+Next: the C3 accounting prerequisite. Limits-derived immutable tracked/untracked
+capacity accounting must remove uncapped Population writes without fake/stale
+totals, preserve bounded caps/identity reservations and required query epochs,
+derive inventory/reopen totals from source, and prove real FoundationDB concurrency.
+Then implement the explicitly declared access/order streams and non-time cuts.
+
 ## C2.P — Declared parent projections and final-graph rules
 
 `Reference.validation_fields` selects authored parent inputs for the pure ordinary
@@ -20,9 +47,8 @@ Codec stays kv-10; changed prepared identities require explicit recreation.
 See docs/relationships.md and docs/checkpoints/c2-relationship-predicates.json.
 Rules must be pure, deterministic and bounded native code; there is no untrusted
 code sandbox, arbitrary global solver or inferred reverse cardinality constraint.
-Bindings currently maintain final Incoming routes from their source references;
-the next review checks this remaining authoring responsibility before C3 accounting.
-C3 retains its separate source-derived totals/concurrency acceptance contract.
+C2.A subsequently moves Incoming bookkeeping into the shared engine. C3 retains
+its separate source-derived totals/concurrency acceptance contract.
 
 ## C2.U — Protected catalog reference tuple uniqueness
 

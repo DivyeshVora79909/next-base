@@ -5,12 +5,12 @@ use crate::{
     indexes::standard::Standard,
     local::Store,
     model::{self, Contract, InputField, Prepared, Reference, Visibility},
-    native_codec::{Address, Key, decimal, optional_decimal, uuid_text},
+    native_codec::{decimal, optional_decimal, uuid_text},
     native_slice::{Attempt, Context, Error, Model, ModelChange, Population, Result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,13 +95,6 @@ impl NativeInput for Input {
         }
     }
 }
-fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
-    input
-        .into_iter()
-        .flat_map(NativeInput::references)
-        .map(|(target, _, slot)| (Key::Incoming(target), Address::new(id, slot)))
-        .collect()
-}
 impl Binding for EffectDemo {
     type Input = Input;
     type Derived = ();
@@ -153,7 +146,7 @@ impl Binding for EffectDemo {
         Value::Null
     }
     fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
-        ws: &mut Attempt<L, Self>,
+        _ws: &mut Attempt<L, Self>,
         _model: &Prepared<Self>,
         _context: Context,
         changes: &[ModelChange<Self>],
@@ -168,14 +161,6 @@ impl Binding for EffectDemo {
                     "invariant",
                     "account balance must be nonnegative",
                 ));
-            }
-            let before = registrations(change.id, change.old.as_ref().map(|r| &r.input));
-            let after = registrations(change.id, change.new.as_ref().map(|r| &r.input));
-            for (key, address) in before.difference(&after) {
-                crate::routes::change(ws, key, *address, crate::time_range::TimeRange::ALL, false)?;
-            }
-            for (key, address) in after.difference(&before) {
-                crate::routes::change(ws, key, *address, crate::time_range::TimeRange::ALL, true)?;
             }
         }
         Ok(())

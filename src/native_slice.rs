@@ -812,12 +812,6 @@ pub(crate) fn registrations(
 ) -> BTreeMap<(Key, Address), TimeRange> {
     let mut entries = BTreeMap::new();
     if let Some(input) = input {
-        for (target, _, field) in input.references() {
-            entries.insert(
-                (Key::Incoming(target), Address::new(id, field)),
-                TimeRange::ALL,
-            );
-        }
         if let Input::Posting {
             rule, curve, at, ..
         } = input

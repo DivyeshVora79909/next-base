@@ -160,13 +160,7 @@ fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
     input
         .into_iter()
         .flat_map(NativeInput::references)
-        .flat_map(|(parent, _, slot)| {
-            let address = Address::new(id, slot);
-            [
-                (Key::Incoming(parent), address),
-                (Key::Direct(parent), address),
-            ]
-        })
+        .map(|(parent, _, slot)| (Key::Direct(parent), Address::new(id, slot)))
         .collect()
 }
 

@@ -57,3 +57,6 @@ mod index_tests;
 
 #[cfg(test)]
 mod effect_tests;
+
+#[cfg(test)]
+mod reference_tests;

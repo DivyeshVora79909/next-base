@@ -377,13 +377,8 @@ fn declarations() -> Vec<Contract> {
 
 fn registrations(id: Uuid, input: Option<&Input>) -> BTreeSet<(Key, Address)> {
     let mut result = BTreeSet::new();
-    if let Some(input) = input {
-        for (target, _, slot) in input.references() {
-            result.insert((Key::Incoming(target), Address::new(id, slot)));
-        }
-        if let Input::Tax { rule, .. } = input {
-            result.insert((Key::Direct(*rule), Address::new(id, 1)));
-        }
+    if let Some(Input::Tax { rule, .. }) = input {
+        result.insert((Key::Direct(*rule), Address::new(id, 1)));
     }
     result
 }

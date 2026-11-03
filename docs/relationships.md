@@ -32,6 +32,28 @@ an absence marker. The catalog does not introduce another JSON Schema shape pars
 native typed reference extraction remains the binding's authority, including nested
 fields. Schemas still validate the authored input normally.
 
+The engine derives Incoming reverse-reference indexes from those same typed
+references. A binding must not write Incoming routes itself. Ordinary commands
+stage them after all new headers and typed target checks, before model settlement.
+The managed-output lifecycle uses the same helper at each output transition.
+After settlement, a final ordinary-record pass repairs reference changes made by
+settlement, including an explicit proposal restored to its original source value.
+Each settlement call uses its own entry state, so several calls can share one
+Attempt and final commit without reapplying old routes or misreading staged unique
+claims as persisted originals. Each call still validates its own bounded final graph.
+Distinct reference slots remain distinct occurrences; identical target/slot pairs
+are sets and do not create duplicate route nodes. Native contract hints do not
+override actual catalog target types or tenant checks.
+
+This automation owns existence/reverse-reference bookkeeping. Direct invalidation
+and ranged Subscribers retain their separately declared/model-specific semantics.
+Raw ordinary-record creation without shared headers/capacity lifecycle, or raw
+managed-output writes bypassing the causal lifecycle, is not an alternative public
+creation API. Use the mutation and managed-output paths. The engine rejects raw
+ordinary deletion outside the command lifecycle. The independent checker
+continues deriving expected Incoming memberships from complete source facts.
+See [C2.A evidence](checkpoints/c2-automatic-incoming.json).
+
 The shared mutation path first stages and settles the final source graph, repairs
 readers and authorizes explicit client reference changes. It then examines every
 changed record, including changes made by settlement rather than client commands.

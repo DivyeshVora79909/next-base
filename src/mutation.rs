@@ -10,11 +10,11 @@ use crate::{
     },
     tree,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
-/// Bound into prepared identity when reference authorization semantics change.
-pub const REFERENCE_POLICY: &str = "final-graph-reference-policy-v1";
+/// Bound into prepared identity when reference authorization or routing semantics change.
+pub const REFERENCE_POLICY: &str = "final-graph-reference-policy-v2-engine-incoming";
 
 pub fn check_counts<B: Binding>(model: &Prepared<B>, population: &Population) -> Result<()> {
     check_counts_with_limits(model, population, &B::limits())
@@ -79,6 +79,45 @@ pub fn validate_references<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Bindin
                 "reference type or tenant",
             ));
         }
+    }
+    Ok(())
+}
+
+/// Maintain the reverse existence routes derived from typed source references.
+/// Record headers must already exist; Direct and Subscribers retain binding policy.
+pub(crate) fn reconcile_incoming<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    ws: &mut Attempt<L, B>,
+    id: Uuid,
+    old: Option<&B::Input>,
+    new: Option<&B::Input>,
+) -> Result<()> {
+    let mut references = |input: Option<&B::Input>| -> Result<BTreeSet<(Uuid, u16)>> {
+        let references = input.map(NativeInput::references).unwrap_or_default();
+        ws.charge("dependency", 1 + references.len() as u64)?;
+        Ok(references
+            .into_iter()
+            .map(|(target, _, slot)| (target, slot))
+            .collect())
+    };
+    let before = references(old)?;
+    let after = references(new)?;
+    for (target, slot) in before.difference(&after) {
+        crate::routes::change(
+            ws,
+            &Key::Incoming(*target),
+            Address::new(id, *slot),
+            crate::time_range::TimeRange::ALL,
+            false,
+        )?;
+    }
+    for (target, slot) in after.difference(&before) {
+        crate::routes::change(
+            ws,
+            &Key::Incoming(*target),
+            Address::new(id, *slot),
+            crate::time_range::TimeRange::ALL,
+            true,
+        )?;
     }
     Ok(())
 }
@@ -162,6 +201,14 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
     let Some(StoredValue::Population(original_population)) = ws.get(&Key::Population)? else {
         return Err(Error::new("corrupt_state", "missing population counters"));
     };
+    // A caller may settle several command chunks in one Attempt. Capture the
+    // already-staged source facts so late reconciliation starts at this call's
+    // entry graph rather than reapplying earlier calls from database originals.
+    let mut entry_records = BTreeMap::new();
+    for id in ws.changed_records() {
+        ws.charge("dependency", 1)?;
+        entry_records.insert(id, ws.record(id)?);
+    }
     let mut population = original_population.clone();
     // A token identifies the state produced by this attempt. It is never an
     // ordered store sequence, and cannot repeat after delete/recreate.
@@ -287,6 +334,14 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
             validate_references(ws, model, &new.input, context)?;
         }
     }
+    for change in &changes {
+        reconcile_incoming(
+            ws,
+            change.id,
+            change.old.as_ref().map(|r| &r.input),
+            change.new.as_ref().map(|r| &r.input),
+        )?;
+    }
     B::settle_changes(
         ws,
         model,
@@ -296,6 +351,62 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         revision,
         allocate,
     )?;
+    // Settlement may edit ordinary records beyond the explicit commands. Explicit
+    // IDs remain candidates even if settlement restores their original contents.
+    // Managed outputs reconcile each transition inside the causal writer instead.
+    let proposed: BTreeMap<_, _> = changes.iter().map(|c| (c.id, c.new.as_ref())).collect();
+    let mut incoming_candidates = ws.changed_records();
+    incoming_candidates.extend(proposed.keys().copied());
+    incoming_candidates.extend(entry_records.keys().copied());
+    for id in incoming_candidates {
+        ws.charge("dependency", 1)?;
+        let original = match ws.original(&Key::Record(id))? {
+            Some(StoredValue::Record(record)) => Some(record),
+            None => None,
+            _ => return Err(Error::new("corrupt_state", "original record type")),
+        };
+        let current = ws.record(id)?;
+        let entry = match entry_records.get(&id) {
+            Some(record) => record.as_ref(),
+            None => original.as_ref(),
+        };
+        let before = match proposed.get(&id) {
+            Some(record) => *record,
+            None => entry,
+        };
+        if original
+            .iter()
+            .chain(entry)
+            .chain(before)
+            .chain(current.iter())
+            .any(|r| r.input.managed().is_some())
+        {
+            continue;
+        }
+        if entry.is_some() && current.is_none() && !proposed.contains_key(&id) {
+            return Err(Error::new(
+                "model",
+                "ordinary deletion requires command lifecycle",
+            ));
+        }
+        if let Some(record) = &current {
+            // Raw ordinary creation by a binding must provide the shared lifecycle;
+            // it cannot silently bypass source headers.
+            if !matches!(ws.get(&Key::Incoming(id))?, Some(StoredValue::Incoming(_))) {
+                return Err(Error::new(
+                    "corrupt_state",
+                    "missing ordinary source header",
+                ));
+            }
+            validate_references(ws, model, &record.input, context)?;
+        }
+        reconcile_incoming(
+            ws,
+            id,
+            before.map(|r| &r.input),
+            current.as_ref().map(|r| &r.input),
+        )?;
+    }
     check_counts(model, &population)?;
     for change in &changes {
         if let Some(new) = ws.record(change.id)? {
@@ -340,7 +451,7 @@ pub fn settle_authorized<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>
         authorize(ws, command, change.old.as_ref(), current.as_ref())?;
     }
     crate::relationships::validate(ws, model)?;
-    crate::uniqueness::reconcile(ws, model)?;
+    crate::uniqueness::reconcile_from(ws, model, &entry_records)?;
     for id in ws.changed_roots() {
         if let Some(StoredValue::Root(mut root)) = ws.get(&Key::Root(id))? {
             root.revision = revision;

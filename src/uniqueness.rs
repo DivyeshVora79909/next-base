@@ -3,9 +3,9 @@ use crate::{
     binding::{Binding, NativeInput},
     model::Prepared,
     native_codec::{Key, StoredValue},
-    native_slice::{Attempt, Error, Result},
+    native_slice::{Attempt, Error, ModelRecord, Result},
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn claims<B: Binding>(
     model: &Prepared<B>,
@@ -65,6 +65,15 @@ pub fn reconcile<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
     ws: &mut Attempt<L, B>,
     model: &Prepared<B>,
 ) -> Result<()> {
+    reconcile_from(ws, model, &BTreeMap::new())
+}
+
+/// Reconcile against this settlement call's entry graph when an Attempt is reused.
+pub(crate) fn reconcile_from<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
+    ws: &mut Attempt<L, B>,
+    model: &Prepared<B>,
+    entry_records: &BTreeMap<uuid::Uuid, Option<ModelRecord<B>>>,
+) -> Result<()> {
     if !model
         .contracts()
         .any(|contract| !contract.uniqueness.is_empty())
@@ -72,10 +81,20 @@ pub fn reconcile<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
         return Ok(());
     }
     let mut changes = Vec::new();
-    for id in ws.changed_records() {
+    let mut candidates = ws.changed_records();
+    candidates.extend(entry_records.keys().copied());
+    for id in candidates {
         ws.charge("dependency", 1)?;
-        let old = match ws.original(&Key::Record(id))? {
-            Some(StoredValue::Record(record)) => claims(model, &record.input, &mut |count| {
+        let original = match entry_records.get(&id) {
+            Some(record) => record.clone(),
+            None => match ws.original(&Key::Record(id))? {
+                Some(StoredValue::Record(record)) => Some(record),
+                None => None,
+                _ => return Err(Error::new("corrupt_state", "unique source record type")),
+            },
+        };
+        let old = match original {
+            Some(record) => claims(model, &record.input, &mut |count| {
                 ws.charge("dependency", count)
             })
             .map_err(|error| {
@@ -86,7 +105,6 @@ pub fn reconcile<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
                 }
             })?,
             None => BTreeSet::new(),
-            _ => return Err(Error::new("corrupt_state", "unique source record type")),
         };
         let new = ws
             .record(id)?
@@ -122,16 +140,15 @@ pub fn reconcile<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>, B: Binding>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::ReadableTable;
     use crate::{
         indexes::standard::Standard,
         integrity::Snapshot,
         local::{KV, Mutation, Store},
         model::{Contract, Unique},
         models::quantity::{Input, JOIN, Quantity, SOURCE},
-        native_codec::{self, Address},
+        native_codec::{self},
         native_slice::{Context, Model, ModelChange, Population},
-        routes,
-        time_range::TimeRange,
     };
     use serde_json::{Value, json};
     use std::{path::PathBuf, sync::Arc};
@@ -175,44 +192,14 @@ mod tests {
             Value::Null
         }
         fn settle_changes<L: FnMut(&[u8]) -> Result<Option<Vec<u8>>>>(
-            ws: &mut Attempt<L, Self>,
+            _ws: &mut Attempt<L, Self>,
             _: &Prepared<Self>,
             _: Context,
-            changes: &[ModelChange<Self>],
+            _changes: &[ModelChange<Self>],
             _: &mut Population,
             _: Uuid,
             _: &mut dyn FnMut() -> Result<Uuid>,
         ) -> Result<()> {
-            for change in changes {
-                let old: BTreeSet<_> = change
-                    .old
-                    .iter()
-                    .flat_map(|r| r.input.references())
-                    .collect();
-                let new: BTreeSet<_> = change
-                    .new
-                    .iter()
-                    .flat_map(|r| r.input.references())
-                    .collect();
-                for (target, _, slot) in old.difference(&new) {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(*target),
-                        Address::new(change.id, *slot),
-                        TimeRange::ALL,
-                        false,
-                    )?;
-                }
-                for (target, _, slot) in new.difference(&old) {
-                    routes::change(
-                        ws,
-                        &Key::Incoming(*target),
-                        Address::new(change.id, *slot),
-                        TimeRange::ALL,
-                        true,
-                    )?;
-                }
-            }
             Ok(())
         }
         fn check(store: &Store<Self>) -> Result<Value> {
@@ -466,5 +453,68 @@ mod tests {
             Uuid::from_u128(0xabcdef).to_string().to_uppercase()
         );
         assert!(native_codec::decode_for::<Claims>(&key, uppercase_holder.as_bytes()).is_err());
+    }
+
+    /// Chunk composition at the native mutation boundary, without receipt claims.
+    #[test]
+    fn two_settlements_restore_original_unique_tuple_in_one_attempt() {
+        let fixture = Fixture::new();
+        let store = &fixture.store;
+        let original = Snapshot::load(store).unwrap().records[&id(20)].clone();
+        let write = store.begin_write().unwrap();
+        let batch = {
+            let table = write.open_table(KV).unwrap();
+            let mut ws = Attempt::<_, Claims>::new(
+                |key: &[u8]| {
+                    Ok(table
+                        .get(key)
+                        .map_err(crate::local::storage)?
+                        .map(|v| v.value().to_vec()))
+                },
+                200_000,
+            );
+            for left in [id(11), id(10)] {
+                let current_version = ws.record(id(20)).unwrap().unwrap().version;
+                let command = crate::native_slice::Command::Update {
+                    id: id(20),
+                    if_version: current_version,
+                    set: serde_json::from_value(json!({"left":left})).unwrap(),
+                    unset: vec![],
+                };
+                crate::mutation::settle_authorized(
+                    &mut ws,
+                    store.model(),
+                    store.context(),
+                    &[command],
+                    // Preserve the original version so the final source is also
+                    // absent from Attempt::changed_records, exercising its union.
+                    &mut || Ok(original.version),
+                    false,
+                    &mut |_, _, _, _| Ok(()),
+                    &mut |_, _| Ok(()),
+                )
+                .unwrap();
+            }
+            assert_eq!(ws.record(id(20)).unwrap().unwrap(), original);
+            assert!(!ws.changed_records().contains(&id(20)));
+            ws.finish().unwrap()
+        };
+        store.publish_native(&write, &batch, None).unwrap();
+        write.commit().unwrap();
+        let snapshot = Snapshot::load(store).unwrap();
+        assert_eq!(snapshot.records[&id(20)], original);
+        assert_eq!(
+            snapshot.all.get(&Key::Unique {
+                contract: JOIN,
+                constraint: 7,
+                targets: vec![id(10), id(11)],
+            }),
+            Some(&StoredValue::Unique(id(20)))
+        );
+        assert!(!snapshot.all.contains_key(&Key::Unique {
+            contract: JOIN,
+            constraint: 7,
+            targets: vec![id(11), id(11)],
+        }));
     }
 }

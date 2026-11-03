@@ -175,7 +175,10 @@ fn graph<B: Binding>(store: &Store<B>, codes: &[u16]) -> Result<()> {
         graph.principals.push(Principal {
             id: id(person),
             kind: PrincipalKind::User,
-            parents: vec![id(1)],
+            // Admin-authored derived records must select their referenced user
+            // as the minimal reader. Keep users as peers below the admin owner;
+            // being an administrator alone does not imply authority ancestry.
+            parents: vec![id(2)],
             active: true,
             credential_epoch: 0,
             grants: Grants {
