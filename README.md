@@ -9,6 +9,10 @@ Start with [AGENTS.md](AGENTS.md), [CONTEXT.md](CONTEXT.md),
 [architecture](docs/architecture.md) and [roadmap](docs/roadmap.md).
 Code, native catalogs and executable examples supply the detailed API reference.
 
+The [Node redesign plan](docs/node-redesign/README.md) records the new declarative
+index-contract direction and retained capabilities. JS-P0 is documentation only;
+implementation awaits the user's flag. The runnable baseline described below is Rust.
+
 Use rust-toolchain.toml and the Node LTS version in .nvmrc:
 
 ```sh

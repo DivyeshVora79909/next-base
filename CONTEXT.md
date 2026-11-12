@@ -1,5 +1,26 @@
 # Current checkpoint
 
+## JS-P0 — Node redesign plan; execution awaits user flag
+
+Documentation-only checkpoint, based on Rust `77a8fd2` (A1/A2), legacy ReBase
+`270d875a` and research `81dc54f`. Start with the
+[compact agent context](docs/node-redesign/README.md), then architecture, capability
+preservation and JS-P1–JS-P5 acceptance stages linked there. The user selected a Node
+prototype of named reusable index contracts, explicit multi-membership bindings,
+augmented AVL summaries, direct/key-range settlement and ordinary composable tools.
+Owner-only authority remains; no reader fields or global population counter.
+
+Planning review covers work versus span, monoid costs, tracked reads, final-graph
+settlement, references, exact values, generation-scoped lifecycle and capability
+preservation. Existing test evidence is referenced, not rerun or attributed to JS.
+No runtime/package/schema/test-suite changes are part of this checkpoint. Independent
+review and local documentation checks passed; no implementation acceptance is claimed.
+Node adapter choice and full production migration remain later gates.
+
+**Next: wait for explicit implementation approval, then JS-P1.** Do not resume E3
+or replace the Rust engine automatically from historical continuation paragraphs.
+Historical checkpoint records below retain their original status and evidence.
+
 ## A1/A2 — Private delivered proof and recoverable sessions
 
 Implemented and verified. Acceptance passed 442 Rust all-target tests (0 ignored),

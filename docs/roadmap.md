@@ -1,5 +1,10 @@
 # Native base checkpoints
 
+Current planning authority: [Node redesign JS-P0](node-redesign/README.md), with
+JS-P1–JS-P5 proposed gates. Implementation is paused pending the user's explicit flag.
+This page retains the Rust baseline's checkpoint history and outstanding capabilities;
+its automatic-continuation language does not override that authorization boundary.
+
 The current choice is linked augmented AVL, native RPC and native transactional KV adapters.
 Historical accepted N/S0 evidence stays unchanged; it does not choose a different current layout.
 Plan and bootstrap work proceeds now. Checkpoints can continue automatically when their stated

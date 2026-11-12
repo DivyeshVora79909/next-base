@@ -4,6 +4,12 @@ Read this file, CONTEXT.md and the relevant section of [architecture](docs/archi
 and [roadmap](docs/roadmap.md). Retrieve code, catalogs and independent checks for detail;
 do not load every historical paper or duplicate these instructions into memories.
 
+Current user authorization: **Node redesign planning only**. Read the compact
+[redesign context](docs/node-redesign/README.md) and its linked contracts before
+continuing. JS-P0 records the design; JS-P1 implementation requires the user's explicit
+flag. Older automatic-continuation instructions do not authorize coding now. The Rust
+foundation below remains the current executable baseline, not the proposed Node runtime.
+
 ## Selected foundation
 
 - Native Rust calculation/transaction engine over a transactional KV adapter.
