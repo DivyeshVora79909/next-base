@@ -2,7 +2,8 @@
 
 This is a proposed implementation sequence against current main `77a8fd2`.
 The user has supplied the implementation flag. JS-P0 documentation review and JS-P1
-and JS-P2 are complete; JS-P3–JS-P5 remain unaccepted. See
+and JS-P2 are complete; JS-P3a internal primitives are accepted while JS-P3b–JS-P5
+remain unaccepted. See
 [JS-P1 evidence](../checkpoints/js-p1.json) and [JS-P2 evidence](../checkpoints/js-p2.json).
 The existing Rust engine and its historical evidence remain the current baseline.
 Persisted/store-format compatibility is dropped: do not migrate or decode Rust store
@@ -116,6 +117,30 @@ supply authorization or reactive settlement. See the linked evidence for executa
 witnesses and the [API guide](../../prototypes/node-engine/README.md) for composition.
 
 ## JS-P3 — Dependency settlement and key-range routing
+
+JS-P3 is split into two evidence gates; accepting internal primitives does not accept
+the whole checkpoint.
+
+- **JS-P3a — staging, complete cuts and reverse routing:** internal attempt-local
+  `createMutation` stages source/tree edits and validates the joint final graph at
+  finish; typed ranges distinguish whole-value ties from complete occurrence cuts;
+  reverse field/range registrations support replace/read/affected-subscriber operations.
+  Verify multi-stage repairs/rollback, tie-bound edges, empty registrations, retargets,
+  conservative interval pruning and explicit visit-budget rejection against flat scans.
+  [JS-P3a evidence](../checkpoints/js-p3a.json): accepted with 81 Node tests on
+  Node 24.22.1, zero failed/skipped. Routing reports
+  actual visits and has worst-case O(R) interval work; memory prefix scans remain linear.
+- **JS-P3b — integrated settlement:** prepare versioned catalog callbacks for resolve
+  and evaluate; declare a potential-emission inventory before evaluation so producers
+  with zero current outputs remain part of final-graph closure and cycle detection.
+  Wire routing to old/new positions, settle the final graph with explicit cycle checks,
+  and manage zero-output creation, deactivation, reactivation and deletion atomically.
+  Compare with independent full recomputation, including joint repairs, changed routes,
+  empty inputs and command-order permutations. This gate remains unaccepted.
+
+Intermediate staging is local overlay state, not a valid published graph or a guarantee
+of managed/private-output rules. Full catalog calculations/dependencies still reject
+until JS-P3b integration. The complete JS-P3 obligations follow.
 
 **Entry:** JS-P2 supplies valid point/range aggregate reads and final-graph integrity.
 

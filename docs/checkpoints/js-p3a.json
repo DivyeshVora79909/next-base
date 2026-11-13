@@ -1,0 +1,324 @@
+{
+  "checkpoint": "JS-P3a",
+  "date": "2026-11-13",
+  "baseCommit": "2fd843f37890d3700e809bed480b3afbf4e1d5d7",
+  "status": "accepted-local-primitives-only",
+  "runtime": {
+    "node": "24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "validation": {
+    "command": "npm test (Node 24.22.1 on PATH, prototypes/node-engine)",
+    "tests": 81,
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "sourceReview": "Independent review; transient-only validator scope rejection found and fixed with regression; conservative interval reporter and full occurrence cuts reviewed",
+    "witnesses": {
+      "stagedMutationTests": 9,
+      "completeRangeTests": 4,
+      "reverseRoutingTests": 8,
+      "seededRouteReplacementSteps": 95,
+      "tiedOccurrencesInRangeWorkCheck": 2048
+    }
+  },
+  "claims": [
+    "attempt-local stage/finish workspace with first-old/final reference, uniqueness and summary validation",
+    "scalar tie-group and complete occurrence range cuts with logarithmic boundary folds",
+    "direct reverse registrations and generic AVL max-upper interval reporting with exact cut filtering",
+    "guarded no-op registration reconciliation and explicit logical visit budgets",
+    "independent flat interval and range expectations, rollback and staged lifecycle checks"
+  ],
+  "limitations": [
+    "JS-P3 is NOT complete; catalog calculation declarations still reject",
+    "no tracked callback facade, managed-output ownership/lifecycle or integrated causal scheduler yet",
+    "checkStore does not cover internal dependency routes; integrated independent reconstruction remains JS-P3b",
+    "conservative interval discovery has worst-case linear logical node visits; not an optimal output-sensitive bound",
+    "memory prefix scans enumerate physical keys even with bounded returned entries",
+    "no authentication, persistence, distributed concurrency, provider or production acceptance",
+    "arbitrary callback purity is a trusted-author obligation, not a JavaScript sandbox guarantee",
+    "no Rust/legacy runtime suites rerun"
+  ],
+  "routingProbe": {
+    "fixture": "One interval per subscriber: lower=i; upper=n+1 when i%16=0, otherwise i; numeric order in resourceEffective/total with partition [resource]. Flat expected matches checked for each query.",
+    "results": [
+      {
+        "intervals": 128,
+        "point": -1,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 7,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 16,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 128,
+        "point": 128,
+        "matches": 8,
+        "routing": {
+          "intervalNodes": 63,
+          "directEntries": 0,
+          "matches": 8
+        },
+        "adapter": {
+          "gets": 104,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 128,
+        "point": 130,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 1,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 3,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 512,
+        "point": -1,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 9,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 20,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 512,
+        "point": 512,
+        "matches": 32,
+        "routing": {
+          "intervalNodes": 255,
+          "directEntries": 0,
+          "matches": 32
+        },
+        "adapter": {
+          "gets": 416,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 512,
+        "point": 514,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 1,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 3,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 2048,
+        "point": -1,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 11,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 24,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 2048,
+        "point": 2048,
+        "matches": 128,
+        "routing": {
+          "intervalNodes": 1023,
+          "directEntries": 0,
+          "matches": 128
+        },
+        "adapter": {
+          "gets": 1664,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      },
+      {
+        "intervals": 2048,
+        "point": 2050,
+        "matches": 0,
+        "routing": {
+          "intervalNodes": 1,
+          "directEntries": 0,
+          "matches": 0
+        },
+        "adapter": {
+          "gets": 3,
+          "getMany": 0,
+          "scans": 0,
+          "scannedKeys": 0,
+          "stagedWrites": 0,
+          "touchedEntries": 0
+        }
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "prototypes/node-engine/README.md",
+      "sha256": "8fc8121cd630613ba577ba84e0da966c49ce83a555c614e8d2521c64941432ad"
+    },
+    {
+      "path": "prototypes/node-engine/examples/activity.mjs",
+      "sha256": "783cf062a1cfd6b94a5c7e8f9c6072907c3b66704be5edc1171a4b7187b09438"
+    },
+    {
+      "path": "prototypes/node-engine/package-lock.json",
+      "sha256": "f240da78024741185e585702603d79669812a144d74b865c44c632bcce2af58b"
+    },
+    {
+      "path": "prototypes/node-engine/package.json",
+      "sha256": "5604564b40711a5b433163b124bf7b6ef83ed4eefcb6f50745b2df5298e84ed3"
+    },
+    {
+      "path": "prototypes/node-engine/src/catalog.mjs",
+      "sha256": "bea8a0cd590c59f11b0e3f563fd9943e3ea7119600593ce2950fc659bc9e8c00"
+    },
+    {
+      "path": "prototypes/node-engine/src/check.mjs",
+      "sha256": "dab938f9ecc6aa192214f2acb54db8f5c6641d9d2b125411499f0316477959ae"
+    },
+    {
+      "path": "prototypes/node-engine/src/index.mjs",
+      "sha256": "25d8f269b800e99cd26199b8a99d68bb68c63333338f0c94e5d8c26d58511c9f"
+    },
+    {
+      "path": "prototypes/node-engine/src/keys.mjs",
+      "sha256": "4add05336bb607dab6991c76949aef94e7fecf0a04d7354ff9b13612e47fc23c"
+    },
+    {
+      "path": "prototypes/node-engine/src/memory.mjs",
+      "sha256": "43cf6766b1836ca51c1d40673b809ee977990d9194af89a5cfb0bc4df7905cc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/monoids.mjs",
+      "sha256": "85dc3df657c99e0cb13d6bfbe4ff7ea948a54f564c6f63d62a9720113c178bc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/mutate.mjs",
+      "sha256": "e374cc192a45ac7dc817e36ba146d778049bc8ab198929b67d00d6aaf8f1eb86"
+    },
+    {
+      "path": "prototypes/node-engine/src/oracle.mjs",
+      "sha256": "481ad9814b3b9a99908d8977573e1cf33564264bd5541f178ef21f4a4a21f0b3"
+    },
+    {
+      "path": "prototypes/node-engine/src/range.mjs",
+      "sha256": "ad22206b915426172d521a0be6301cef55193d849170b49bc4da8f4f03f69571"
+    },
+    {
+      "path": "prototypes/node-engine/src/routes.mjs",
+      "sha256": "9da6ea959fe6e20f09fd576c6d7583d67271d54b5f563112a259797cfba70ed8"
+    },
+    {
+      "path": "prototypes/node-engine/src/tree.mjs",
+      "sha256": "d398d9a4a478213754f6c5980fead0a61878c9ef7e62d01321265ee05783accb"
+    },
+    {
+      "path": "prototypes/node-engine/src/values.mjs",
+      "sha256": "b1fa33caf5b86cd22f1b99fec28647c78d1eb45d6be15a57f0820c75e2d2ca8c"
+    },
+    {
+      "path": "prototypes/node-engine/test/catalog.test.mjs",
+      "sha256": "0f713814674df1cbf5d2efb8e76308dc5ea29a85e8357aeacb8e88d602cdad4d"
+    },
+    {
+      "path": "prototypes/node-engine/test/composition.test.mjs",
+      "sha256": "698cfc4fd67a8402f1b74f3263d59ea6b0c255ffd3950e117f4ce6dee7e6c119"
+    },
+    {
+      "path": "prototypes/node-engine/test/integrity.test.mjs",
+      "sha256": "06b0b1a3f4eb68bbeb4439120525e9c29f4f14d630bf1f70ff4460a1faf2f961"
+    },
+    {
+      "path": "prototypes/node-engine/test/memory.test.mjs",
+      "sha256": "77dfa34a186311fe74eae50298a2501d155d1fb81d21dcb5ea3d1809389cc25c"
+    },
+    {
+      "path": "prototypes/node-engine/test/monoids.test.mjs",
+      "sha256": "9400a25b8867eb62af37df433345b1947a1af78b3b3218b55e1777be2b1e9590"
+    },
+    {
+      "path": "prototypes/node-engine/test/mutate.test.mjs",
+      "sha256": "e77387e52740502dfc17fbdd5af895345fa2b05e005792cdc2673089bfad987f"
+    },
+    {
+      "path": "prototypes/node-engine/test/oracle.test.mjs",
+      "sha256": "c1878444610637875005d58754f6ba39a95aab796eddb930b135fac3e3d5e72c"
+    },
+    {
+      "path": "prototypes/node-engine/test/range.test.mjs",
+      "sha256": "9c053afb67d8ef3e0d409fb920d96ab578bc501308162db79ccfb9ee173aba46"
+    },
+    {
+      "path": "prototypes/node-engine/test/routes.test.mjs",
+      "sha256": "731408b2368fed545255f96653a0f722d9ffc27c0d660c46d3120abc829f1c4a"
+    },
+    {
+      "path": "prototypes/node-engine/test/staging.test.mjs",
+      "sha256": "33ca54ea2abc1b2e459388907300b3e44f87f73564359540d9fec0512e448169"
+    },
+    {
+      "path": "prototypes/node-engine/test/tree.test.mjs",
+      "sha256": "c074a1706aeb8532888c6dfa2236a4d668405d461439e600249d848df89514e3"
+    },
+    {
+      "path": "prototypes/node-engine/test/values.test.mjs",
+      "sha256": "da14dce4d0b363428facd160ed41424f5625995cc9a2ade024755020545c1512"
+    }
+  ]
+}

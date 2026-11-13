@@ -2,7 +2,8 @@
 
 JS-P1 and JS-P2 supply prepared index contracts/bindings, an independent flat source
 oracle, exact monoids, a transactional memory adapter and augmented AVL mutation/read
-functions. Reactive settlement remains JS-P3; this package is not a replacement server.
+functions. JS-P3a internal staging/routing primitives are accepted; catalog integration
+and reactive settlement remain JS-P3b. This package is not a replacement server.
 
 Use Node 24+ and `npm ci` in this directory. There is no custom command parser;
 `npm test` uses the standard Node test runner. From the repository-root Node REPL:
@@ -61,7 +62,9 @@ an inspector/test oracle, not a mutation algorithm.
   Missing keys/out-of-range ranks return `undefined`; invalid ranks reject.
 - `treeAggregate(tx, catalog, scope, { lower, upper }?)`: ordered aggregate map.
   Bounds are `{ value, inclusive? }` on the declared order domain (inclusive by default),
-  applying equally to all record/slot ties. Empty ranges return monoid identities.
+  applying equally to all record/slot ties. A complete occurrence bound adds both
+  `sourceId` and `slot`: `{ value, sourceId, slot, inclusive? }`, cutting within a tie
+  group in order/source/slot order. Empty ranges return monoid identities.
 - `createMemoryStore()`: caller-owned `transact` and `read` callbacks; transaction
   methods are `get`, `getMany`, `set`, `delete`, `scan`, and `inspect` for work/guards.
   A `beforeCommit({ changes })` fault hook receives detached changes before publication.
@@ -75,6 +78,35 @@ rule requires a suitable witness monoid (for example, `prefix.minPrefix >= 0n`);
 the engine does not quantify an arbitrary predicate over every prefix. Validators must
 return exactly `true`. Deleting the last occurrence validates identity summaries before
 removing the anchor; persistent live empty-anchor lifetimes remain deferred.
+
+## JS-P3a internal primitives
+
+The staging and routing primitives below are internal imports, not exports from
+`src/index.mjs`. The extended `treeAggregate` remains public. This is not a wired reactive
+engine. `createMutation(tx, catalog, tenant)` in `src/mutate.mjs` returns asynchronous
+`stage(changes)` and `finish()`. Repeated stages update sources/trees in the local
+transaction overlay; finish checks final references, unique claims and root validators,
+allowing joint repairs before publication. Call finish exactly once and propagate any
+error to abort the surrounding transaction. Final validator scopes derive from the
+original-to-final transition, excluding transient-only scopes. Intermediate staging has no independently
+valid graph or managed/private-output guarantees. Public `mutate` wraps one stage
+and finish in its own transaction.
+
+`src/routes.mjs` supplies `replaceRoutes`, `readRoutes` and `affectedSubscribers` for
+explicit direct-field and typed aggregate-range registrations. Callers must supply
+changed fields and old/new occurrence points; no automatic invalidation is wired.
+Registrations may persist when the selected range is empty; unchanged registrations
+retain guards without delete/reinsert work. The router reuses AVL
+nodes with maximum-upper summaries and conservative pruning; it reports actual
+interval-node/direct-entry visits and matches. `maxVisits` exhaustion rejects rather
+than returning an incomplete answer. Worst-case interval routing is O(R) for R
+registrations, not a demonstrated logarithmic-plus-matches bound. Memory prefix scans
+still enumerate the Map, outside the logical route-visit budget.
+
+Acceptance: 81 Node tests passed on Node 24.22.1, zero failed/skipped.
+Catalog calculations/dependencies still reject. Callback preparation, potential-output
+inventory, final-graph closure, cycle handling, evaluation, managed-output lifecycle
+and independent full recomputation belong to unaccepted JS-P3b.
 
 ## Explicit boundaries
 
@@ -93,7 +125,7 @@ selectors or constants. Supported role domains are `integer`, `id`, `string`,
 under `onMissing: 'skip'`; malformed present values still fail. Scalar/array/polymorphic
 references and unique tuples are declared once. Static distinct membership slots can
 repeat a source in the same view. Array-expanded membership binding is not yet supplied.
-Nonempty calculation/dependency declarations reject explicitly pending JS-P3.
+Nonempty calculation/dependency declarations reject explicitly pending JS-P3b.
 
 The memory adapter serializes **both readers and writers**, retains protected-read
 evidence and publishes a touched-key overlay without copying the complete store.
@@ -112,6 +144,7 @@ The checker covers the requested tenant and current catalog generation, not unkn
 inactive generations or lifecycle activation. Direct mutation/read functions are trusted
 internal APIs: tenant partitioning is not caller authentication or authorization.
 
-See [JS-P2 evidence](../../docs/checkpoints/js-p2.json),
+See [JS-P3a evidence](../../docs/checkpoints/js-p3a.json),
+[JS-P2 evidence](../../docs/checkpoints/js-p2.json),
 [historical JS-P1 evidence](../../docs/checkpoints/js-p1.json) and
 [remaining gates](../../docs/node-redesign/checkpoints.md).

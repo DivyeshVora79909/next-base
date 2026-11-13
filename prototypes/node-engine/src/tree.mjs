@@ -1,4 +1,5 @@
-import { compareDomain, decodeDomain, fail } from './values.mjs';
+import { decodeDomain, fail } from './values.mjs';
+import { compareKey, normalizeRange, belowRange, aboveRange } from './range.mjs';
 import { rootKey, nodeKey, occurrenceToken } from './keys.mjs';
 
 function enter(seen, token) {
@@ -19,7 +20,7 @@ function context(tx, catalog, scope) {
   };
   const identity = () => Object.assign(Object.create(null), Object.fromEntries(Object.entries(contract.aggregates).map(([k,a]) => [k,a.implementation.identity()])));
   const combine = (a,b) => Object.assign(Object.create(null), Object.fromEntries(Object.entries(contract.aggregates).map(([k,v]) => [k,v.implementation.combine(a[k], b[k])])));
-  const compare = (a,b) => compareDomain(contract.order,a.order,b.order) || compareDomain('id',a.sourceId,b.sourceId) || compareDomain('string',a.slot,b.slot);
+  const compare = (a,b) => compareKey(contract.order,a,b);
   const save = async n => {
     const [l,r] = await Promise.all([get(n.left),get(n.right)]);
     n.height = 1 + Math.max(l?.height ?? 0,r?.height ?? 0);
@@ -131,15 +132,10 @@ export async function treeSelect(tx,catalog,scope,rank) {
   while(n) { enter(seen,occurrenceToken(n)); const l=await c.get(n.left), size=l?.size??0; if(rank===size)return n; if(rank<size)n=l;else {rank-=size+1;n=await c.get(n.right);} }
 }
 export async function treeAggregate(tx,catalog,scope,options={}) {
-  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(key => !['lower','upper'].includes(key))) fail('INVALID_RANGE','Invalid range options');
-  const c=context(tx,catalog,scope), {lower,upper}=options;
-  const seen=new Set();
-  for(const bound of [lower,upper]) if(bound!==undefined) {
-    if(!bound||typeof bound!=='object'||Array.isArray(bound)||Object.keys(bound).some(key=>!['value','inclusive'].includes(key))||!Object.hasOwn(bound,'value')||(bound.inclusive!==undefined&&typeof bound.inclusive!=='boolean')) fail('INVALID_RANGE','Invalid order bound');
-    decodeDomain(c.contract.order,bound.value);
-  }
-  const below=n=>lower!==undefined&&(compareDomain(c.contract.order,n.order,lower.value)<0||(compareDomain(c.contract.order,n.order,lower.value)===0&&lower.inclusive===false));
-  const above=n=>upper!==undefined&&(compareDomain(c.contract.order,n.order,upper.value)>0||(compareDomain(c.contract.order,n.order,upper.value)===0&&upper.inclusive===false));
+  const c=context(tx,catalog,scope), range=normalizeRange(c.contract.order,options);
+  const {lower,upper}=range, seen=new Set();
+  const below=n=>belowRange(c.contract.order,n,range);
+  const above=n=>aboveRange(c.contract.order,n,range);
   // Once the split lies within the range, each boundary follows one spine;
   // all subtrees between those spines contribute their stored summaries.
   async function suffix(n) { if(!n)return c.identity(); enter(seen,occurrenceToken(n)); if(below(n))return suffix(await c.get(n.right)); return c.combine(c.combine(await suffix(await c.get(n.left)),n.contributions),(await c.get(n.right))?.aggregates??c.identity()); }

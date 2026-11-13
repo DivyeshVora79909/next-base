@@ -1,5 +1,33 @@
 # Current checkpoint
 
+## JS-P3a — Internal staging, complete cuts and reverse routing
+
+Built after accepted JS-P2 (`2fd843f`). Internal `createMutation` stages source/tree
+changes in an attempt-local overlay and validates references, claims and root rules
+once at finish, permitting joint final repairs. Typed range cuts now optionally include
+both source ID and membership slot; public `treeAggregate` preserves whole-value group
+cuts while supporting complete occurrence bounds. Internal reverse routing provides
+registration replacement/read and explicit affected-subscriber lookup for field and
+aggregate-range changes, including empty ranges. Staging/routing primitives are not exported
+from `src/index.mjs`; the extended `treeAggregate` remains public. No catalog-integrated
+reactive engine is wired yet.
+
+Acceptance: 81 Node tests passed on Node 24.22.1, zero failed/skipped. Review fixed
+transient-only validator scopes by deriving obligations from original-to-final changes.
+Unchanged route registrations preserve guards without delete/reinsert work. See
+[JS-P3a evidence](docs/checkpoints/js-p3a.json) for results and source hashes. Conservative maximum-upper AVL pruning reports actual visits
+and rejects visit-budget exhaustion; worst-case interval work remains O(R). Memory
+prefix scans remain linear and are not bounded by logical routing visits. Intermediate
+stages are local overlay state, without managed/private-output guarantees. Existing
+volatile serialized adapter and trusted internal API limits remain. Historical evidence
+below retains its original source and acceptance boundaries.
+
+Next: **JS-P3b catalog callbacks and final-graph settlement**, unaccepted. Add versioned
+resolve/evaluate bindings, potential-emission inventory, final-graph closure/cycle checks,
+evaluation, zero-output managed lifecycle and independent full recomputation. Full
+catalog calculations/dependencies still reject. JS-P4/JS-P5 and native E3/E5 remain
+separate outstanding gates.
+
 ## JS-P2 — Atomic occurrence forest and independent final integrity
 
 Implemented under `prototypes/node-engine/` after accepted JS-P1 (`98ad382`).

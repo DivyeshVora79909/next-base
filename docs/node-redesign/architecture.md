@@ -171,6 +171,35 @@ ambient clock/random/I/O and undeclared mutable closure inputs are unavailable t
 replayable model calculations. Ordinary JavaScript is not automatically dependency-
 tracked; there is no source-code analysis that infers hidden reads.
 
+JS-P3b uses two ordinary callbacks, preserving the existing native
+`ReactiveBinding::resolve/evaluate` separation (`src/causal.rs`, `src/dependency.rs`):
+**resolve final authored topology, then evaluate settled values**. Resolution can
+follow tracked authored fields and compute dynamic bounds/partitions. It declares
+all potential emission roles and positions before amounts or presence are evaluated.
+Calculated publications may be explicit evaluation inputs; they cannot control this
+first implementation's topology. Reject unsupported computed-dependent topology;
+do not discover edges by evaluating arbitrary callbacks against stale computed rows.
+Trusted callbacks are not sandboxed: ordinary JS can access ambient globals, so
+purity is an author obligation, not an isolation claim.
+
+Keep potential emissions separate from actual memberships, including roles currently
+emitting nothing. Resolve all affected authored shapes before numerical settlement;
+route old/new positions through original and final registrations, close causal
+descendants, and test the final graph for cycles, including paths through unchanged
+producers. Explicit adjacency traversal is acceptable with charged edge work; graph
+compression is an optimization, not a prerequisite. Evaluate predecessors first;
+unresolved contributions cannot be read as the identity. A moved query may remove
+an old edge in the same transaction that creates its reverse. Two zero-output
+producers can still form an invalid potential cycle. Both are required witnesses.
+
+Staging may temporarily visit a partition that never existed initially or finally.
+Final business-scope obligations follow original-to-final membership transitions,
+including an emptied original root, rather than transient staging paths. Final
+references and unique acquisitions wait for all authored and managed rows. Stable
+producer/role reservations outlive output absence; first-creation metadata survives
+reactivation, and source commands cannot take over managed identities. These integrated
+managed/causal guarantees remain JS-P3b work, not JS-P3a routing acceptance.
+
 A range fold computes a value. Reverse interval stabbing discovers subscribers of
 a changed point. These are separate algorithms. Route contribution changes, old/new
 positions, old/new partitions, changed bounds and partition-empty transitions; replace
