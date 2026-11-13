@@ -1,22 +1,21 @@
 # Node prototype checkpoints
 
 This is a proposed implementation sequence against current main `77a8fd2`.
-Only planning is authorized now. No prototype implementation starts until the user
-sets the implementation flag. JS-P0 documentation review is complete; no later
-checkpoint is accepted by this plan. No implementation flag has been supplied.
+The user has supplied the implementation flag. JS-P0 documentation review and JS-P1
+are complete; later checkpoints remain unaccepted. See [JS-P1 evidence](../checkpoints/js-p1.json).
 The existing Rust engine and its historical evidence remain the current baseline.
 Persisted/store-format compatibility is dropped: do not migrate or decode Rust store
 bytes. Semantic fixtures may be copied with their provenance and independently checked.
 
 Read the [overview](README.md), [architecture](architecture.md), and
 [capability roadmap](capabilities.md) together with this sequence. The future
-prototype belongs under `prototypes/node-engine/`; this planning change creates no
-prototype code, package, command interface, dependency lockfile, or acceptance result.
+prototype belongs under `prototypes/node-engine/`; its package and evidence are
+isolated from the existing native application.
 
 Each checkpoint produces a small runnable contract before expanding its scope.
 Use ordinary Node ESM functions and explicit state, with Node's built-in test runner.
-Keep a single JSON Schema authority; Ajv is a candidate pending dependency and
-supported-schema audit, not a selected installed dependency. Bindings supply ordinary
+Keep a single JSON Schema authority; JS-P1 selects Ajv 8.20.0 with explicit synchronous
+schema/field-binding limits and a pinned dependency graph. Bindings supply ordinary
 functions for semantics that JSON Schema cannot express. Do not add a second DSL,
 new CLI, or Python/Rust implementation for this prototype.
 

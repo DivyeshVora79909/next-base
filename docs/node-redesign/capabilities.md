@@ -1,6 +1,7 @@
 # Capability inventory for the Node redesign
 
-Planning only: no JavaScript engine is implemented or accepted by this document.
+Capability roadmap: JS-P1 is accepted within its [evidence](../checkpoints/js-p1.json);
+later engine and production capabilities below remain separate obligations.
 The comparison baseline is Next-Base `77a8fd2fb1cccf30b6af97f5aed0978dec8fe778`
 (A1/A2). The inspected legacy checkout is ReBase
 `270d875a6e97b276d9cf7876a9bb4666a21d0f53` (`git rev-parse HEAD`).
@@ -13,7 +14,7 @@ Legacy semantics are design inputs, not an instruction to port SurrealQL, its
 compiler, storage bindings or every business model. B+ tree replacement and
 SurrealDB coupling are outside the selected design. The target is ordinary Node
 functions over explicit state, one canonical authored model and reusable named
-augmented AVL index contracts. Implementation requires the explicit user flag.
+augmented AVL index contracts. The user has now supplied the implementation flag.
 
 ## Engine and model obligations
 

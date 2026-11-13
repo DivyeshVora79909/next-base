@@ -1,5 +1,30 @@
 # Current checkpoint
 
+## JS-P1 — Prepared catalog, source oracle and transactional memory
+
+Implemented in `prototypes/node-engine/` after the user's execution flag. The ordinary
+ESM API prepares named contract/view/model bindings with Ajv, exact integer/string
+domains and immutable identities; projects multiple occurrences; independently derives
+flat source inventories; and composes with a serialized, volatile memory transaction
+adapter. The activity fixture maps two source models into three views/nine occurrences.
+Unknown declarations, unsafe values, dangling final references and duplicate claims
+reject in the appropriate preparation/oracle boundary. Summary validators and reference
+metadata are prepared; normal transactional enforcement arrives in JS-P2.
+
+Acceptance: 31 Node tests passed on Node 24.22.1, zero skipped; dependency audit reports
+zero vulnerabilities for the pinned Ajv dependency graph. Independent source review
+identified and fixed array-accessor validation bypass, reserved-name oracle loss,
+view identity missing catalog semantics and oracle reuse of compiled order metadata.
+Atomic rollback, coherent reads, retained no-op/empty guards and value isolation are
+verified locally. No Rust suite was rerun, no production/distributed acceptance claimed.
+See [JS-P1 evidence](docs/checkpoints/js-p1.json) and the
+[import/API guide](prototypes/node-engine/README.md).
+
+Next: **JS-P2 generic augmented AVL, occurrence reconciliation, reverse references,
+uniqueness and scoped final integrity**, following [the plan](docs/node-redesign/checkpoints.md).
+Continue authorized prototype checkpoints; the historical planning-only flag below is
+superseded. Native server E3/E5 remain separate outstanding work.
+
 ## JS-P0 — Node redesign plan; execution awaits user flag
 
 Documentation-only checkpoint, based on Rust `77a8fd2` (A1/A2), legacy ReBase

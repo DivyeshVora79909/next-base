@@ -1,10 +1,11 @@
 # Node engine redesign — compact agent context
 
-Status: **JS-P0 planning only; implementation requires the user's explicit flag.**
-This packet is the current redesign plan, not an implemented replacement. Rust
+Status: **Execution authorized; JS-P1 accepted; JS-P2 next.**
+This packet is the redesign contract, not an implemented production replacement. Rust
 `src/`, models, stores and historical evidence remain the executable baseline.
-Future experimental code belongs in `prototypes/node-engine/`; do not create it
-during this planning checkpoint or resume older implementation tasks automatically.
+Experimental code belongs in [prototypes/node-engine](../../prototypes/node-engine/README.md).
+Its accepted scope and evidence are checkpoint-specific; do not resume unrelated
+historical native tasks automatically.
 
 ## Intent and selected direction
 
@@ -96,8 +97,8 @@ The latest Rust baseline records completed A1/A2; E3 objects and E5 full pipelin
 remain outstanding. This planning pass did not rerun or certify those suites.
 
 Handoff: read this packet, inspect current Git status and newer commits, and preserve
-its capability/acceptance distinctions. **Wait for explicit implementation approval.**
-After approval, start JS-P1 and follow dependency gates, using the actual environment's
+its capability/acceptance distinctions. The user has supplied implementation approval.
+Continue after JS-P1 through dependency gates, using the actual environment's
 available models and budget. Delegate disjoint work when useful; one owner integrates
 and verifies each checkpoint. Do not invent subscription limits or impose a fixed
 commit count on another agent. Report remaining gaps instead of claiming universal

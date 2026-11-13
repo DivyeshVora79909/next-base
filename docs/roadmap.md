@@ -1,7 +1,7 @@
 # Native base checkpoints
 
-Current planning authority: [Node redesign JS-P0](node-redesign/README.md), with
-JS-P1–JS-P5 proposed gates. Implementation is paused pending the user's explicit flag.
+Current prototype authority: [Node redesign](node-redesign/README.md), with
+JS-P1 accepted and JS-P2–JS-P5 remaining. The user authorized continuation.
 This page retains the Rust baseline's checkpoint history and outstanding capabilities;
 its automatic-continuation language does not override that authorization boundary.
 

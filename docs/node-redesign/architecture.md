@@ -1,7 +1,7 @@
 # Proposed Node engine contract
 
-Status: design selected for a bounded prototype, **not implemented**. Authorization
-is documentation only until the user's execution flag. [Context](README.md),
+Status: design for a bounded prototype; **JS-P1 implemented, later gates pending**.
+The user's execution flag has been supplied. [Context](README.md),
 [capability preservation](capabilities.md) and [acceptance stages](checkpoints.md)
 define scope. The current Rust implementation remains the reference for invariants,
 not an obligation to preserve its internal types, names or physical layout.
