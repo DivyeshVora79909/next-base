@@ -1,7 +1,7 @@
 # Native base checkpoints
 
 Current prototype authority: [Node redesign](node-redesign/README.md), with
-JS-P1 accepted and JS-P2–JS-P5 remaining. The user authorized continuation.
+JS-P1/JS-P2 accepted and JS-P3–JS-P5 remaining. The user authorized continuation.
 This page retains the Rust baseline's checkpoint history and outstanding capabilities;
 its automatic-continuation language does not override that authorization boundary.
 

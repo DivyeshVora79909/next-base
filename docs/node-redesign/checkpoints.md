@@ -2,7 +2,8 @@
 
 This is a proposed implementation sequence against current main `77a8fd2`.
 The user has supplied the implementation flag. JS-P0 documentation review and JS-P1
-are complete; later checkpoints remain unaccepted. See [JS-P1 evidence](../checkpoints/js-p1.json).
+and JS-P2 are complete; JS-P3–JS-P5 remain unaccepted. See
+[JS-P1 evidence](../checkpoints/js-p1.json) and [JS-P2 evidence](../checkpoints/js-p2.json).
 The existing Rust engine and its historical evidence remain the current baseline.
 Persisted/store-format compatibility is dropped: do not migrate or decode Rust store
 bytes. Semantic fixtures may be copied with their provenance and independently checked.
@@ -101,6 +102,18 @@ still update. Count visits and physical writes separately per changed occurrence
 **Limits:** logarithmic AVL paths assume bounded comparisons and constant-size summary
 work; they do not bound whole cascades, bytes, authorization or variable-width arithmetic.
 A uniqueness declaration and a reference remain different contracts.
+
+JS-P2 verification: 60 Node tests passed on Node 24.22.1, zero failed/skipped.
+Accepted scope: linked AVL insert/update/delete with structural sizes and ordered
+folds; transactional occurrence reconciliation, final typed references and unique swaps;
+trusted point/select/range reads; and complete active-generation independent inventory
+checking. No-op projections retain guarded O(h) lookups with zero occurrence writes.
+The memory adapter's prefix scan still enumerates the Map; reference guards therefore
+add scan work. `allPrefixes` validators consume witness summaries such as `minPrefix`,
+not arbitrary per-prefix quantification. Last deletion validates the identity summary;
+live empty anchors and generation lifecycle remain deferred. This checkpoint does not
+supply authorization or reactive settlement. See the linked evidence for executable
+witnesses and the [API guide](../../prototypes/node-engine/README.md) for composition.
 
 ## JS-P3 — Dependency settlement and key-range routing
 

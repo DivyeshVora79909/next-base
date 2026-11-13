@@ -1,5 +1,32 @@
 # Current checkpoint
 
+## JS-P2 — Atomic occurrence forest and independent final integrity
+
+Implemented under `prototypes/node-engine/` after accepted JS-P1 (`98ad382`).
+Ordinary ESM `mutate` composes source updates, linked augmented AVL occurrence repairs,
+typed reverse references, uniqueness release/acquisition and final touched-root validation
+in one memory transaction. Point, zero-based select and order-bounded range folds are
+importable functions; `checkStore` reconstructs complete active-generation inventories
+from source facts and independently verifies AVL shape, counts, folds and relation state.
+Acceptance: 60 Node tests passed on Node 24.22.1, zero failed/skipped, including numeric
+partition normalization. See [JS-P2 evidence](docs/checkpoints/js-p2.json) for verification and source hashes,
+and the [API guide](prototypes/node-engine/README.md) for runnable composition.
+
+Unchanged projections retain guarded O(h) reads and zero occurrence writes; complete
+no-ops on initialized valid stores publish zero physical writes. Prefix scans enumerate
+the memory Map, so reference guards add linear scan work. Root/prefix validation consumes
+summary witnesses: `allPrefixes` requires a monoid such as ordered minimum-prefix, not
+generic predicate quantification. Last-occurrence deletion validates identity summaries;
+live empty-anchor lifetimes remain deferred. The checker covers the current generation
+only. These APIs are trusted internal functions, not authentication or authorization;
+serialized volatile local transactions do not establish persistent/distributed acceptance.
+No Rust acceptance is rerun or replaced. Historical JS-P1 hashes and evidence below stay
+bound to their original source.
+
+Next: **JS-P3 dependency settlement and key-range routing**, deferred/unaccepted until
+its independent full-recomputation, empty-dependency and cycle witnesses pass. Continue
+authorized prototype gates; native E3/E5 remain separate outstanding work.
+
 ## JS-P1 — Prepared catalog, source oracle and transactional memory
 
 Implemented in `prototypes/node-engine/` after the user's execution flag. The ordinary

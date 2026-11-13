@@ -1,6 +1,6 @@
 # Node engine redesign — compact agent context
 
-Status: **Execution authorized; JS-P1 accepted; JS-P2 next.**
+Status: **Execution authorized; JS-P1/JS-P2 accepted; JS-P3 next.**
 This packet is the redesign contract, not an implemented production replacement. Rust
 `src/`, models, stores and historical evidence remain the executable baseline.
 Experimental code belongs in [prototypes/node-engine](../../prototypes/node-engine/README.md).
@@ -88,6 +88,11 @@ JS-P1–JS-P5 completion demonstrates a local core and developer workflow, not a
 deployable replacement. Existing Rust semantic fixtures are reusable evidence
 specifications; their passing results are not Node results. No persisted Rust-format
 compatibility is required; explicit recreation/import must be deliberate.
+
+JS-P2 implements trusted atomic AVL mutation, point/select/range-fold reads and a
+complete active-generation source-derived checker. See the [API guide](../../prototypes/node-engine/README.md)
+and [JS-P2 evidence](../checkpoints/js-p2.json). This local serialized volatile adapter
+does not establish authentication, persistent transactions or production capacity.
 
 ## Continuation context
 

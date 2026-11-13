@@ -6,7 +6,7 @@ do not load every historical paper or duplicate these instructions into memories
 
 Current user authorization: **continue Node prototype checkpoints**. Read the compact
 [redesign context](docs/node-redesign/README.md) and its linked contracts before
-continuing. The execution flag has been supplied. JS-P1 is accepted; continue JS-P2
+continuing. The execution flag has been supplied. JS-P1 and JS-P2 are accepted; continue JS-P3
 and subsequent dependency gates under `prototypes/node-engine/`. The Rust foundation
 below remains the existing application; prototype evidence does not replace its acceptance.
 
