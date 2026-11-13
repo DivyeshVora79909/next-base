@@ -118,7 +118,7 @@ witnesses and the [API guide](../../prototypes/node-engine/README.md) for compos
 
 ## JS-P3 — Dependency settlement and key-range routing
 
-JS-P3 is split into two evidence gates; accepting internal primitives does not accept
+JS-P3 is split into evidence gates; accepting internal primitives does not accept
 the whole checkpoint.
 
 - **JS-P3a — staging, complete cuts and reverse routing:** internal attempt-local
@@ -137,10 +137,24 @@ the whole checkpoint.
   and manage zero-output creation, deactivation, reactivation and deletion atomically.
   Compare with independent full recomputation, including joint repairs, changed routes,
   empty inputs and command-order permutations. This gate remains unaccepted.
+  JS-P3b has two bounded subgates:
+  1. **JS-P3b.1 — contracts and full-snapshot reference:** prepare versioned model
+     calculations and managed models; resolve authored-only topology, reserve complete
+     potential outputs including null emissions, detect potential cycles before synchronous
+     evaluation, and independently derive final inventories/routes. Accepted with 102 Node
+     tests on Node 24.22.1, zero failed/skipped:
+     [reference evidence](../checkpoints/js-p3b-oracle.json). Complete authored snapshots
+     and historical reservation ledgers are caller preconditions. Full scans/sorts,
+     pairwise edge checks and repeated topological scans may be quadratic or higher;
+     producer/edge caps are not whole-work budgets. This is not an incremental writer.
+  2. **JS-P3b.2 — integrated incremental writer:** connect callbacks, staged edits,
+     routes, managed reservation ledgers, final-graph closure/cycle checks and evaluation;
+     compare committed state with the independent reference and verify rollback. This
+     remains unaccepted; JS-P4/JS-P5 entry gates are unchanged.
 
 Intermediate staging is local overlay state, not a valid published graph or a guarantee
-of managed/private-output rules. Full catalog calculations/dependencies still reject
-until JS-P3b integration. The complete JS-P3 obligations follow.
+of managed/private-output rules. Model calculation contracts are usable by the reference only; normal mutations and
+store checks reject calculation or managed-model catalogs until JS-P3b.2 integration. The complete JS-P3 obligations follow.
 
 **Entry:** JS-P2 supplies valid point/range aggregate reads and final-graph integrity.
 

@@ -1,5 +1,36 @@
 # Current checkpoint
 
+## JS-P3b.1 — Calculation contracts and full-snapshot reference
+
+Built after `8379aae`. Prepared model calculations bind versioned trusted resolve/evaluate
+functions; managed models and public `settlementOracle`/`generatedId` support independent
+full recomputation from a complete authored tenant snapshot plus complete historical
+reservation ledger. These inputs are caller preconditions, not database completeness
+proof. Resolve reads authored topology only (sync/async; synchronous await-compatible
+field facade); full schema-valid potential templates define topology, never computed
+values. Potential edges include null outputs, and cycles are checked before synchronous
+patch evaluation. Patches must supply exactly computed fields and preserve membership
+topology. First potential declarations reserve model/time, retained even after retirement;
+a changed template model/time rejects. Trusted callbacks have a purity obligation, not
+a JavaScript sandbox. See the [API example](prototypes/node-engine/README.md).
+
+Acceptance (2026-11-14): 102 Node tests passed on Node 24.22.1, zero failed/skipped.
+Independent review fixed ignored invalid resolver reads and missing direct-evaluation
+existence routes; focused regressions also verify computed-position changes reject. See
+[JS-P3b.1 evidence](docs/checkpoints/js-p3b-oracle.json). The reference
+uses full scans/sorts, pairwise potential edges and repeated topological scans, with
+quadratic or higher query work possible. Producer/edge caps are not complete CPU/byte
+budgets. No incremental writer, durable publication or logarithmic mutation claim follows.
+Normal mutate/createMutation/checkStore explicitly reject calculation or managed-model
+catalogs with UNSUPPORTED_SETTLEMENT; plain JS-P2 catalogs continue. Static sourceOracle
+inventory remains usable for final records inside the reference. Historical evidence
+below keeps its original fingerprints and accepted scope.
+
+Next: **JS-P3b.2 integrated incremental settlement**, unaccepted: wire staging/routes,
+managed reservation ledgers, final-graph closure/cycles and evaluation, independently
+check against full recomputation and prove rollback. Full JS-P3b, JS-P4/JS-P5 and native
+E3/E5 remain outstanding.
+
 ## JS-P3a — Internal staging, complete cuts and reverse routing
 
 Built after accepted JS-P2 (`2fd843f`). Internal `createMutation` stages source/tree

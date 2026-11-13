@@ -12,6 +12,9 @@ function inventory(actual, expected, label) {
 /** Complete active-generation check from source facts; deliberately O(total rows). */
 export async function checkStore(store, catalog, tenant) {
   decodeDomain('id', tenant);
+  if (Object.values(catalog.models).some(model => model.managed || model.calculations?.length)) {
+    fail('UNSUPPORTED_SETTLEMENT', 'Reactive store checking requires integrated settlement; use the complete-snapshot reference oracle');
+  }
   return store.read(async tx => {
     const identity = await tx.get(catalogKey(tenant));
     const sources = await tx.scan({ prefix: sourcePrefix(tenant) });

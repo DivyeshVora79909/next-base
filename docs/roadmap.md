@@ -2,7 +2,9 @@
 
 Current prototype authority: [Node redesign](node-redesign/README.md), with
 JS-P1/JS-P2 and JS-P3a internal primitives accepted, with JS-P3b–JS-P5
-remaining. The user authorized continuation; no reactive engine is wired yet.
+remaining. JS-P3b.1 calculation contracts/full-snapshot reference are accepted;
+JS-P3b.2 incremental integration is next. The user authorized continuation; no
+incremental reactive engine is wired yet.
 This page retains the Rust baseline's checkpoint history and outstanding capabilities;
 its automatic-continuation language does not override that authorization boundary.
 

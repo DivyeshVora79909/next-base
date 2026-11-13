@@ -84,6 +84,9 @@ function membershipTransitions(catalog, oldRecord, nextRecord) {
 /** Attempt-local internal workspace. Caller must propagate errors to abort its transaction. */
 export async function createMutation(tx, catalog, tenant) {
   decodeDomain('id', tenant);
+  if (Object.values(catalog.models).some(model => model.managed || model.calculations?.length)) {
+    fail('UNSUPPORTED_SETTLEMENT', 'Calculation or managed catalogs require the integrated settlement writer; only the reference oracle is available');
+  }
   const identityKey = catalogKey(tenant), identity = await tx.get(identityKey);
   if (identity === undefined) await tx.set(identityKey, catalog.identity);
   else if (identity !== catalog.identity) fail('CATALOG_MISMATCH', 'Store catalog identity differs');

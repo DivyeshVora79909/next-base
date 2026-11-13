@@ -7,6 +7,7 @@ const own = (o, k) => Object.hasOwn(o, k);
 const object = (v, label) => { if (!v || typeof v !== 'object' || Array.isArray(v)) fail(`${label} must be an object`); return v; };
 const name = (v, label) => { if (typeof v !== 'string' || !v.length) fail(`${label} must be a nonempty string`); return v; };
 const keysOnly = (value, allowed, label) => { object(value, label); for (const key of Object.keys(value)) if (!allowed.includes(key)) fail(`Unknown ${label} key ${key}`); };
+const asyncFunctionPrototype = Object.getPrototypeOf(async () => {});
 const domains = new Set(['id', 'string', 'integer', 'boolean']);
 const domain = value => { if (!domains.has(value)) fail(`Unsupported domain ${value}`); return value; };
 const emptyDeferred = value => value === undefined || (Array.isArray(value) ? value.length === 0 : value && typeof value === 'object' && Object.keys(value).length === 0);
@@ -35,12 +36,12 @@ function selector(model, value, expected) {
 }
 
 /** Compile immutable declarations and trusted implementation references once. */
-export function prepareCatalog(definition, { monoids = standardMonoids, validators = {} } = {}) {
+export function prepareCatalog(definition, { monoids = standardMonoids, validators = {}, calculations = {} } = {}) {
   assertJson(definition);
   const declaration = cloneData(definition);
   keysOnly(declaration, ['name','version','contracts','views','models','calculations','dependencies'], 'Catalog'); name(declaration.name, 'Catalog name'); name(declaration.version, 'Catalog version');
   for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(declaration[key])) fail(`${key} are unsupported in JS-P1`);
-  const contracts = Object.create(null), views = Object.create(null), models = Object.create(null), usedMonoids = Object.create(null), usedValidators = Object.create(null);
+  const contracts = Object.create(null), views = Object.create(null), models = Object.create(null), usedMonoids = Object.create(null), usedValidators = Object.create(null), usedCalculations = Object.create(null);
   const ajv = new Ajv2020({ strict: true, allErrors: true, ownProperties: true, coerceTypes: false, useDefaults: false, removeAdditional: false, validateSchema: true });
   for (const [id, spec] of Object.entries(object(declaration.contracts, 'Contracts'))) {
     keysOnly(spec, ['version','partition','order','inputs','aggregates','validators','calculations','dependencies'], 'Contract');
@@ -75,8 +76,24 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
     views[id] = { ...spec, contract: contracts[spec.contract], contractId: spec.contract };
   }
   for (const [id, spec] of Object.entries(object(declaration.models, 'Models'))) {
-    keysOnly(spec, ['schema','references','uniqueness','memberships','calculations','dependencies'], 'Model');
-    for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(spec[key])) fail(`${key} are unsupported in JS-P1`);
+    keysOnly(spec, ['schema','references','uniqueness','memberships','managed','calculations','dependencies'], 'Model');
+    if (!emptyDeferred(spec.dependencies)) fail('dependencies are unsupported in JS-P3b.1');
+    if (spec.managed !== undefined && typeof spec.managed !== 'boolean') fail('Model managed must be a boolean');
+    const managed = spec.managed ?? false;
+    const calculationDeclarations = spec.calculations ?? [];
+    if (spec.calculations === null) fail('Model calculations must be an array');
+    slots(calculationDeclarations, 'calculation');
+    if (managed && calculationDeclarations.length) fail('Managed models cannot declare calculations');
+    const compiledCalculations = calculationDeclarations.map(rule => {
+      keysOnly(rule, ['slot','use'], 'Calculation');
+      name(rule.use, 'Calculation use');
+      const registered = own(calculations, rule.use) ? calculations[rule.use] : undefined;
+      if (!registered || typeof registered.resolve !== 'function' || typeof registered.evaluate !== 'function' || Object.getPrototypeOf(registered.evaluate) === asyncFunctionPrototype) fail(`Unknown or invalid calculation ${rule.use}`);
+      name(registered.version, 'Calculation version');
+      const implementation = { version: registered.version, resolve: registered.resolve, evaluate: registered.evaluate };
+      usedCalculations[rule.use] = { version: implementation.version };
+      return { ...rule, implementation };
+    });
     object(spec.schema, 'Model schema');
     if (spec.schema.type !== 'object' || spec.schema.additionalProperties !== false) fail('Model schema requires object root and additionalProperties:false');
     object(spec.schema.properties, 'Schema properties');
@@ -109,9 +126,9 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected);
       if (!['reject', 'skip'].includes(membership.onMissing)) fail('Membership requires onMissing policy');
     }
-    models[id] = { ...spec, references, uniqueness, memberships, validate };
+    models[id] = { ...spec, managed, calculations: compiledCalculations, references, uniqueness, memberships, validate };
   }
-  const identity = fingerprint({ declaration, monoids: usedMonoids, validators: usedValidators });
+  const identity = fingerprint({ declaration, monoids: usedMonoids, validators: usedValidators, ...(Object.keys(usedCalculations).length ? { calculations: usedCalculations } : {}) });
   for (const [id, view] of Object.entries(views)) view.identity = fingerprint({ catalog: identity, view: id });
   return freezeDeep({ identity, definition: declaration, contracts, views, models });
 }

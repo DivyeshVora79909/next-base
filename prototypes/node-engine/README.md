@@ -3,7 +3,8 @@
 JS-P1 and JS-P2 supply prepared index contracts/bindings, an independent flat source
 oracle, exact monoids, a transactional memory adapter and augmented AVL mutation/read
 functions. JS-P3a internal staging/routing primitives are accepted; catalog integration
-and reactive settlement remain JS-P3b. This package is not a replacement server.
+and incremental reactive settlement remain JS-P3b.2; the JS-P3b.1 full-snapshot
+reference oracle is accepted. This package is not a replacement server.
 
 Use Node 24+ and `npm ci` in this directory. There is no custom command parser;
 `npm test` uses the standard Node test runner. From the repository-root Node REPL:
@@ -38,7 +39,7 @@ an inspector/test oracle, not a mutation algorithm.
 
 ## Current functions
 
-- `prepareCatalog(definition, { monoids, validators })`: compile JSON Schema and
+- `prepareCatalog(definition, { monoids, validators, calculations })`: compile JSON Schema and
   check binding/reference/view declarations, returning frozen metadata and identity.
 - `validateRecord(catalog, record)`: validate and detach one source record. It does
   not check database references, authorize callers, or execute summary validators.
@@ -104,9 +105,65 @@ registrations, not a demonstrated logarithmic-plus-matches bound. Memory prefix 
 still enumerate the Map, outside the logical route-visit budget.
 
 Acceptance: 81 Node tests passed on Node 24.22.1, zero failed/skipped.
-Catalog calculations/dependencies still reject. Callback preparation, potential-output
-inventory, final-graph closure, cycle handling, evaluation, managed-output lifecycle
-and independent full recomputation belong to unaccepted JS-P3b.
+JS-P3b.1 adds prepared calculation contracts and a full-snapshot reference below.
+Incremental routing/staging integration and managed storage remain JS-P3b.2.
+
+## JS-P3b.1 calculation reference
+
+From the repository-root Node REPL:
+
+```js
+const engine = await import('./prototypes/node-engine/src/index.mjs');
+const causal = await import('./prototypes/node-engine/examples/causal.mjs');
+const catalog = engine.prepareCatalog(causal.causalDefinition,
+  { calculations: causal.causalCalculations() });
+const result = await engine.settlementOracle(catalog, 't', causal.causalDiamond());
+Object.fromEntries(['A', 'B', 'D'].map(id =>
+  [id, result.generated.find(r => r.id === causal.causalOutput(id)).data.amount]));
+// { A: '20', B: '30', D: '50' }
+```
+
+`settlementOracle(catalog, tenant, authored, { reservations, maxProducers, maxEdges }?)`
+is a full recomputation reference, not a transactional writer. Supply the complete tenant
+**authored** snapshot and complete historical reservation ledger, including retired roles;
+these are caller preconditions, not facts checked against a database. It returns final
+`records`, `generated`, retained `reservations`, producers, graph order/edges, routes,
+static inventory and work metrics. `generatedId(tenant, anchorId, calculationSlot, role)`
+is public; `producerId` remains an internal module function.
+
+Authored models declare `calculations: [{ slot, use }]`. Output-only models declare
+`managed: true` and must not declare calculations. The trusted calculation registry
+supplies a version and ordinary `resolve`/`evaluate` functions.
+Resolve may be synchronous or asynchronous. Its `readField(id, selector)` is synchronous
+(and await-compatible), returns `{ exists, present, value? }`, reads authored records
+only and records implicit field/existence routes. Dynamic topology may depend only on
+authored facts. Explicit reads are direct fields or typed aggregate ranges with the
+same complete cuts as tree reads.
+
+Resolve returns parameters, reads and complete schema-valid output templates with a
+role, managed model, owner, creation time, data and exact `computed` field names.
+Template values establish potential membership topology; placeholders never serve as
+computed values. Potential edges include outputs whose evaluation is null. The oracle
+orders/checks the full potential graph for cycles before evaluation. Synchronous evaluate
+returns `{ outputs: { role: patchOrNull } }`; each patch contains exactly its declared
+computed fields and must preserve membership topology. Null emits no current record.
+The first potential declaration reserves output model and creation time even if null;
+retired reservations remain, and a later changed model/time rejects rather than being
+automatically replaced with historical metadata.
+
+Callbacks are trusted ordinary JavaScript with a developer purity obligation, not a
+sandbox. The reference deliberately scans/sorts complete snapshots, compares potential
+edges pairwise and repeatedly scans during topological ordering; work may be quadratic
+or higher with query costs. Producer/edge caps do not bound all CPU, bytes or callback
+work. No incremental complexity, durability or production capacity follows.
+
+Normal `mutate`, internal `createMutation` and `checkStore` reject catalogs containing
+calculations **or managed models** with `UNSUPPORTED_SETTLEMENT`; plain JS-P2 catalogs
+continue to work. `sourceOracle` can inspect static final-record inventories, as used
+inside this reference. JS-P3b.2 must wire the incremental writer, route and reservation
+ledgers, closure/cycles, independent checking and rollback before full JS-P3b acceptance.
+Acceptance: 102 Node tests passed on Node 24.22.1, zero failed/skipped.
+See [JS-P3b.1 evidence](../../docs/checkpoints/js-p3b-oracle.json).
 
 ## Explicit boundaries
 
@@ -125,7 +182,8 @@ selectors or constants. Supported role domains are `integer`, `id`, `string`,
 under `onMissing: 'skip'`; malformed present values still fail. Scalar/array/polymorphic
 references and unique tuples are declared once. Static distinct membership slots can
 repeat a source in the same view. Array-expanded membership binding is not yet supplied.
-Nonempty calculation/dependency declarations reject explicitly pending JS-P3b.
+Nonempty contract-level calculation/dependency declarations remain unsupported; model
+calculation contracts are limited to the reference path described above.
 
 The memory adapter serializes **both readers and writers**, retains protected-read
 evidence and publishes a touched-key overlay without copying the complete store.

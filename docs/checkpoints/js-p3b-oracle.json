@@ -1,0 +1,183 @@
+{
+  "checkpoint": "JS-P3b.1",
+  "date": "2026-11-14",
+  "baseCommit": "8379aaea8452ebcf0275e5203ae4f85d30067166",
+  "status": "accepted-reference-only",
+  "runtime": {
+    "node": "24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "validation": {
+    "command": "npm test (Node 24.22.1 on PATH, prototypes/node-engine)",
+    "tests": 102,
+    "passed": 102,
+    "failed": 0,
+    "skipped": 0,
+    "sourceReview": "Independent review; ignored invalid resolver reads and missing evaluation existence routes fixed and regression-tested. Final focused review found no concrete blocker for reference-only acceptance.",
+    "witnesses": {
+      "calculationCatalogTests": 5,
+      "calculationOracleTests": 16,
+      "finalGraphPermutationOrders": 6
+    },
+    "example": {
+      "authoredBase": "10",
+      "generated": {
+        "A": "20",
+        "B": "30",
+        "D": "50"
+      },
+      "verification": "README Node import/composition example executed"
+    }
+  },
+  "claims": [
+    "versioned immutable calculation bindings and managed-only model classification",
+    "authored-only topology resolution with detached frozen values and field/existence read registrations",
+    "complete potential outputs retain causal edges even when currently absent",
+    "final potential graph cycle rejection before synchronous evaluation",
+    "exact computed patches cannot alter declared membership topology",
+    "independent flat declaration projection, range folds and final source/reference/unique/summary inventories",
+    "deterministic generated identities and retained historical reservations with strict model/time binding",
+    "static writer/checker reject managed/calculation catalogs until integrated settlement exists"
+  ],
+  "limitations": [
+    "JS-P3b.2 incremental writer, managed storage, integrated independent checker and rollback remain unimplemented",
+    "reference consumes a complete authored tenant snapshot and complete historical reservation ledger as caller preconditions; it cannot prove input completeness",
+    "full scans/sorts, pairwise potential edge discovery and repeated topological scans are intentionally batch work, possibly quadratic or higher with range queries",
+    "producer and edge caps do not bound all work, bytes or callback execution",
+    "callbacks are trusted ordinary JavaScript; purity is required but not sandbox enforced",
+    "managed timestamp binds at first potential declaration; altered template model/time rejects on reactivation",
+    "no database commit, crash durability, distributed concurrency or production acceptance follows from this oracle",
+    "no Rust/legacy runtime suites rerun"
+  ],
+  "files": [
+    {
+      "path": "prototypes/node-engine/README.md",
+      "sha256": "c5bdc6504021f3df4018d664e28ace26cfebfdf0ff2b551498c50bb921ff2f6e"
+    },
+    {
+      "path": "prototypes/node-engine/examples/activity.mjs",
+      "sha256": "783cf062a1cfd6b94a5c7e8f9c6072907c3b66704be5edc1171a4b7187b09438"
+    },
+    {
+      "path": "prototypes/node-engine/examples/causal.mjs",
+      "sha256": "97e5a92404f848d392007a0918c0fa4f88ffdaed2032c2b46e91b75b33820ab6"
+    },
+    {
+      "path": "prototypes/node-engine/package-lock.json",
+      "sha256": "f240da78024741185e585702603d79669812a144d74b865c44c632bcce2af58b"
+    },
+    {
+      "path": "prototypes/node-engine/package.json",
+      "sha256": "5604564b40711a5b433163b124bf7b6ef83ed4eefcb6f50745b2df5298e84ed3"
+    },
+    {
+      "path": "prototypes/node-engine/src/calculation-oracle.mjs",
+      "sha256": "9e7d8a7ec4aadde3cfb7c0e43d486d3be112a5c37c6ca4a7ad3e993fcb341396"
+    },
+    {
+      "path": "prototypes/node-engine/src/catalog.mjs",
+      "sha256": "0a099061be488321958c6b2a2e074d8240ca76c6d011d017741941657ec94b0b"
+    },
+    {
+      "path": "prototypes/node-engine/src/check.mjs",
+      "sha256": "78d2450139e57e2f0ec14a3b4999e0e7de8b3257af00563f48754db4135e4104"
+    },
+    {
+      "path": "prototypes/node-engine/src/index.mjs",
+      "sha256": "1db2a0e5d06f3c2c9cc2b6743c5ef89517299b4513b4a2058b55d02b9e5119e0"
+    },
+    {
+      "path": "prototypes/node-engine/src/keys.mjs",
+      "sha256": "4add05336bb607dab6991c76949aef94e7fecf0a04d7354ff9b13612e47fc23c"
+    },
+    {
+      "path": "prototypes/node-engine/src/memory.mjs",
+      "sha256": "43cf6766b1836ca51c1d40673b809ee977990d9194af89a5cfb0bc4df7905cc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/monoids.mjs",
+      "sha256": "85dc3df657c99e0cb13d6bfbe4ff7ea948a54f564c6f63d62a9720113c178bc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/mutate.mjs",
+      "sha256": "1b6d4ce544d0ad00e47eea8373c2e8e86a697470cef1f8d050f6e45695972a6a"
+    },
+    {
+      "path": "prototypes/node-engine/src/oracle.mjs",
+      "sha256": "481ad9814b3b9a99908d8977573e1cf33564264bd5541f178ef21f4a4a21f0b3"
+    },
+    {
+      "path": "prototypes/node-engine/src/range.mjs",
+      "sha256": "ad22206b915426172d521a0be6301cef55193d849170b49bc4da8f4f03f69571"
+    },
+    {
+      "path": "prototypes/node-engine/src/routes.mjs",
+      "sha256": "9da6ea959fe6e20f09fd576c6d7583d67271d54b5f563112a259797cfba70ed8"
+    },
+    {
+      "path": "prototypes/node-engine/src/tree.mjs",
+      "sha256": "d398d9a4a478213754f6c5980fead0a61878c9ef7e62d01321265ee05783accb"
+    },
+    {
+      "path": "prototypes/node-engine/src/values.mjs",
+      "sha256": "b1fa33caf5b86cd22f1b99fec28647c78d1eb45d6be15a57f0820c75e2d2ca8c"
+    },
+    {
+      "path": "prototypes/node-engine/test/calculation-catalog.test.mjs",
+      "sha256": "3c873179354adb83a15a448095d1be2815b47651b0e39817bd1fbefeefe633dc"
+    },
+    {
+      "path": "prototypes/node-engine/test/calculation-oracle.test.mjs",
+      "sha256": "f64997765dd6301dd9ba4eebb51b5a50ca20a889c25172f8db7bca84dfe99e3d"
+    },
+    {
+      "path": "prototypes/node-engine/test/catalog.test.mjs",
+      "sha256": "0f713814674df1cbf5d2efb8e76308dc5ea29a85e8357aeacb8e88d602cdad4d"
+    },
+    {
+      "path": "prototypes/node-engine/test/composition.test.mjs",
+      "sha256": "698cfc4fd67a8402f1b74f3263d59ea6b0c255ffd3950e117f4ce6dee7e6c119"
+    },
+    {
+      "path": "prototypes/node-engine/test/integrity.test.mjs",
+      "sha256": "06b0b1a3f4eb68bbeb4439120525e9c29f4f14d630bf1f70ff4460a1faf2f961"
+    },
+    {
+      "path": "prototypes/node-engine/test/memory.test.mjs",
+      "sha256": "77dfa34a186311fe74eae50298a2501d155d1fb81d21dcb5ea3d1809389cc25c"
+    },
+    {
+      "path": "prototypes/node-engine/test/monoids.test.mjs",
+      "sha256": "9400a25b8867eb62af37df433345b1947a1af78b3b3218b55e1777be2b1e9590"
+    },
+    {
+      "path": "prototypes/node-engine/test/mutate.test.mjs",
+      "sha256": "e77387e52740502dfc17fbdd5af895345fa2b05e005792cdc2673089bfad987f"
+    },
+    {
+      "path": "prototypes/node-engine/test/oracle.test.mjs",
+      "sha256": "c1878444610637875005d58754f6ba39a95aab796eddb930b135fac3e3d5e72c"
+    },
+    {
+      "path": "prototypes/node-engine/test/range.test.mjs",
+      "sha256": "9c053afb67d8ef3e0d409fb920d96ab578bc501308162db79ccfb9ee173aba46"
+    },
+    {
+      "path": "prototypes/node-engine/test/routes.test.mjs",
+      "sha256": "731408b2368fed545255f96653a0f722d9ffc27c0d660c46d3120abc829f1c4a"
+    },
+    {
+      "path": "prototypes/node-engine/test/staging.test.mjs",
+      "sha256": "33ca54ea2abc1b2e459388907300b3e44f87f73564359540d9fec0512e448169"
+    },
+    {
+      "path": "prototypes/node-engine/test/tree.test.mjs",
+      "sha256": "c074a1706aeb8532888c6dfa2236a4d668405d461439e600249d848df89514e3"
+    },
+    {
+      "path": "prototypes/node-engine/test/values.test.mjs",
+      "sha256": "da14dce4d0b363428facd160ed41424f5625995cc9a2ade024755020545c1512"
+    }
+  ]
+}

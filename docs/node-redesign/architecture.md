@@ -192,12 +192,27 @@ unresolved contributions cannot be read as the identity. A moved query may remov
 an old edge in the same transaction that creates its reverse. Two zero-output
 producers can still form an invalid potential cycle. Both are required witnesses.
 
+Incremental integration must finish resolving and installing final potential positions
+before evaluating values. In the transaction overlay, withdraw old actual outputs
+belonging to the pending closure before reevaluation: an output moving out of a query
+must not leave its stale contribution visible until its producer happens to run.
+Topological readiness distinguishes a settled absent output from an unresolved one.
+Maintain an indexed potential-output inventory for finding predecessors of new/moved
+queries; actual memberships alone cannot provide it. No tenant-wide source scan belongs
+in the ordinary writer. The independent full-snapshot oracle intentionally scans instead.
+Both resolver and evaluation field reads protect existence as well as the requested
+field. An asynchronous KV read facade must retain/await outstanding reads and latch
+failures before accepting a resolver result; discarding a returned promise cannot
+discard its failure. The synchronous reference facade is not that adapter proof.
+
 Staging may temporarily visit a partition that never existed initially or finally.
 Final business-scope obligations follow original-to-final membership transitions,
 including an emptied original root, rather than transient staging paths. Final
 references and unique acquisitions wait for all authored and managed rows. Stable
-producer/role reservations outlive output absence; first-creation metadata survives
-reactivation, and source commands cannot take over managed identities. These integrated
+producer/role reservations outlive output absence. JS-P3b.1 reserves model and canonical
+creation time at the first **potential declaration**, including one that emits nothing;
+reactivation must redeclare those same values, otherwise it rejects. Source commands
+cannot take over managed identities. These integrated
 managed/causal guarantees remain JS-P3b work, not JS-P3a routing acceptance.
 
 A range fold computes a value. Reverse interval stabbing discovers subscribers of
