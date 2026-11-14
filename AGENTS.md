@@ -7,8 +7,9 @@ do not load every historical paper or duplicate these instructions into memories
 Current user authorization: **continue Node prototype checkpoints**. Read the compact
 [redesign context](docs/node-redesign/README.md) and its linked contracts before
 continuing. The execution flag has been supplied. JS-P1 and JS-P2 are accepted; JS-P3a internal primitives are accepted.
-JS-P3b.1 calculation contracts/reference are accepted; continue JS-P3b.2 incremental
-settlement and subsequent dependency gates under `prototypes/node-engine/`. The Rust foundation
+JS-P3b.1 reference and JS-P3b.2 incremental settlement are accepted for the local
+volatile adapter, completing JS-P3. Continue JS-P4 bounded readers/owner merge/cursors
+and subsequent dependency gates under `prototypes/node-engine/`. The Rust foundation
 below remains the existing application; prototype evidence does not replace its acceptance.
 
 ## Selected foundation

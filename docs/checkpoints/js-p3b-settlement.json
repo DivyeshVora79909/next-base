@@ -1,0 +1,243 @@
+{
+  "checkpoint": "JS-P3b.2",
+  "date": "2026-11-14",
+  "baseCommit": "426717533440c28d189b2119719c935bc95a3641",
+  "status": "accepted-local-reactive-prototype",
+  "runtime": {
+    "node": "24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "validation": {
+    "command": "npm test (Node 24.22.1 on PATH, prototypes/node-engine)",
+    "tests": 140,
+    "passed": 140,
+    "failed": 0,
+    "skipped": 0,
+    "sourceReview": "Independent review identified malformed producer metadata silently repaired and reserved generated IDs accepted by static mutation path; both fixed with regressions. Resolver source shape and own-property signal issues also fixed. Final source review found no concrete blocker for local volatile acceptance.",
+    "witnesses": {
+      "integrationTests": 16,
+      "seededTransitions": 24,
+      "writerUnitTests": 7,
+      "runtimeTests": 7,
+      "potentialIndexTests": 4,
+      "privateCheckerTests": 3
+    },
+    "example": {
+      "changedSources": 7,
+      "changedMemberships": 6,
+      "settlement": {
+        "resolved": 3,
+        "evaluated": 3,
+        "routeVisits": 4,
+        "potentialVisits": 4,
+        "edges": 2,
+        "pending": 3
+      },
+      "independentCheck": {
+        "sources": 7,
+        "trees": 5,
+        "occurrences": 6,
+        "references": 0,
+        "claims": 0
+      },
+      "diamondAggregate": "50",
+      "note": "pending counts the total affected producer cohort processed, not work left unresolved; transactional README example executed"
+    }
+  },
+  "claims": [
+    "public mutate stages authored and managed source, membership, route, potential and reservation changes in one atomic transaction",
+    "incremental route and potential-index traversal without tenant-wide source or producer scans in the writer",
+    "final-graph causal closure including zero-output roles, changed bounds and cycles through unchanged downstream producers",
+    "all old outputs of the pending cohort withdrawn before evaluation; unresolved contributions never treated as zero",
+    "final typed references, unique claims and live potential empty-scope validators checked before one publication",
+    "first-potential model and creation-time reservations retained through absence and retirement",
+    "independent complete active source-derived inventories and structure checks cover business and private routing/potential state",
+    "no-op mutations write nothing and disjoint producer changes do not trigger unrelated evaluations",
+    "explicit logical budgets, atomic rollback and deliberately omitted-invalidation detection"
+  ],
+  "limitations": [
+    "memory adapter remains serialized and volatile; no crash, durable receipt, distributed concurrency or production acceptance",
+    "memory prefix scans enumerate the store; logical route/potential budgets do not bound physical scans, callbacks, bytes or all CPU work",
+    "conservative interval reporting remains worst-case O(R); cascades, outputs and graph edges add work beyond AVL paths",
+    "callbacks are trusted ordinary JavaScript, with required purity rather than a sandbox",
+    "independent current-state checking cannot infer completeness of a missing retired historical reservation",
+    "managed template model and creation time bind at first potential declaration and cannot be changed on reactivation",
+    "JS-P4 bounded authorized readers/cursors and JS-P5 lifecycle/devtools remain unaccepted",
+    "no Rust/legacy runtime suites rerun for this isolated Node checkpoint"
+  ],
+  "files": [
+    {
+      "path": "prototypes/node-engine/README.md",
+      "sha256": "6b7391b07dc133c19046b33e4bb9c634925cb30156de36ef0de6904b5a2babc1"
+    },
+    {
+      "path": "prototypes/node-engine/examples/activity.mjs",
+      "sha256": "783cf062a1cfd6b94a5c7e8f9c6072907c3b66704be5edc1171a4b7187b09438"
+    },
+    {
+      "path": "prototypes/node-engine/examples/causal.mjs",
+      "sha256": "97e5a92404f848d392007a0918c0fa4f88ffdaed2032c2b46e91b75b33820ab6"
+    },
+    {
+      "path": "prototypes/node-engine/package-lock.json",
+      "sha256": "f240da78024741185e585702603d79669812a144d74b865c44c632bcce2af58b"
+    },
+    {
+      "path": "prototypes/node-engine/package.json",
+      "sha256": "5604564b40711a5b433163b124bf7b6ef83ed4eefcb6f50745b2df5298e84ed3"
+    },
+    {
+      "path": "prototypes/node-engine/src/calculation-identity.mjs",
+      "sha256": "9184c8536fce76469fe5d57b08359704f26894d592787fc8df35fb8aa1135f88"
+    },
+    {
+      "path": "prototypes/node-engine/src/calculation-oracle.mjs",
+      "sha256": "ffa9101f7c9143f3273033d80fe9fd38d82c6c27a2d8a7fd7a455c019ad8469a"
+    },
+    {
+      "path": "prototypes/node-engine/src/calculation-runtime.mjs",
+      "sha256": "af0030dd1349aa5ad449d7c188ceefae1a7bf68d048b0b8a89c7cf8ac614054f"
+    },
+    {
+      "path": "prototypes/node-engine/src/catalog.mjs",
+      "sha256": "0a099061be488321958c6b2a2e074d8240ca76c6d011d017741941657ec94b0b"
+    },
+    {
+      "path": "prototypes/node-engine/src/check-reactive.mjs",
+      "sha256": "4cc628af20029fbedc76c1016d26cafc8915b3b7fef07c976fdefaf7504ef6ce"
+    },
+    {
+      "path": "prototypes/node-engine/src/check.mjs",
+      "sha256": "617ec50a1bc4e9344bdc806783f14e6b6b3ff526837cb66320a60cd4848f24af"
+    },
+    {
+      "path": "prototypes/node-engine/src/index.mjs",
+      "sha256": "1db2a0e5d06f3c2c9cc2b6743c5ef89517299b4513b4a2058b55d02b9e5119e0"
+    },
+    {
+      "path": "prototypes/node-engine/src/keys.mjs",
+      "sha256": "51baf5d10f8f986a75aab64e9d56a798dfc54d055572f329a4a87669ae252b81"
+    },
+    {
+      "path": "prototypes/node-engine/src/memory.mjs",
+      "sha256": "43cf6766b1836ca51c1d40673b809ee977990d9194af89a5cfb0bc4df7905cc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/monoids.mjs",
+      "sha256": "85dc3df657c99e0cb13d6bfbe4ff7ea948a54f564c6f63d62a9720113c178bc1"
+    },
+    {
+      "path": "prototypes/node-engine/src/mutate.mjs",
+      "sha256": "b75d590cdae3c3cc4ef9fce83e1ddc9d93859295dae2a6c80a08eef7407c1eda"
+    },
+    {
+      "path": "prototypes/node-engine/src/oracle.mjs",
+      "sha256": "481ad9814b3b9a99908d8977573e1cf33564264bd5541f178ef21f4a4a21f0b3"
+    },
+    {
+      "path": "prototypes/node-engine/src/potential.mjs",
+      "sha256": "6986d0afcd6c3264be99d38a78f5d4b75a08fa3c8104b5c7ebb0b42b596140b3"
+    },
+    {
+      "path": "prototypes/node-engine/src/range.mjs",
+      "sha256": "ad22206b915426172d521a0be6301cef55193d849170b49bc4da8f4f03f69571"
+    },
+    {
+      "path": "prototypes/node-engine/src/routes.mjs",
+      "sha256": "9da6ea959fe6e20f09fd576c6d7583d67271d54b5f563112a259797cfba70ed8"
+    },
+    {
+      "path": "prototypes/node-engine/src/settlement.mjs",
+      "sha256": "221dd5e5e2544933555b0c1c8b1e092ea0a729357efae18f478a853b2f8be0a3"
+    },
+    {
+      "path": "prototypes/node-engine/src/stage.mjs",
+      "sha256": "ae7d93813bab0aea8d2124fe9b56c35373c1745ed596a529fe15a7555d6685c1"
+    },
+    {
+      "path": "prototypes/node-engine/src/tree.mjs",
+      "sha256": "d398d9a4a478213754f6c5980fead0a61878c9ef7e62d01321265ee05783accb"
+    },
+    {
+      "path": "prototypes/node-engine/src/values.mjs",
+      "sha256": "b1fa33caf5b86cd22f1b99fec28647c78d1eb45d6be15a57f0820c75e2d2ca8c"
+    },
+    {
+      "path": "prototypes/node-engine/test/calculation-catalog.test.mjs",
+      "sha256": "4e60552a420e2ba56125b265b5db107bd9f3ed9ec290a5d8595ca82f0c734d46"
+    },
+    {
+      "path": "prototypes/node-engine/test/calculation-oracle.test.mjs",
+      "sha256": "f64997765dd6301dd9ba4eebb51b5a50ca20a889c25172f8db7bca84dfe99e3d"
+    },
+    {
+      "path": "prototypes/node-engine/test/calculation-runtime.test.mjs",
+      "sha256": "ee75e0a92a6eaf3cb9e38b919c0b471f833dfaa40d51b0675b58185273108b2f"
+    },
+    {
+      "path": "prototypes/node-engine/test/catalog.test.mjs",
+      "sha256": "0f713814674df1cbf5d2efb8e76308dc5ea29a85e8357aeacb8e88d602cdad4d"
+    },
+    {
+      "path": "prototypes/node-engine/test/check-reactive.test.mjs",
+      "sha256": "57e0dde21bc49bf820b3a0186bbc6b57a8b1443fce5743384cdb42439fe69739"
+    },
+    {
+      "path": "prototypes/node-engine/test/composition.test.mjs",
+      "sha256": "698cfc4fd67a8402f1b74f3263d59ea6b0c255ffd3950e117f4ce6dee7e6c119"
+    },
+    {
+      "path": "prototypes/node-engine/test/integrity.test.mjs",
+      "sha256": "06b0b1a3f4eb68bbeb4439120525e9c29f4f14d630bf1f70ff4460a1faf2f961"
+    },
+    {
+      "path": "prototypes/node-engine/test/memory.test.mjs",
+      "sha256": "77dfa34a186311fe74eae50298a2501d155d1fb81d21dcb5ea3d1809389cc25c"
+    },
+    {
+      "path": "prototypes/node-engine/test/monoids.test.mjs",
+      "sha256": "9400a25b8867eb62af37df433345b1947a1af78b3b3218b55e1777be2b1e9590"
+    },
+    {
+      "path": "prototypes/node-engine/test/mutate.test.mjs",
+      "sha256": "e77387e52740502dfc17fbdd5af895345fa2b05e005792cdc2673089bfad987f"
+    },
+    {
+      "path": "prototypes/node-engine/test/oracle.test.mjs",
+      "sha256": "c1878444610637875005d58754f6ba39a95aab796eddb930b135fac3e3d5e72c"
+    },
+    {
+      "path": "prototypes/node-engine/test/potential.test.mjs",
+      "sha256": "7220bac08eaa0504fab0f47d1e6a97aa4a5e274cdd4a5434ec98645cea1e455b"
+    },
+    {
+      "path": "prototypes/node-engine/test/range.test.mjs",
+      "sha256": "9c053afb67d8ef3e0d409fb920d96ab578bc501308162db79ccfb9ee173aba46"
+    },
+    {
+      "path": "prototypes/node-engine/test/routes.test.mjs",
+      "sha256": "731408b2368fed545255f96653a0f722d9ffc27c0d660c46d3120abc829f1c4a"
+    },
+    {
+      "path": "prototypes/node-engine/test/settlement-unit.test.mjs",
+      "sha256": "71829400e18a25f2340e1e4aa80c890b88632a2c8ba3bbff565983cf3148f64d"
+    },
+    {
+      "path": "prototypes/node-engine/test/settlement.test.mjs",
+      "sha256": "f765956cfa8def49ec965f425d46595a9eb63c39ba50d4c55e2a83ea4998934a"
+    },
+    {
+      "path": "prototypes/node-engine/test/staging.test.mjs",
+      "sha256": "33ca54ea2abc1b2e459388907300b3e44f87f73564359540d9fec0512e448169"
+    },
+    {
+      "path": "prototypes/node-engine/test/tree.test.mjs",
+      "sha256": "c074a1706aeb8532888c6dfa2236a4d668405d461439e600249d848df89514e3"
+    },
+    {
+      "path": "prototypes/node-engine/test/values.test.mjs",
+      "sha256": "da14dce4d0b363428facd160ed41424f5625995cc9a2ade024755020545c1512"
+    }
+  ]
+}

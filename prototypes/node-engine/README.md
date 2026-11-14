@@ -2,9 +2,8 @@
 
 JS-P1 and JS-P2 supply prepared index contracts/bindings, an independent flat source
 oracle, exact monoids, a transactional memory adapter and augmented AVL mutation/read
-functions. JS-P3a internal staging/routing primitives are accepted; catalog integration
-and incremental reactive settlement remain JS-P3b.2; the JS-P3b.1 full-snapshot
-reference oracle is accepted. This package is not a replacement server.
+functions. JS-P3a internal staging/routing primitives are accepted; JS-P3b.1 full-snapshot reference is accepted; JS-P3b.2 incremental reactive
+settlement is accepted for the local volatile adapter. This package is not a replacement server.
 
 Use Node 24+ and `npm ci` in this directory. There is no custom command parser;
 `npm test` uses the standard Node test runner. From the repository-root Node REPL:
@@ -46,12 +45,13 @@ an inspector/test oracle, not a mutation algorithm.
 - `projectRecord(catalog, record)`: derive zero/one/many typed membership contributions.
 - `sourceOracle(catalog, records)`: independent expected trees, references and claims
   for a complete supplied snapshot. Partial data is not proof of full-store integrity.
-- `mutate(store, catalog, tenant, changes, { beforeCommit }?)`: atomically apply
+- `mutate(store, catalog, tenant, changes, options?)`: atomically apply
   `{ type: 'put', record }` / `{ type: 'delete', id }` commands, one per source ID.
   Reconcile memberships, reverse references and unique claims against the final graph;
   release old claims before acquisition so joint swaps work. `model` and `createdAt`
   are immutable on update. Return changed-source/membership counts, touched tree scopes
-  and adapter metrics. The optional fault hook runs before publication.
+  and adapter metrics. Reactive catalogs also return `settlement` metrics; see below.
+  The optional `beforeCommit` fault hook runs before publication.
 - `checkStore(store, catalog, tenant)`: independently reconstruct complete active-generation
   inventories from source facts, then check ordering, links, AVL balance, heights,
   structural sizes, subtree folds, references, claims and business validators.
@@ -83,19 +83,22 @@ removing the anchor; persistent live empty-anchor lifetimes remain deferred.
 ## JS-P3a internal primitives
 
 The staging and routing primitives below are internal imports, not exports from
-`src/index.mjs`. The extended `treeAggregate` remains public. This is not a wired reactive
-engine. `createMutation(tx, catalog, tenant)` in `src/mutate.mjs` returns asynchronous
+`src/index.mjs`. The extended `treeAggregate` remains public.
+`createMutation(tx, catalog, tenant)` in `src/stage.mjs` (re-exported internally by
+`src/mutate.mjs`) returns asynchronous
 `stage(changes)` and `finish()`. Repeated stages update sources/trees in the local
 transaction overlay; finish checks final references, unique claims and root validators,
 allowing joint repairs before publication. Call finish exactly once and propagate any
 error to abort the surrounding transaction. Final validator scopes derive from the
 original-to-final transition, excluding transient-only scopes. Intermediate staging has no independently
-valid graph or managed/private-output guarantees. Public `mutate` wraps one stage
-and finish in its own transaction.
+valid graph or managed/private-output guarantees. Public `mutate` wraps plain catalogs in one stage/finish transaction and dispatches
+calculation/managed-model catalogs through incremental settlement. Internal
+`finish({ scopes })` can add final live potential scopes for identity validation.
 
 `src/routes.mjs` supplies `replaceRoutes`, `readRoutes` and `affectedSubscribers` for
 explicit direct-field and typed aggregate-range registrations. Callers must supply
-changed fields and old/new occurrence points; no automatic invalidation is wired.
+changed fields and old/new occurrence points; the JS-P3b.2 writer now supplies these
+signals automatically.
 Registrations may persist when the selected range is empty; unchanged registrations
 retain guards without delete/reinsert work. The router reuses AVL
 nodes with maximum-upper summaries and conservative pruning; it reports actual
@@ -106,7 +109,8 @@ still enumerate the Map, outside the logical route-visit budget.
 
 Acceptance: 81 Node tests passed on Node 24.22.1, zero failed/skipped.
 JS-P3b.1 adds prepared calculation contracts and a full-snapshot reference below.
-Incremental routing/staging integration and managed storage remain JS-P3b.2.
+Incremental routing/staging integration and managed storage are accepted locally
+in JS-P3b.2.
 
 ## JS-P3b.1 calculation reference
 
@@ -157,19 +161,71 @@ edges pairwise and repeatedly scans during topological ordering; work may be qua
 or higher with query costs. Producer/edge caps do not bound all CPU, bytes or callback
 work. No incremental complexity, durability or production capacity follows.
 
-Normal `mutate`, internal `createMutation` and `checkStore` reject catalogs containing
-calculations **or managed models** with `UNSUPPORTED_SETTLEMENT`; plain JS-P2 catalogs
-continue to work. `sourceOracle` can inspect static final-record inventories, as used
-inside this reference. JS-P3b.2 must wire the incremental writer, route and reservation
-ledgers, closure/cycles, independent checking and rollback before full JS-P3b acceptance.
+The JS-P3b.2 writer now accepts calculation/managed-model catalogs through public
+`mutate`; direct caller commands still reject managed models and reserved derived IDs.
+`sourceOracle` inspects static final-record inventories inside the reference, while
+`checkStore` independently compares reactive and public inventories in one snapshot.
 Acceptance: 102 Node tests passed on Node 24.22.1, zero failed/skipped.
 See [JS-P3b.1 evidence](../../docs/checkpoints/js-p3b-oracle.json).
+
+## JS-P3b.2 transactional settlement
+
+Using `engine`, `causal` and `catalog` from the reference example above:
+
+```js
+const store = engine.createMemoryStore();
+const mutation = await engine.mutate(store, catalog, 't',
+  causal.causalDiamond().map(record => ({ type: 'put', record })),
+  { maxProducers: 100, maxEdges: 1000,
+    maxRouteVisits: 10000, maxPotentialVisits: 10000 });
+const checked = await engine.checkStore(store, catalog, 't');
+const d = await store.read(tx => engine.treeGet(tx, catalog,
+  { tenant: 't', view: 'effective', partition: ['D'] },
+  { order: '1', sourceId: engine.generatedId('t', 'D', 'main', 'value'), slot: 'main' }));
+d.contributions.total; // 50n
+mutation.settlement; // resolved, evaluated, routeVisits, potentialVisits, edges, pending
+```
+
+One transaction stages authored and generated rows, producer state, retained identity
+reservations, reverse routes and potential-output AVL indexes. The writer follows
+changed routes and potential predecessors without scanning all tenant sources or
+producers. It resolves authored-only topology, closes the affected final graph and
+rejects cycles before evaluating. It withdraws all pending producers' old actual
+outputs before evaluation, preventing moved stale points from entering range reads.
+References, uniqueness and final validators—including live potential scopes with no
+actual output—validate jointly before publication. Failure rolls back private and
+public changes together. The existing `beforeCommit` hook remains available.
+
+Runtime resolver `readField` is asynchronous; await its result. Outstanding reads are
+drained and failures latched even if a callback ignores their promises. The batch
+reference facade remains synchronous and await-compatible. Both enforce authored-only
+resolver topology and exact synchronous evaluation patches. Reservations retain first
+potential model/time; caller commands cannot write managed models or reserved IDs.
+
+Options `maxProducers`, `maxEdges`, `maxRouteVisits`, `maxPotentialVisits` default to
+`Infinity`. They bound logical counters, not all callback CPU, bytes or physical scans;
+callbacks remain trusted ordinary JavaScript. Route reporting can be O(R); memory
+prefix scans still enumerate the Map. `pending` counts the affected cohort processed, not remaining unsettled jobs.
+Counts of changed sources include authored and
+generated rows. No authentication/owner-policy, durability or production-capacity claim
+follows from this local serialized volatile adapter.
+
+`checkStore` runs the independent full reference in the same snapshot as public-tree
+checking and verifies active managed records, producers, routes, potential forests and
+retained reservations. Its full scans are deliberate. A missing retired reservation
+cannot always be inferred from present facts alone; historical ledger completeness
+remains a precondition. See [JS-P3b.2 evidence](../../docs/checkpoints/js-p3b-settlement.json)
+Acceptance: 140 Node tests passed on Node 24.22.1, zero failed/skipped.
+Full JS-P3 is accepted within the local volatile adapter; JS-P4 bounded readers/owner-scoped
+merge/cursors and JS-P5 lifecycle/tools
+remain unaccepted.
 
 ## Explicit boundaries
 
 Sources contain exactly `id`, `tenant`, `owner`, `model`, `createdAt`, `data`.
 IDs are nonempty well-formed Unicode strings in this prototype, not a claim of UUID
-authentication. Integers in ordered/input roles and creation metadata use canonical
+authentication. Authored inputs cannot use the reserved `@next/derived/` prefix,
+including through plain static-catalog mutations; generated identities are engine-owned. Integers in ordered/input roles and creation metadata use canonical
 decimal strings; computations use BigInt. Ordinary JSON numbers must be safe integers.
 Strings compare by UTF-8 bytes, not locale. Generic decimal/floating domains are not
 implemented. Structural counts are distinct from business sums.
@@ -183,7 +239,7 @@ under `onMissing: 'skip'`; malformed present values still fail. Scalar/array/pol
 references and unique tuples are declared once. Static distinct membership slots can
 repeat a source in the same view. Array-expanded membership binding is not yet supplied.
 Nonempty contract-level calculation/dependency declarations remain unsupported; model
-calculation contracts are limited to the reference path described above.
+calculation contracts use the reference and incremental paths described above.
 
 The memory adapter serializes **both readers and writers**, retains protected-read
 evidence and publishes a touched-key overlay without copying the complete store.

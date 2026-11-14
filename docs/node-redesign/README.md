@@ -1,6 +1,6 @@
 # Node engine redesign — compact agent context
 
-Status: **Execution authorized; JS-P1/JS-P2 accepted; JS-P3a internal primitives accepted; JS-P3b.1 reference accepted; JS-P3b.2 next.**
+Status: **Execution authorized; JS-P1/JS-P2 accepted; JS-P3a internal primitives accepted; JS-P3b.1 reference accepted; JS-P3 accepted locally; JS-P4 next.**
 This packet is the redesign contract, not an implemented production replacement. Rust
 `src/`, models, stores and historical evidence remain the executable baseline.
 Experimental code belongs in [prototypes/node-engine](../../prototypes/node-engine/README.md).
@@ -98,8 +98,11 @@ JS-P3 is split into internal staging/complete-cut/reverse-routing primitives (JS
 and catalog-integrated final-graph settlement (JS-P3b). JS-P3a passed 81 Node tests;
 [its evidence](../checkpoints/js-p3a.json) does not establish a wired reactive engine.
 Model calculation contracts and a full-snapshot settlement reference are accepted
-in JS-P3b.1 (102 Node tests); this accepts the reference only. Normal mutation/checking rejects calculation or managed-model catalogs;
-JS-P3b.2 incremental integration remains unaccepted. See the [split gates](checkpoints.md)
+in JS-P3b.1 (102 Node tests). JS-P3b.2 now integrates public mutation, final-graph
+settlement, private inventories and independent snapshot checking; 140 Node tests pass (Node 24.22.1, zero failed/skipped), accepting full JS-P3 for the
+local volatile adapter. JS-P4 bounded readers/owner merge/cursors are next.
+It uses changed routes/potential AVL indexes without a tenant-wide source/producer scan;
+physical memory prefix scans remain linear. See the [split gates](checkpoints.md)
 and [API example](../../prototypes/node-engine/README.md).
 
 ## Continuation context

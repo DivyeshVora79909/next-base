@@ -1,5 +1,40 @@
 # Current checkpoint
 
+## JS-P3b.2 — Integrated incremental settlement; JS-P3 locally accepted
+
+Built after `4267175`. Public mutate dispatches calculation/managed catalogs through
+transactional settlement: authored edits, generated rows, producer/reservation state,
+reverse routes and generic potential AVL forests publish once. Changed routes/potential
+predecessors drive affected final-graph closure without a tenant-wide source/producer
+scan. Cycles reject before evaluation; old actual outputs of every pending producer
+are withdrawn before reads so moved stale points cannot leak into ranges. Final
+references, unique claims and validators—including live potential empty scopes—check
+jointly. Managed models/reserved IDs reject direct caller writes; first potential
+model/time reservations remain strict and retained after retirement.
+
+Runtime authored-only resolver reads are async, drained and failure-latched even if
+ignored; the independent batch reference remains synchronous/await-compatible. Public
+checkStore compares public and private active inventories against full recomputation
+in one snapshot. Missing retired ledger history cannot always be inferred from present
+facts; historical completeness remains a precondition. Logical settlement metrics are
+resolved/evaluated/routeVisits/potentialVisits/edges/pending; explicit producer/edge/visit
+budgets default to Infinity and do not bound all callback CPU or physical memory scans.
+Memory prefix scans remain linear; callbacks are trusted, not sandboxed. Changed source
+counts include authored and generated rows. Existing local volatile/serialized and
+trusted API limits remain; no production owner-policy/durability claim follows.
+
+Acceptance (2026-11-14): 140 Node tests passed on Node 24.22.1, zero failed/skipped.
+Independent review fixed reserved generated-prefix protection for all public mutations,
+exact stored producer/output guards, fetched source identity/schema validation, own-field
+difference handling and ignored asynchronous read failures. Growing closure/topological
+queues avoid repeated whole-pending scans. The `pending` metric counts the affected
+cohort processed, not unsettled jobs. Full JS-P3 is accepted for this local volatile
+adapter only. See [JS-P3b.2 evidence](docs/checkpoints/js-p3b-settlement.json).
+See the [transactional API example](prototypes/node-engine/README.md). Historical
+checkpoint evidence below remains unchanged. Next: **JS-P4
+bounded BFS readers and owner-scoped merge**, then JS-P5 lifecycle/developer tools;
+these remain unaccepted. Native E3/E5 are separate outstanding work.
+
 ## JS-P3b.1 — Calculation contracts and full-snapshot reference
 
 Built after `8379aae`. Prepared model calculations bind versioned trusted resolve/evaluate

@@ -1,5 +1,7 @@
 import { validateRecord } from './catalog.mjs';
 import { sourceOracle } from './oracle.mjs';
+import { generatedId, producerId } from './calculation-identity.mjs';
+export { generatedId, producerId } from './calculation-identity.mjs';
 import { canonical, fingerprint, decodeDomain, compareDomain, cloneData, freezeDeep, fail } from './values.mjs';
 
 const own = (o, k) => Object.hasOwn(o, k);
@@ -21,12 +23,6 @@ function fields(value, allowed, required = allowed) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !allowed.includes(k)) || required.some(k => !own(value, k))) bad('Invalid calculation object keys');
 }
 const array = value => { if (!Array.isArray(value)) bad('Expected array'); return value; };
-function identityId(prefix, parts) {
-  parts.forEach(part => decodeDomain('id',part));
-  return prefix + fingerprint(parts);
-}
-export const generatedId = (tenant, anchorId, calculation, role) => identityId('@next/derived/',[tenant,anchorId,calculation,role]);
-export const producerId = (tenant, anchorId, calculation) => identityId('@next/producer/',[tenant,anchorId,calculation]);
 const declaration = (catalog, view) => catalog.definition.contracts[catalog.definition.views[view].contract];
 function selector(catalog, s, record) {
   fields(s, ['field', 'header'], []);

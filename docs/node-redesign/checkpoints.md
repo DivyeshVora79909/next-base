@@ -2,7 +2,7 @@
 
 This is a proposed implementation sequence against current main `77a8fd2`.
 The user has supplied the implementation flag. JS-P0 documentation review and JS-P1
-and JS-P2 are complete; JS-P3a internal primitives are accepted while JS-P3b–JS-P5
+and JS-P2 are complete; JS-P3 is accepted for the local volatile adapter. JS-P4/JS-P5
 remain unaccepted. See
 [JS-P1 evidence](../checkpoints/js-p1.json) and [JS-P2 evidence](../checkpoints/js-p2.json).
 The existing Rust engine and its historical evidence remain the current baseline.
@@ -136,7 +136,7 @@ the whole checkpoint.
   Wire routing to old/new positions, settle the final graph with explicit cycle checks,
   and manage zero-output creation, deactivation, reactivation and deletion atomically.
   Compare with independent full recomputation, including joint repairs, changed routes,
-  empty inputs and command-order permutations. This gate remains unaccepted.
+  empty inputs and command-order permutations. This gate is accepted locally below.
   JS-P3b has two bounded subgates:
   1. **JS-P3b.1 — contracts and full-snapshot reference:** prepare versioned model
      calculations and managed models; resolve authored-only topology, reserve complete
@@ -150,11 +150,18 @@ the whole checkpoint.
   2. **JS-P3b.2 — integrated incremental writer:** connect callbacks, staged edits,
      routes, managed reservation ledgers, final-graph closure/cycle checks and evaluation;
      compare committed state with the independent reference and verify rollback. This
-     remains unaccepted; JS-P4/JS-P5 entry gates are unchanged.
+     is accepted for the local volatile adapter: 140 Node tests on Node 24.22.1, zero
+     failed/skipped. See [settlement evidence](../checkpoints/js-p3b-settlement.json).
+     The writer follows routes/potential AVL indexes without tenant-wide source/producer
+     scans; one transaction publishes public/private state, joint final checks and live
+     potential empty-scope validation. Explicit logical budgets/metrics do not bound
+     callbacks or physical memory scans. Independent same-snapshot checking covers active
+     inventories; missing retired ledger history is not inferable from present facts.
+     JS-P4/JS-P5 entry gates are unchanged.
 
 Intermediate staging is local overlay state, not a valid published graph or a guarantee
-of managed/private-output rules. Model calculation contracts are usable by the reference only; normal mutations and
-store checks reject calculation or managed-model catalogs until JS-P3b.2 integration. The complete JS-P3 obligations follow.
+of managed/private-output rules by itself. JS-P3b.2 integrates these rules through public
+mutation and independent checking; full JS-P3 is accepted locally. The complete JS-P3 obligations follow.
 
 **Entry:** JS-P2 supplies valid point/range aggregate reads and final-graph integrity.
 

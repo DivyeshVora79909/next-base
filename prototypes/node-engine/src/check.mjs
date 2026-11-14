@@ -1,4 +1,5 @@
 import { sourceOracle } from './oracle.mjs';
+import { checkReactive } from './check-reactive.mjs';
 import { canonical, decodeDomain, fail } from './values.mjs';
 import { catalogKey, sourcePrefix, sourceKey, rootKey, nodeKey, occurrenceToken, allRootsPrefix, allNodesPrefix, allIncomingPrefix, allClaimsPrefix, incomingKey, claimKey } from './keys.mjs';
 
@@ -12,9 +13,6 @@ function inventory(actual, expected, label) {
 /** Complete active-generation check from source facts; deliberately O(total rows). */
 export async function checkStore(store, catalog, tenant) {
   decodeDomain('id', tenant);
-  if (Object.values(catalog.models).some(model => model.managed || model.calculations?.length)) {
-    fail('UNSUPPORTED_SETTLEMENT', 'Reactive store checking requires integrated settlement; use the complete-snapshot reference oracle');
-  }
   return store.read(async tx => {
     const identity = await tx.get(catalogKey(tenant));
     const sources = await tx.scan({ prefix: sourcePrefix(tenant) });
@@ -68,6 +66,7 @@ export async function checkStore(store, catalog, tenant) {
       }
     }
     ensure(visited.size === nodes.size, 'Orphan node inventory');
+    await checkReactive(tx, catalog, tenant, sources.map(row => row.value));
     return { sources: sources.length, trees: roots.size, occurrences: nodes.size, references: incoming.size, claims: claims.size };
   });
 }

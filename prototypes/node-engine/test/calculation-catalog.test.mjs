@@ -3,20 +3,33 @@ import assert from 'node:assert/strict';
 import { prepareCatalog } from '../src/catalog.mjs';
 import { fingerprint } from '../src/values.mjs';
 import { createMemoryStore } from '../src/memory.mjs';
-import { mutate, createMutation } from '../src/mutate.mjs';
+import { mutate } from '../src/mutate.mjs';
 import { checkStore } from '../src/check.mjs';
 const definition = () => ({ name:'calc',version:'1',contracts:{},views:{},models:{source:{schema:{type:'object',properties:{},additionalProperties:false},calculations:[{slot:'result',use:'derive'}]},output:{managed:true,schema:{type:'object',properties:{},additionalProperties:false}}} });
 const implementation = () => ({version:'1',resolve:async()=>({}),evaluate:()=>({})});
 const prepare = (d=definition(), impl=implementation()) => prepareCatalog(d,{calculations:{derive:impl}});
 
-test('mutation and store acceptance stay closed until integrated reactive settlement exists', async () => {
+test('managed models cannot be written directly even without an active calculation', async () => {
   for (const d of [definition(), { ...definition(), models: { output: definition().models.output } }]) {
     const catalog = prepare(d), store = createMemoryStore();
-    await assert.rejects(mutate(store, catalog, 'tenant', []), { code: 'UNSUPPORTED_SETTLEMENT' });
-    await assert.rejects(store.transact(tx => createMutation(tx, catalog, 'tenant')), { code: 'UNSUPPORTED_SETTLEMENT' });
-    await assert.rejects(checkStore(store, catalog, 'tenant'), { code: 'UNSUPPORTED_SETTLEMENT' });
+    const record = { id: 'forged', tenant: 'tenant', owner: 'owner', model: 'output', createdAt: '1', data: {} };
+    await assert.rejects(mutate(store, catalog, 'tenant', [{ type: 'put', record }]), { code: 'INVALID_CALCULATION' });
     assert.deepEqual(await store.read(tx => tx.scan()), []);
+    await mutate(store, catalog, 'tenant', []);
+    assert.equal((await checkStore(store, catalog, 'tenant')).sources, 0);
   }
+});
+
+test('static mutation fast path also protects generated identities and rejects misspelled options', async () => {
+  const d = definition(); delete d.models.source.calculations; delete d.models.output;
+  const catalog = prepareCatalog(d), store = createMemoryStore();
+  const record = { id: '@next/derived/forged', tenant: 'tenant', owner: 'owner', model: 'source', createdAt: '1', data: {} };
+  for (const change of [{ type: 'put', record }, { type: 'delete', id: record.id }]) {
+    await assert.rejects(mutate(store, catalog, 'tenant', [change]), { code: 'INVALID_CALCULATION' });
+  }
+  await assert.rejects(mutate(store, catalog, 'tenant', [], { maxProducer: 1 }), { code: 'INVALID_MUTATION' });
+  assert.deepEqual(await store.read(tx => tx.scan()), []);
+  assert.equal((await checkStore(store, catalog, 'tenant')).sources, 0);
 });
 
 test('calculation compilation copies and freezes declarations and implementation references',()=>{

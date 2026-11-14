@@ -20,3 +20,11 @@ export const nodeKey = (catalog, scope, token) => `${allNodesPrefix(catalog, sco
 export const incomingPrefix = (catalog, tenant, targetId) => `${allIncomingPrefix(catalog, tenant)}${canonical(targetId)}/`;
 export const incomingKey = (catalog, tenant, targetId, occurrence) => `${incomingPrefix(catalog, tenant, targetId)}${canonical([occurrence.sourceId, occurrence.slot, occurrence.position])}`;
 export const claimKey = (catalog, tenant, model, slot, values) => `${allClaimsPrefix(catalog, tenant)}${canonical([model, slot, values])}`;
+
+export const reactivePrefix = (catalog, tenant) => `reactive/v1/${canonical(tenant)}/${catalog.identity}/`;
+export const producerPrefix = (catalog, tenant) => `${reactivePrefix(catalog, tenant)}producer/`;
+export const producerKey = (catalog, tenant, id) => `${producerPrefix(catalog, tenant)}${canonical(id)}`;
+export const reservationPrefix = (catalog, tenant) => `${reactivePrefix(catalog, tenant)}reservation/`;
+export const reservationKey = (catalog, tenant, id) => `${reservationPrefix(catalog, tenant)}${canonical(id)}`;
+export const potentialOwnerPrefix = (catalog, tenant) => `${reactivePrefix(catalog, tenant)}owner/`;
+export const potentialOwnerKey = (catalog, tenant, id) => `${potentialOwnerPrefix(catalog, tenant)}${canonical(id)}`;
