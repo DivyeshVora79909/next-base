@@ -8,7 +8,8 @@ Current user authorization: **continue Node prototype checkpoints**. Read the co
 [redesign context](docs/node-redesign/README.md) and its linked contracts before
 continuing. The execution flag has been supplied. JS-P1 and JS-P2 are accepted; JS-P3a internal primitives are accepted.
 JS-P3b.1 reference and JS-P3b.2 incremental settlement are accepted for the local
-volatile adapter, completing JS-P3. Continue JS-P4 bounded readers/owner merge/cursors
+volatile adapter, completing JS-P3. JS-P4a raw batched windows are accepted locally.
+Continue JS-P4b owner-scoped hydration/merge and JS-P4c continuation fencing
 and subsequent dependency gates under `prototypes/node-engine/`. The Rust foundation
 below remains the existing application; prototype evidence does not replace its acceptance.
 

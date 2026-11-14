@@ -1,5 +1,32 @@
 # Current checkpoint
 
+## JS-P4a — Bounded raw rank/range windows
+
+Built after `04904d1`. Public `treeReadWindow(tx, catalog, scope, options)` reads
+raw occurrences with absolute half-open ranks intersected with typed scalar/complete
+key cuts. Count-pruned BFS batches independent child fetches; each node is cached
+once, including child-root metadata probes. Results scatter by rank without sorting
+or per-row selection. Valid-tree work is `O(log(n+1)+k)` with height-bounded traversal
+waves, not a logarithmic bytes/wall-time promise. Loaded identities and expanded
+local links/order/count/height/balance are checked; pruned state still requires the
+independent full checker. Empty windows reject obvious head self/shared links.
+
+All finite node/batch/output/encoded-byte budgets are explicit. Exhaustion rejects
+the whole call, never an unordered partial frontier. Bytes are logical key/value and
+output encodings checked after eager adapter cloning, not a heap or transfer cap.
+Adjacent rank windows and exclusive complete cuts compose in one read transaction;
+no cross-request cursor guarantee follows. There are no writes or namespace scans.
+
+Acceptance (2026-11-14): 152 Node tests passed on Node 24.22.1, zero failed/skipped;
+12 new tests cover flat-oracle agreement, tied/repeated occurrences, integer/string/
+boolean ordering, public mutation integration, work bounds, budgets, corruption and
+queued-writer snapshot isolation. The REPL window example was executed. See
+[JS-P4a evidence](docs/checkpoints/js-p4a.json). This raw API does not authorize
+counts/identities or hydrate source bodies. Next: **JS-P4b fixture authority,
+owner-partition declarations, hydration and owner-stream merge**, then JS-P4c
+query/authority/data-fenced cursors. Full JS-P4, JS-P5 and persistent/deployment gates
+remain unaccepted; the existing Rust baseline is untouched.
+
 ## JS-P3b.2 — Integrated incremental settlement; JS-P3 locally accepted
 
 Built after `4267175`. Public mutate dispatches calculation/managed catalogs through

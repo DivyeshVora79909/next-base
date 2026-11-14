@@ -7,3 +7,5 @@ export { mutate } from './mutate.mjs';
 export { checkStore } from './check.mjs';
 export { readRoot, treeGet, treeSelect, treeAggregate } from './tree.mjs';
 export { canonical, fingerprint, decodeDomain, compareDomain } from './values.mjs';
+
+export { treeReadWindow } from './read-window.mjs';

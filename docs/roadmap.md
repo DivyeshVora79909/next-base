@@ -2,7 +2,9 @@
 
 Current prototype authority: [Node redesign](node-redesign/README.md), with
 JS-P1–JS-P3 accepted for the local volatile adapter. The user authorized continuation;
-JS-P4 bounded readers/owner merge/cursors and JS-P5 lifecycle/tools remain unaccepted.
+JS-P4a raw batched rank/range windows are accepted locally (152 Node tests).
+JS-P4b owner-scoped hydration/merge, JS-P4c fenced cursors and JS-P5 lifecycle/tools
+remain unaccepted; raw APIs do not authorize disclosure.
 This page retains the Rust baseline's checkpoint history and outstanding capabilities;
 its automatic-continuation language does not override that authorization boundary.
 

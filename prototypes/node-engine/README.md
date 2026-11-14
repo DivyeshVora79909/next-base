@@ -3,7 +3,8 @@
 JS-P1 and JS-P2 supply prepared index contracts/bindings, an independent flat source
 oracle, exact monoids, a transactional memory adapter and augmented AVL mutation/read
 functions. JS-P3a internal staging/routing primitives are accepted; JS-P3b.1 full-snapshot reference is accepted; JS-P3b.2 incremental reactive
-settlement is accepted for the local volatile adapter. This package is not a replacement server.
+settlement and JS-P4a raw batched windows are accepted for the local volatile adapter.
+This package is not a replacement server.
 
 Use Node 24+ and `npm ci` in this directory. There is no custom command parser;
 `npm test` uses the standard Node test runner. From the repository-root Node REPL:
@@ -66,6 +67,10 @@ an inspector/test oracle, not a mutation algorithm.
   applying equally to all record/slot ties. A complete occurrence bound adds both
   `sourceId` and `slot`: `{ value, sourceId, slot, inclusive? }`, cutting within a tie
   group in order/source/slot order. Empty ranges return monoid identities.
+- `treeReadWindow(tx, catalog, scope, { ranks?, range?, limits })`: batched raw
+  occurrences in order, with absolute ranks and work metrics. Rank bounds are
+  half-open `{ start, end }`; key cuts use the same syntax as `treeAggregate`.
+  Both constraints intersect. Counts and member IDs are privileged; see below.
 - `createMemoryStore()`: caller-owned `transact` and `read` callbacks; transaction
   methods are `get`, `getMany`, `set`, `delete`, `scan`, and `inspect` for work/guards.
   A `beforeCommit({ changes })` fault hook receives detached changes before publication.
@@ -79,6 +84,62 @@ rule requires a suitable witness monoid (for example, `prefix.minPrefix >= 0n`);
 the engine does not quantify an arbitrary predicate over every prefix. Validators must
 return exactly `true`. Deleting the last occurrence validates identity summaries before
 removing the anchor; persistent live empty-anchor lifetimes remain deferred.
+
+## Batched raw windows
+
+Compose windows inside one `store.read` callback to keep the same snapshot. All
+limits below are caller-selected budgets, not fixed engine capacity ceilings:
+
+```js
+const limits = {
+  maxNodes: 2000, maxBatches: 200, maxBytes: 4_000_000,
+  maxOutput: 100, batchKeys: 64,
+};
+await store.read(async tx => {
+  const first = await engine.treeReadWindow(tx, catalog, scope, {
+    ranks: { start: 0, end: 2 }, limits,
+  });
+  const second = await engine.treeReadWindow(tx, catalog, scope, {
+    ranks: { start: 2, end: 4 }, limits,
+  });
+  return { first, second };
+});
+```
+
+The result is `{ total, occurrences, metrics }`. Each occurrence is
+`{ rank, sourceId, slot, order }`: two slots from one source are two occurrences.
+`total` is the complete raw tree count; ranks always refer to that tree, even when
+`range` removes some rows. Without `ranks`, read the whole requested key range;
+without `range`, use only ranks. Ends beyond the tree count are clipped. An
+exclusive complete lower cut also composes continuation within the same snapshot.
+These calls are not serialized cursors; another read callback may see changed data.
+
+All five limits are required finite safe integers, nonnegative except positive
+`batchKeys`. Misspelled options reject. Exhausting a budget throws `WORK_LIMIT`
+without returning a partial page. `maxOutput` rejects oversized results rather
+than truncating a breadth-first frontier into an incorrectly ordered page.
+
+`metrics.nodes` counts distinct node keys fetched, including child-root count
+probes; `batches` counts every `getMany`, including the root header. `readBytes`
+counts UTF-8 requested keys plus canonical encoded present values; `outputBytes`
+counts encoded returned occurrences. Their sum is capped by `maxBytes`. This check
+happens **after** the memory adapter fetches/clones a batch; it does not bound
+earlier transfer, cloning or heap allocation. `waves` counts traversal levels
+after header/head setup, `maxFrontier` counts the largest processing frontier,
+and `outputs` counts occurrences. Empty windows still read header/head for `total`.
+
+For valid AVL trees, traversal plus child metadata probes takes `O(log(n+1)+k)`
+node work; cached nodes are fetched once, and rank scattering orders results in
+`O(k)` without sorting them. Adequate batch capacity gives logarithmic dependent
+tree levels, not guaranteed logarithmic wall time or bytes. Finite batches add
+storage calls; a batch is not a measured network round trip. The reader checks
+loaded identities and expanded local structure but trusts summaries in pruned
+subtrees. Use `checkStore` for independent full integrity checking.
+
+This raw API neither hydrates sources nor authorizes disclosure. Owner-scoped
+merge, candidate budgets and cross-request cursor fencing remain later JS-P4 gates.
+JS-P4a acceptance: 152 tests passed on Node 24.22.1, zero failed/skipped; see
+[evidence](../../docs/checkpoints/js-p4a.json).
 
 ## JS-P3a internal primitives
 

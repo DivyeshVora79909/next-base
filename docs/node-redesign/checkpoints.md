@@ -2,8 +2,8 @@
 
 This is a proposed implementation sequence against current main `77a8fd2`.
 The user has supplied the implementation flag. JS-P0 documentation review and JS-P1
-and JS-P2 are complete; JS-P3 is accepted for the local volatile adapter. JS-P4/JS-P5
-remain unaccepted. See
+and JS-P2 are complete; JS-P3 and raw JS-P4a are accepted for the local volatile
+adapter. Full JS-P4 and JS-P5 remain unaccepted. See
 [JS-P1 evidence](../checkpoints/js-p1.json) and [JS-P2 evidence](../checkpoints/js-p2.json).
 The existing Rust engine and its historical evidence remain the current baseline.
 Persisted/store-format compatibility is dropped: do not migrate or decode Rust store
@@ -191,6 +191,32 @@ AVL balance alone does not establish it. Rank/select are reads, not reactive ran
 dependencies. Clock advancement needs an explicit future temporal/wake adapter.
 
 ## JS-P4 — Bounded readers and owner-scoped merge
+
+JS-P4 is implemented through three acceptance gates. Passing a raw read gate does
+not grant access to its counts, member identities or summaries:
+
+- **JS-P4a — raw same-snapshot windows:** `treeReadWindow(tx, catalog, scope, options)`
+  intersects an optional half-open **absolute occurrence-rank** window with optional
+  typed key cuts. Cache fetched nodes, batch each independent frontier and scatter
+  output by rank; never select every output rank separately. Child-root metadata
+  probes count as reads because parent nodes do not store separate child sizes.
+  Explicit finite node/batch/output/encoded-byte budgets reject the complete call
+  on exhaustion. Adjacent windows or exclusive complete cuts compose only within
+  the same transaction; they are not cross-request cursors. Byte accounting checks
+  encoded values after the adapter fetch, so it does not cap earlier cloning,
+  transport or actual heap use. Accepted with 152 Node tests on Node 24.22.1, zero
+  failed/skipped: [JS-P4a evidence](../checkpoints/js-p4a.json). Twelve reader tests
+  cover independent expected rows, same-snapshot composition, bounded work, budgets,
+  corruption and integration with public mutation. This is not authorization acceptance.
+- **JS-P4b — disclosure and owner-stream composition:** validate hydrated sources
+  against occurrences, declare trusted owner-partition/resource bindings, apply
+  fixture authority and merge cached heads across permitted streams. Include
+  candidate/setup/refill budgets, both-owner transfer and summary disclosure.
+  Raw counts do not become visible counts. No authentication acceptance follows.
+- **JS-P4c — continuation fencing:** bind serialized continuation to exact query,
+  model and authority plus relevant data state, including payload-only changes and
+  owner transfers. Use snapshot identity or scope-local invalidation, never a
+  universal mutation counter. Resume must reject or explicitly restart on change.
 
 **Entry:** JS-P2 index integrity and JS-P3 settled final views pass; a trusted raw reader may
 be developed after JS-P2, but public acceptance waits for JS-P3 and owner-policy fixtures.

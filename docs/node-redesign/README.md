@@ -1,6 +1,6 @@
 # Node engine redesign — compact agent context
 
-Status: **Execution authorized; JS-P1/JS-P2 accepted; JS-P3a internal primitives accepted; JS-P3b.1 reference accepted; JS-P3 accepted locally; JS-P4 next.**
+Status: **Execution authorized; JS-P1/JS-P2/JS-P3 accepted locally; JS-P4a raw batched windows accepted; JS-P4b owner reads next.**
 This packet is the redesign contract, not an implemented production replacement. Rust
 `src/`, models, stores and historical evidence remain the executable baseline.
 Experimental code belongs in [prototypes/node-engine](../../prototypes/node-engine/README.md).
@@ -100,7 +100,10 @@ and catalog-integrated final-graph settlement (JS-P3b). JS-P3a passed 81 Node te
 Model calculation contracts and a full-snapshot settlement reference are accepted
 in JS-P3b.1 (102 Node tests). JS-P3b.2 now integrates public mutation, final-graph
 settlement, private inventories and independent snapshot checking; 140 Node tests pass (Node 24.22.1, zero failed/skipped), accepting full JS-P3 for the
-local volatile adapter. JS-P4 bounded readers/owner merge/cursors are next.
+local volatile adapter. JS-P4a now supplies raw same-snapshot batched rank/range
+windows; 152 tests pass on Node 24.22.1, zero failed/skipped. See
+[reader evidence](../checkpoints/js-p4a.json). JS-P4b owner-scoped hydration/merge and
+JS-P4c continuation fencing remain unaccepted. Raw counts/member IDs are privileged.
 It uses changed routes/potential AVL indexes without a tenant-wide source/producer scan;
 physical memory prefix scans remain linear. See the [split gates](checkpoints.md)
 and [API example](../../prototypes/node-engine/README.md).
